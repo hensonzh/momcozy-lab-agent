@@ -86,7 +86,11 @@ def test_profile_update_request_rejects_unknown_fields() -> None:
                 "actor_user_id": str(uuid4()),
                 "action_id": str(uuid4()),
                 "run_id": str(uuid4()),
-                "payload": {"mother": {"unsupported": "value"}},
+                "action_type": "profile.update",
+                "payload": {
+                    "mother": {"unsupported": "value"},
+                    "reference_date": "2026-07-26",
+                },
             }
         )
 
@@ -128,7 +132,11 @@ def test_profile_update_client_preserves_action_idempotency_and_returns_typed_re
                         "actor_user_id": actor_user_id,
                         "action_id": action_id,
                         "run_id": run_id,
-                        "payload": {"mother": {"preferred_name": "Mai"}},
+                        "action_type": "profile.update",
+                        "payload": {
+                            "mother": {"preferred_name": "Mai"},
+                            "reference_date": "2026-07-26",
+                        },
                     }
                 ),
                 idempotency_key=f"agent-action:{action_id}",
@@ -146,6 +154,8 @@ def test_profile_update_client_preserves_action_idempotency_and_returns_typed_re
     body = captured_body.decode("utf-8")
     assert f'"action_id":"{action_id}"' in body
     assert f'"run_id":"{run_id}"' in body
+    assert '"action_type":"profile.update"' in body
+    assert '"reference_date":"2026-07-26"' in body
 
 
 @pytest.mark.parametrize("dependency_status", (401, 403))

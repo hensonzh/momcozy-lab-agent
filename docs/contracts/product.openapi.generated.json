@@ -163,7 +163,7 @@
             "type": "string"
           },
           "resource_type": {
-            "const": "pregnancy_diary_entry",
+            "const": "diary_entry",
             "title": "Resource Type",
             "type": "string"
           },
@@ -813,250 +813,6 @@
         "title": "AgentMilkAnalysisSnapshot",
         "type": "object"
       },
-      "AgentMilkPlanCreatePayload": {
-        "additionalProperties": false,
-        "properties": {
-          "calendar_write_strategy": {
-            "default": "append",
-            "enum": [
-              "append",
-              "replace_future_plan_tasks"
-            ],
-            "title": "Calendar Write Strategy",
-            "type": "string"
-          },
-          "expected_replaced_task_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "maxItems": 500,
-            "title": "Expected Replaced Task Ids",
-            "type": "array"
-          },
-          "payload": {
-            "$ref": "#/components/schemas/AgentMilkPlanPayload"
-          },
-          "summary": {
-            "default": "",
-            "maxLength": 20000,
-            "title": "Summary",
-            "type": "string"
-          },
-          "title": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "payload"
-        ],
-        "title": "AgentMilkPlanCreatePayload",
-        "type": "object"
-      },
-      "AgentMilkPlanPayload": {
-        "additionalProperties": false,
-        "properties": {
-          "analysis_context_fingerprint": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Analysis Context Fingerprint",
-            "type": "string"
-          },
-          "analysis_workflow_state_id": {
-            "format": "uuid",
-            "title": "Analysis Workflow State Id",
-            "type": "string"
-          },
-          "checkpoints": {
-            "items": {
-              "type": "integer"
-            },
-            "maxItems": 10,
-            "title": "Checkpoints",
-            "type": "array"
-          },
-          "days": {
-            "maximum": 30.0,
-            "minimum": 1.0,
-            "title": "Days",
-            "type": "integer"
-          },
-          "direction": {
-            "enum": [
-              "increase",
-              "maintain",
-              "decrease"
-            ],
-            "title": "Direction",
-            "type": "string"
-          },
-          "generation": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generation"
-          },
-          "goal": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Goal"
-          },
-          "observation_items": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 8,
-            "title": "Observation Items",
-            "type": "array"
-          },
-          "reminders": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "maxItems": 40,
-            "title": "Reminders",
-            "type": "array"
-          },
-          "safety_notes": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 8,
-            "title": "Safety Notes",
-            "type": "array"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          },
-          "strategy_summary": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Strategy Summary"
-          },
-          "tasks": {
-            "items": {
-              "$ref": "#/components/schemas/AgentMilkPlanTask"
-            },
-            "maxItems": 16,
-            "minItems": 1,
-            "title": "Tasks",
-            "type": "array"
-          }
-        },
-        "required": [
-          "direction",
-          "analysis_context_fingerprint",
-          "analysis_workflow_state_id",
-          "start_date",
-          "days",
-          "tasks"
-        ],
-        "title": "AgentMilkPlanPayload",
-        "type": "object"
-      },
-      "AgentMilkPlanTask": {
-        "additionalProperties": false,
-        "properties": {
-          "date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Date"
-          },
-          "day": {
-            "anyOf": [
-              {
-                "maximum": 30.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Day"
-          },
-          "description": {
-            "default": "",
-            "maxLength": 2000,
-            "title": "Description",
-            "type": "string"
-          },
-          "duration_minutes": {
-            "anyOf": [
-              {
-                "maximum": 240.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration Minutes"
-          },
-          "task_type": {
-            "enum": [
-              "pumping",
-              "feeding",
-              "other"
-            ],
-            "title": "Task Type",
-            "type": "string"
-          },
-          "time": {
-            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
-            "title": "Time",
-            "type": "string"
-          },
-          "title": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "time",
-          "task_type"
-        ],
-        "title": "AgentMilkPlanTask",
-        "type": "object"
-      },
       "AgentMilkReminderApplyRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1468,13 +1224,30 @@
         "title": "AgentPlanDeletePayload",
         "type": "object"
       },
-      "AgentPlanSummary": {
+      "AgentPlanDetail": {
         "additionalProperties": false,
         "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
           },
           "plan_type": {
             "title": "Plan Type",
@@ -1483,6 +1256,18 @@
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
           },
           "status": {
             "title": "Status",
@@ -1500,6 +1285,11 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -1509,6 +1299,83 @@
           "summary",
           "status",
           "source",
+          "version",
+          "updated_at"
+        ],
+        "title": "AgentPlanDetail",
+        "type": "object"
+      },
+      "AgentPlanSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "plan_type": {
+            "title": "Plan Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "plan_type",
+          "title",
+          "summary",
+          "status",
+          "source",
+          "version",
           "updated_at"
         ],
         "title": "AgentPlanSummary",
@@ -1768,6 +1635,52 @@
         "title": "AgentPlanTaskUpdatePayload",
         "type": "object"
       },
+      "AgentPlanUpdatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "plan_id",
+          "expected_version"
+        ],
+        "title": "AgentPlanUpdatePayload",
+        "type": "object"
+      },
       "AgentPlansActionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1782,9 +1695,9 @@
               "plans.task.complete",
               "plans.task.update",
               "plans.task.delete",
+              "plans.plan.update",
               "plans.plan.delete",
               "pregnancy.plan.create",
-              "plans.milk_plan.create",
               "plans.milk_schedule.reschedule"
             ],
             "title": "Action Type",
@@ -1794,18 +1707,6 @@
             "format": "uuid",
             "title": "Actor User Id",
             "type": "string"
-          },
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
           },
           "payload": {
             "anyOf": [
@@ -1822,13 +1723,13 @@
                 "$ref": "#/components/schemas/AgentPlanTaskDeletePayload"
               },
               {
+                "$ref": "#/components/schemas/AgentPlanUpdatePayload"
+              },
+              {
                 "$ref": "#/components/schemas/AgentPlanDeletePayload"
               },
               {
                 "$ref": "#/components/schemas/AgentPregnancyPlanCreatePayload"
-              },
-              {
-                "$ref": "#/components/schemas/AgentMilkPlanCreatePayload"
               },
               {
                 "$ref": "#/components/schemas/AgentMilkScheduleReschedulePayload"
@@ -2028,6 +1929,14 @@
             "title": "Action Id",
             "type": "string"
           },
+          "action_type": {
+            "enum": [
+              "profile.update",
+              "profile.current_infants.replace"
+            ],
+            "title": "Action Type",
+            "type": "string"
+          },
           "actor_user_id": {
             "format": "uuid",
             "title": "Actor User Id",
@@ -2046,6 +1955,7 @@
           "actor_user_id",
           "action_id",
           "run_id",
+          "action_type",
           "payload"
         ],
         "title": "AgentProfileUpdateApply",
@@ -2105,6 +2015,21 @@
             ],
             "title": "Current Infants"
           },
+          "expected_current_infants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentCurrentInfantLink"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Current Infants"
+          },
           "infants": {
             "anyOf": [
               {
@@ -2130,8 +2055,16 @@
                 "type": "null"
               }
             ]
+          },
+          "reference_date": {
+            "format": "date",
+            "title": "Reference Date",
+            "type": "string"
           }
         },
+        "required": [
+          "reference_date"
+        ],
         "title": "AgentProfileUpdatePayload",
         "type": "object"
       },
@@ -3644,429 +3577,6 @@
         "title": "LactationMotherContextOutput",
         "type": "object"
       },
-      "LactationTimelineCounts": {
-        "additionalProperties": false,
-        "properties": {
-          "completed": {
-            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u5b8c\u6210\u4f46\u6ca1\u6709\u5b9e\u9645\u8bb0\u5f55\u7684\u8ba1\u5212\u6570\u91cf\u3002",
-            "minimum": 0.0,
-            "title": "Completed",
-            "type": "integer"
-          },
-          "pending": {
-            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u4ecd\u5f85\u6267\u884c\u7684\u8ba1\u5212\u6570\u91cf\u3002",
-            "minimum": 0.0,
-            "title": "Pending",
-            "type": "integer"
-          },
-          "recorded": {
-            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5305\u542b\u4e00\u4e2a\u6216\u591a\u4e2a\u5b9e\u9645\u8bb0\u5f55\u7684\u9879\u76ee\u6570\u91cf\u3002",
-            "minimum": 0.0,
-            "title": "Recorded",
-            "type": "integer"
-          },
-          "skipped": {
-            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u8df3\u8fc7\u7684\u8ba1\u5212\u6570\u91cf\u3002",
-            "minimum": 0.0,
-            "title": "Skipped",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "pending",
-          "completed",
-          "skipped",
-          "recorded"
-        ],
-        "title": "LactationTimelineCounts",
-        "type": "object"
-      },
-      "LactationTimelineItem": {
-        "additionalProperties": false,
-        "properties": {
-          "event_type": {
-            "description": "\u65f6\u95f4\u7ebf\u4e8b\u4ef6\u7c7b\u578b\uff1a\u5582\u517b\u3001\u5438\u5976\u3001\u751f\u957f\u6d4b\u91cf\u6216\u5176\u4ed6\u6ccc\u4e73\u65e5\u7a0b\u3002",
-            "enum": [
-              "feeding",
-              "pumping",
-              "growth",
-              "other"
-            ],
-            "title": "Event Type",
-            "type": "string"
-          },
-          "item_id": {
-            "description": "\u65f6\u95f4\u7ebf\u9879\u76ee\u7a33\u5b9a\u6807\u8bc6\uff1b\u6709\u5173\u8054\u65e5\u7a0b\u65f6\u4ee5\u8ba1\u5212\u4efb\u52a1\u4e3a\u4e3b\uff0c\u5426\u5219\u4ee5\u5b9e\u9645\u8bb0\u5f55\u4e3a\u4e3b\u3002",
-            "title": "Item Id",
-            "type": "string"
-          },
-          "records": {
-            "description": "\u8be5\u65f6\u95f4\u7ebf\u9879\u76ee\u5305\u542b\u7684\u5b9e\u9645\u4e8b\u5b9e\uff1b\u672a\u6267\u884c\u3001\u8df3\u8fc7\u6216\u4ec5\u624b\u52a8\u5b8c\u6210\u7684\u8ba1\u5212\u53ef\u4ee5\u4e3a\u7a7a\u3002",
-            "items": {
-              "$ref": "#/components/schemas/LactationTimelineRecord"
-            },
-            "title": "Records",
-            "type": "array"
-          },
-          "schedule": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LactationTimelineSchedule"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u8ba1\u5212\u65e5\u7a0b\u4fe1\u606f\uff1b\u4e34\u65f6\u53d1\u751f\u4e14\u6ca1\u6709\u5173\u8054\u65e5\u7a0b\u7684\u5b9e\u9645\u8bb0\u5f55\u4e3a null\u3002"
-          },
-          "state": {
-            "description": "\u5f52\u4e00\u5316\u72b6\u6001\uff1a\u5f85\u6267\u884c\u3001\u5df2\u5b8c\u6210\u4f46\u65e0\u8bb0\u5f55\u3001\u5df2\u8df3\u8fc7\uff0c\u6216\u5df2\u6709\u5b9e\u9645\u8bb0\u5f55\u3002",
-            "enum": [
-              "pending",
-              "completed",
-              "skipped",
-              "recorded"
-            ],
-            "title": "State",
-            "type": "string"
-          }
-        },
-        "required": [
-          "item_id",
-          "event_type",
-          "state"
-        ],
-        "title": "LactationTimelineItem",
-        "type": "object"
-      },
-      "LactationTimelineReadOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "as_of_date": {
-            "description": "\u672c\u6b21\u8bfb\u53d6\u4f7f\u7528\u7684\u53ef\u4fe1\u8fd0\u884c\u65f6\u672c\u5730\u65e5\u671f\u3002",
-            "format": "date",
-            "title": "As Of Date",
-            "type": "string"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/LactationTimelineCounts",
-            "description": "\u5bf9\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u6309\u5f52\u4e00\u5316\u72b6\u6001\u6c47\u603b\u7684\u6570\u91cf\u3002"
-          },
-          "end_date": {
-            "description": "\u672c\u6b21\u65f6\u95f4\u7ebf\u8bfb\u53d6\u7684\u7ed3\u675f\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "items": {
-            "description": "\u6309\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u6216\u8ba1\u5212\u6267\u884c\u65f6\u95f4\u5347\u5e8f\u6392\u5217\u7684\u65f6\u95f4\u7ebf\u9879\u76ee\u3002",
-            "items": {
-              "$ref": "#/components/schemas/LactationTimelineItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "start_date": {
-            "description": "\u672c\u6b21\u65f6\u95f4\u7ebf\u8bfb\u53d6\u7684\u8d77\u59cb\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          },
-          "timezone": {
-            "description": "\u8ba1\u5212\u65f6\u95f4\u548c\u5b9e\u9645\u65f6\u95f4\u4f7f\u7528\u7684 IANA \u65f6\u533a\u3002",
-            "title": "Timezone",
-            "type": "string"
-          },
-          "truncated": {
-            "description": "\u662f\u5426\u56e0\u8fd4\u56de\u6570\u91cf\u4e0a\u9650\u800c\u7701\u7565\u4e86\u65f6\u95f4\u8303\u56f4\u5185\u7684\u5176\u4ed6\u9879\u76ee\u3002",
-            "title": "Truncated",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "as_of_date",
-          "timezone",
-          "start_date",
-          "end_date",
-          "items",
-          "counts",
-          "truncated"
-        ],
-        "title": "LactationTimelineReadOutput",
-        "type": "object"
-      },
-      "LactationTimelineRecord": {
-        "additionalProperties": false,
-        "properties": {
-          "duration_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u672c\u6b21\u5582\u517b\u6216\u5438\u5976\u6301\u7eed\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\uff1b\u672a\u8bb0\u5f55\u6216\u751f\u957f\u6d4b\u91cf\u65f6\u4e3a null\u3002",
-            "title": "Duration Seconds"
-          },
-          "ended_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5b9e\u9645\u4e8b\u4ef6\u7ed3\u675f\u65f6\u95f4\uff1b\u53ea\u6709\u8bb0\u5f55\u4e86\u5438\u5976\u7ed3\u675f\u65f6\u95f4\u65f6\u8fd4\u56de\u3002",
-            "title": "Ended At"
-          },
-          "feed_action": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5582\u517b\u52a8\u4f5c\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Feed Action"
-          },
-          "feed_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5582\u517b\u65b9\u5f0f\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Feed Type"
-          },
-          "head_cm": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5b9d\u5b9d\u5934\u56f4\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u6216\u975e\u751f\u957f\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Head Cm"
-          },
-          "height_cm": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5b9d\u5b9d\u8eab\u9ad8\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u6216\u975e\u751f\u957f\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Height Cm"
-          },
-          "infant_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u8be5\u8bb0\u5f55\u5bf9\u5e94\u7684\u5b9d\u5b9d UUID\uff1b\u5988\u5988\u4fa7\u5438\u5976\u8bb0\u5f55\u6216\u672a\u6307\u5b9a\u5b9d\u5b9d\u65f6\u4e3a null\u3002",
-            "title": "Infant Id"
-          },
-          "milk_volume_ml": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5988\u5988\u4fa7\u5438\u5976\u4ea7\u51fa\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Milk Volume Ml"
-          },
-          "occurred_at": {
-            "description": "\u5582\u517b\u3001\u5438\u5976\u6216\u6d4b\u91cf\u5b9e\u9645\u53d1\u751f\u7684\u65f6\u95f4\uff0c\u6309\u7528\u6237\u65f6\u533a\u8fd4\u56de\u3002",
-            "format": "date-time",
-            "title": "Occurred At",
-            "type": "string"
-          },
-          "plan_task_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u8be5\u5b9e\u9645\u8bb0\u5f55\u5b8c\u6210\u7684\u8ba1\u5212\u4efb\u52a1 UUID\uff1b\u4e34\u65f6\u8bb0\u5f55\u6216\u672a\u5173\u8054\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Plan Task Id"
-          },
-          "pump_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5438\u5976\u65b9\u5f0f\u6216\u8bbe\u5907\u7c7b\u578b\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Pump Type"
-          },
-          "record_id": {
-            "description": "\u5b9e\u9645\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u540e\u7eed\u66f4\u6b63\u6216\u5220\u9664\u3002",
-            "format": "uuid",
-            "title": "Record Id",
-            "type": "string"
-          },
-          "record_type": {
-            "description": "\u5b9e\u9645\u4e8b\u5b9e\u7c7b\u578b\uff1a\u5582\u517b\u3001\u5438\u5976\u6216\u5b9d\u5b9d\u751f\u957f\u6d4b\u91cf\u3002",
-            "enum": [
-              "feeding",
-              "pumping",
-              "growth"
-            ],
-            "title": "Record Type",
-            "type": "string"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5438\u5976\u8bb0\u5f55\u6765\u6e90\uff0c\u4f8b\u5982 manual\u3001agent \u6216 device\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Source"
-          },
-          "title": {
-            "description": "\u5b9e\u9645\u8bb0\u5f55\u6807\u9898\uff1b\u6ca1\u6709\u6807\u9898\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
-            "title": "Title",
-            "type": "string"
-          },
-          "volume_ml": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5b9d\u5b9d\u4fa7\u5582\u517b\u6444\u5165\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Volume Ml"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u5b9d\u5b9d\u4f53\u91cd\uff0c\u5355\u4f4d kg\uff1b\u672a\u6d4b\u91cf\u6216\u975e\u751f\u957f\u8bb0\u5f55\u65f6\u4e3a null\u3002",
-            "title": "Weight Kg"
-          }
-        },
-        "required": [
-          "record_type",
-          "record_id",
-          "occurred_at",
-          "title"
-        ],
-        "title": "LactationTimelineRecord",
-        "type": "object"
-      },
-      "LactationTimelineSchedule": {
-        "additionalProperties": false,
-        "properties": {
-          "completed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u4efb\u52a1\u72b6\u6001\u88ab\u6807\u8bb0\u4e3a\u5b8c\u6210\u7684\u7cfb\u7edf\u65f6\u95f4\uff1b\u5b83\u4e0d\u7b49\u540c\u4e8e\u5582\u517b\u6216\u5438\u5976\u7684\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u3002",
-            "title": "Completed At"
-          },
-          "description": {
-            "description": "\u8ba1\u5212\u4efb\u52a1\u8bf4\u660e\uff1b\u6ca1\u6709\u8bf4\u660e\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
-            "title": "Description",
-            "type": "string"
-          },
-          "plan_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u6240\u5c5e\u5976\u91cf\u8ba1\u5212\u7684\u7a33\u5b9a UUID\uff1b\u72ec\u7acb\u4efb\u52a1\u65f6\u4e3a null\u3002",
-            "title": "Plan Id"
-          },
-          "scheduled_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "\u6309\u7528\u6237\u65f6\u533a\u7ec4\u5408\u4efb\u52a1\u65e5\u671f\u548c\u65f6\u95f4\u5f97\u5230\u7684\u8ba1\u5212\u6267\u884c\u65f6\u95f4\uff1b\u4efb\u52a1\u65f6\u95f4\u4e0d\u5b8c\u6574\u65f6\u4e3a null\u3002",
-            "title": "Scheduled At"
-          },
-          "status": {
-            "description": "\u8ba1\u5212\u4efb\u52a1\u6301\u4e45\u5316\u72b6\u6001\uff0c\u4f8b\u5982 pending\u3001completed \u6216 skipped\u3002",
-            "title": "Status",
-            "type": "string"
-          },
-          "task_id": {
-            "description": "\u8ba1\u5212\u4efb\u52a1\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u540e\u7eed\u66f4\u65b0\u3001\u8df3\u8fc7\u6216\u5220\u9664\u8be5\u65e5\u7a0b\u3002",
-            "format": "uuid",
-            "title": "Task Id",
-            "type": "string"
-          },
-          "title": {
-            "description": "\u8ba1\u5212\u4efb\u52a1\u6807\u9898\u3002",
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "task_id",
-          "title",
-          "description",
-          "status"
-        ],
-        "title": "LactationTimelineSchedule",
-        "type": "object"
-      },
       "LatestInfantMeasurementOutput": {
         "additionalProperties": false,
         "description": "\u5b9d\u5b9d\u6700\u8fd1\u4e00\u6761\u6709\u6548\u751f\u957f\u6d4b\u91cf\u8bb0\u5f55\uff1b\u4e0d\u662f\u5386\u53f2\u8d8b\u52bf\u3002",
@@ -4669,7 +4179,7 @@
             "type": "string"
           },
           "recommended_next_step": {
-            "description": "\u57fa\u4e8e\u5f53\u524d\u5feb\u7167\u5efa\u8bae\u7684\u4e0b\u4e00\u6b65\u91c7\u96c6\u3001\u5224\u65ad\u6216\u8ba1\u5212\u52a8\u4f5c\u3002",
+            "description": "\u57fa\u4e8e\u5f53\u524d\u5feb\u7167\u5efa\u8bae\u7684\u4e0b\u4e00\u6b65\u91c7\u96c6\u3001\u5224\u65ad\u6216\u5b89\u5168\u652f\u6301\u52a8\u4f5c\u3002",
             "title": "Recommended Next Step",
             "type": "string"
           }
@@ -5197,6 +4707,18 @@
       },
       "PlanRead": {
         "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5219,6 +4741,18 @@
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
           },
           "status": {
             "title": "Status",
@@ -6679,6 +6213,576 @@
           "refresh_token"
         ],
         "title": "RefreshRequest",
+        "type": "object"
+      },
+      "ScheduleTimelineCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u5b8c\u6210\u4f46\u6ca1\u6709\u5b9e\u9645\u8bb0\u5f55\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u4ecd\u5f85\u6267\u884c\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "recorded": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5305\u542b\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u7684\u9879\u76ee\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Recorded",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u8df3\u8fc7\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "completed",
+          "skipped",
+          "recorded"
+        ],
+        "title": "ScheduleTimelineCounts",
+        "type": "object"
+      },
+      "ScheduleTimelineExecution": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u6216\u5438\u5976\u6301\u7eed\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\uff1b\u672a\u8bb0\u5f55\u6216\u751f\u957f\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Duration Seconds"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9e\u9645\u6267\u884c\u7ed3\u675f\u65f6\u95f4\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Ended At"
+          },
+          "feed_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u52a8\u4f5c\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Feed Action"
+          },
+          "feed_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u65b9\u5f0f\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Feed Type"
+          },
+          "head_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u5934\u56f4\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Head Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u8eab\u9ad8\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Height Cm"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8bb0\u5f55\u5bf9\u5e94\u7684\u5b9d\u5b9d UUID\uff1b\u5988\u5988\u4fa7\u5438\u5976\u8bb0\u5f55\u6216\u672a\u6307\u5b9a\u5b9d\u5b9d\u65f6\u4e3a null\u3002",
+            "title": "Infant Id"
+          },
+          "milk_volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5988\u5988\u4fa7\u5438\u5976\u4ea7\u51fa\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Milk Volume Ml"
+          },
+          "occurred_at": {
+            "description": "\u5b9e\u9645\u6267\u884c\u53d1\u751f\u65f6\u95f4\uff0c\u6309\u7528\u6237\u65f6\u533a\u8fd4\u56de\u3002",
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "plan_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u5b9e\u9645\u8bb0\u5f55\u5173\u8054\u7684\u65e5\u7a0b\u4efb\u52a1 UUID\uff1b\u4e34\u65f6\u53d1\u751f\u6216\u672a\u5173\u8054\u65f6\u4e3a null\u3002",
+            "title": "Plan Task Id"
+          },
+          "pump_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5438\u5976\u65b9\u5f0f\u6216\u8bbe\u5907\u7c7b\u578b\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Pump Type"
+          },
+          "record_id": {
+            "description": "\u5b9e\u9645\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u9886\u57df\u8bb0\u5f55\u5de5\u5177\u540e\u7eed\u66f4\u6b63\u6216\u5220\u9664\u3002",
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "record_type": {
+            "description": "\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u7c7b\u578b\uff1a\u5582\u517b\u3001\u5438\u5976\u6216\u5b9d\u5b9d\u751f\u957f\u6d4b\u91cf\u3002",
+            "enum": [
+              "feeding",
+              "pumping",
+              "growth"
+            ],
+            "title": "Record Type",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5438\u5976\u8bb0\u5f55\u6765\u6e90\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Source"
+          },
+          "title": {
+            "description": "\u5b9e\u9645\u8bb0\u5f55\u6807\u9898\uff1b\u6ca1\u6709\u6807\u9898\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Title",
+            "type": "string"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u4fa7\u5582\u517b\u6444\u5165\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Volume Ml"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u4f53\u91cd\uff0c\u5355\u4f4d kg\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "record_type",
+          "record_id",
+          "occurred_at",
+          "title"
+        ],
+        "title": "ScheduleTimelineExecution",
+        "type": "object"
+      },
+      "ScheduleTimelineItem": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "description": "\u9879\u76ee\u6240\u5c5e\u9886\u57df\u3002",
+            "enum": [
+              "lactation",
+              "pregnancy",
+              "postpartum_recovery",
+              "general"
+            ],
+            "title": "Domain",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "\u9886\u57df\u5185\u4e8b\u4ef6\u7c7b\u578b\uff0c\u4f8b\u5982 pumping\u3001feeding\u3001appointment \u6216 exercise\u3002",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "executions": {
+            "description": "\u4e0e\u8be5\u65e5\u7a0b\u5173\u8054\u7684\u5b9e\u9645\u4e1a\u52a1\u4e8b\u5b9e\uff1b\u672a\u6267\u884c\u6216\u4ec5\u624b\u52a8\u5b8c\u6210\u7684\u4efb\u52a1\u4e3a\u7a7a\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelineExecution"
+            },
+            "title": "Executions",
+            "type": "array"
+          },
+          "item_id": {
+            "description": "\u65f6\u95f4\u7ebf\u9879\u76ee\u805a\u5408\u6807\u8bc6\uff0c\u4ec5\u7528\u4e8e\u5217\u8868\u5c55\u793a\u4e0e\u53bb\u91cd\uff1b\u4fee\u6539\u65e5\u7a0b\u4f7f\u7528 schedule.task_id\uff0c\u4fee\u6539\u5b9e\u9645\u8bb0\u5f55\u4f7f\u7528 executions[].record_id\u3002",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleTimelineSchedule"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8ba1\u5212\u65e5\u7a0b\uff1b\u4e34\u65f6\u53d1\u751f\u4e14\u6ca1\u6709\u5173\u8054\u65e5\u7a0b\u7684\u5b9e\u9645\u4e8b\u5b9e\u4e3a null\u3002"
+          },
+          "state": {
+            "description": "\u5f52\u4e00\u5316\u72b6\u6001\uff1a\u5f85\u6267\u884c\u3001\u5df2\u5b8c\u6210\u4f46\u65e0\u5b9e\u9645\u8bb0\u5f55\u3001\u5df2\u8df3\u8fc7\uff0c\u6216\u5df2\u6709\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u3002",
+            "enum": [
+              "pending",
+              "completed",
+              "skipped",
+              "recorded"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "domain",
+          "event_type",
+          "state"
+        ],
+        "title": "ScheduleTimelineItem",
+        "type": "object"
+      },
+      "ScheduleTimelinePlanSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5976\u91cf\u8ba1\u5212\u65b9\u5411\uff0c\u4f8b\u5982 increase\u3001maintain \u6216 decrease\uff1b\u5176\u4ed6\u8ba1\u5212\u6216\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Direction"
+          },
+          "domain": {
+            "description": "\u8ba1\u5212\u6240\u5c5e\u9886\u57df\uff1a\u6ccc\u4e73\u3001\u5b55\u671f\u3001\u4ea7\u540e\u5eb7\u590d\u6216\u901a\u7528\u3002",
+            "enum": [
+              "lactation",
+              "pregnancy",
+              "postpartum_recovery",
+              "general"
+            ],
+            "title": "Domain",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6839\u636e\u8ba1\u5212\u5f00\u59cb\u65e5\u671f\u548c\u8986\u76d6\u5929\u6570\u8ba1\u7b97\u7684\u7ed3\u675f\u65e5\u671f\uff1b\u4fe1\u606f\u4e0d\u8db3\u65f6\u4e3a null\u3002",
+            "title": "End Date"
+          },
+          "plan_id": {
+            "description": "\u5f53\u524d\u7528\u6237\u8ba1\u5212\u7684\u7a33\u5b9a UUID\u3002",
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "plan_type": {
+            "description": "\u8ba1\u5212\u5728\u4e1a\u52a1\u6570\u636e\u5e93\u4e2d\u7684\u5177\u4f53\u7c7b\u578b\u3002",
+            "title": "Plan Type",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8ba1\u5212\u5f00\u59cb\u7684\u672c\u5730\u65e5\u671f\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Start Date"
+          },
+          "status": {
+            "description": "\u8ba1\u5212\u6301\u4e45\u5316\u72b6\u6001\uff0c\u5f53\u524d\u5217\u8868\u53ea\u8fd4\u56de active\u3002",
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "description": "\u8ba1\u5212\u7684\u7b80\u8981\u76ee\u6807\u4e0e\u7b56\u7565\u8bf4\u660e\uff1b\u6ca1\u6709\u6458\u8981\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "description": "\u8ba1\u5212\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id",
+          "domain",
+          "plan_type",
+          "title",
+          "summary",
+          "status"
+        ],
+        "title": "ScheduleTimelinePlanSummary",
+        "type": "object"
+      },
+      "ScheduleTimelineReadOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of_date": {
+            "description": "\u672c\u6b21\u8bfb\u53d6\u4f7f\u7528\u7684\u53ef\u4fe1\u8fd0\u884c\u65f6\u672c\u5730\u65e5\u671f\u3002",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ScheduleTimelineCounts",
+            "description": "\u5bf9\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u6309\u5f52\u4e00\u5316\u72b6\u6001\u6c47\u603b\u7684\u6570\u91cf\u3002"
+          },
+          "domains": {
+            "description": "\u672c\u6b21\u5b9e\u9645\u8bfb\u53d6\u7684\u65e5\u7a0b\u9886\u57df\u3002",
+            "items": {
+              "enum": [
+                "lactation",
+                "pregnancy",
+                "postpartum_recovery",
+                "general"
+              ],
+              "type": "string"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "end_date": {
+            "description": "\u65f6\u95f4\u7ebf\u7ed3\u675f\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "items": {
+            "description": "\u6309\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u6216\u8ba1\u5212\u6267\u884c\u65f6\u95f4\u5347\u5e8f\u6392\u5217\u7684\u65f6\u95f4\u7ebf\u9879\u76ee\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelineItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "plans": {
+            "description": "\u6240\u9009\u9886\u57df\u5f53\u524d active \u8ba1\u5212\u7684\u7cbe\u7b80\u6458\u8981\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelinePlanSummary"
+            },
+            "title": "Plans",
+            "type": "array"
+          },
+          "start_date": {
+            "description": "\u65f6\u95f4\u7ebf\u8d77\u59cb\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "\u8ba1\u5212\u65f6\u95f4\u548c\u5b9e\u9645\u65f6\u95f4\u4f7f\u7528\u7684 IANA \u65f6\u533a\u3002",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "\u662f\u5426\u56e0\u8fd4\u56de\u6570\u91cf\u4e0a\u9650\u800c\u7701\u7565\u4e86\u5176\u4ed6\u5339\u914d\u9879\u76ee\u3002",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "as_of_date",
+          "timezone",
+          "start_date",
+          "end_date",
+          "domains",
+          "plans",
+          "items",
+          "counts",
+          "truncated"
+        ],
+        "title": "ScheduleTimelineReadOutput",
+        "type": "object"
+      },
+      "ScheduleTimelineSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u4efb\u52a1\u88ab\u6807\u8bb0\u5b8c\u6210\u7684\u7cfb\u7edf\u65f6\u95f4\uff1b\u5b83\u4e0d\u7b49\u540c\u4e8e\u4e1a\u52a1\u4e8b\u5b9e\u7684\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u3002",
+            "title": "Completed At"
+          },
+          "description": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u8bf4\u660e\uff1b\u6ca1\u6709\u8bf4\u660e\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Description",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "\u5f52\u4e00\u5316\u540e\u7684\u4efb\u52a1\u65f6\u957f\uff08\u5206\u949f\uff09\uff1b\u7f3a\u5931\u6216\u65e0\u6548\u65f6\u4e3a 30\u3002",
+            "maximum": 240.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6240\u5c5e\u8ba1\u5212\u7684\u7a33\u5b9a UUID\uff1b\u72ec\u7acb\u4efb\u52a1\u65f6\u4e3a null\u3002",
+            "title": "Plan Id"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6309\u7528\u6237\u65f6\u533a\u7ec4\u5408\u4efb\u52a1\u65e5\u671f\u548c\u65f6\u95f4\u5f97\u5230\u7684\u8ba1\u5212\u6267\u884c\u65f6\u95f4\uff1b\u4fe1\u606f\u4e0d\u5b8c\u6574\u65f6\u4e3a null\u3002",
+            "title": "Scheduled At"
+          },
+          "status": {
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u72b6\u6001\uff0c\u4f8b\u5982 pending\u3001completed \u6216 skipped\u3002",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u7684\u672c\u5730\u65e5\u671f\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Task Date"
+          },
+          "task_id": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u540e\u7eed\u66f4\u65b0\u3001\u72b6\u6001\u53d8\u66f4\u6216\u5220\u9664\u3002",
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_time": {
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u7684\u672c\u5730\u65f6\u95f4\uff0c\u901a\u5e38\u4e3a HH:MM\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Task Time",
+            "type": "string"
+          },
+          "title": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_time",
+          "title",
+          "description",
+          "status",
+          "duration_minutes"
+        ],
+        "title": "ScheduleTimelineSchedule",
         "type": "object"
       },
       "SignupRequest": {
@@ -8891,6 +8995,87 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/internal/agent/actions/diary.entry/apply": {
+      "post": {
+        "operationId": "apply_agent_diary_action_v1_internal_agent_actions_diary_entry_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentDiaryApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDiaryApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Agent Diary Action",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "diary",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/internal/agent/actions/lactation.record/apply": {
       "post": {
         "operationId": "apply_agent_lactation_record_v1_internal_agent_actions_lactation_record_apply_post",
@@ -9134,87 +9319,6 @@
         "x-momcozy-stability": "stable"
       }
     },
-    "/v1/internal/agent/actions/pregnancy-diary.entry/apply": {
-      "post": {
-        "operationId": "apply_agent_diary_action_v1_internal_agent_actions_pregnancy_diary_entry_apply_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Service-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Service-Key"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentDiaryApplyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentDiaryApplyResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Apply Agent Diary Action",
-        "tags": [
-          "internal-agent"
-        ],
-        "x-momcozy-api-surface": "internal_service_api",
-        "x-momcozy-client": [
-          "agent-runtime"
-        ],
-        "x-momcozy-owner": "pregnancy-diary",
-        "x-momcozy-stability": "stable"
-      }
-    },
     "/v1/internal/agent/actions/profile.update/apply": {
       "post": {
         "operationId": "apply_agent_profile_update_v1_internal_agent_actions_profile_update_apply_post",
@@ -9374,6 +9478,134 @@
           "agent-runtime"
         ],
         "x-momcozy-owner": "support",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/diary": {
+      "get": {
+        "operationId": "read_agent_diary_v1_internal_agent_diary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entry_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entry Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDiaryReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Diary",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "diary",
         "x-momcozy-stability": "stable"
       }
     },
@@ -9560,146 +9792,6 @@
         "x-momcozy-stability": "stable"
       }
     },
-    "/v1/internal/agent/lactation/timeline": {
-      "get": {
-        "operationId": "read_agent_lactation_timeline_v1_internal_agent_lactation_timeline_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "actor_user_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Actor User Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "as_of_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "As Of Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "timezone_name",
-            "required": false,
-            "schema": {
-              "default": "UTC",
-              "maxLength": 64,
-              "minLength": 1,
-              "title": "Timezone Name",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 50,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Service-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Service-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LactationTimelineReadOutput"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Read Agent Lactation Timeline",
-        "tags": [
-          "internal-agent"
-        ],
-        "x-momcozy-api-surface": "internal_service_api",
-        "x-momcozy-client": [
-          "agent-runtime"
-        ],
-        "x-momcozy-owner": "records",
-        "x-momcozy-stability": "stable"
-      }
-    },
     "/v1/internal/agent/plans/calendar": {
       "get": {
         "operationId": "read_agent_plan_calendar_v1_internal_agent_plans_calendar_get",
@@ -9827,6 +9919,24 @@
           },
           {
             "in": "query",
+            "name": "plan_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan Type"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -9888,10 +9998,20 @@
         "x-momcozy-stability": "stable"
       }
     },
-    "/v1/internal/agent/pregnancy-diary": {
+    "/v1/internal/agent/plans/{plan_id}": {
       "get": {
-        "operationId": "read_agent_diary_v1_internal_agent_pregnancy_diary_get",
+        "operationId": "read_agent_plan_detail_v1_internal_agent_plans__plan_id__get",
         "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
           {
             "in": "query",
             "name": "actor_user_id",
@@ -9900,69 +10020,6 @@
               "format": "uuid",
               "title": "Actor User Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "entry_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Entry Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 7,
-              "maximum": 30,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
             }
           },
           {
@@ -9987,7 +10044,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgentDiaryReadResponse"
+                  "$ref": "#/components/schemas/AgentPlanDetail"
                 }
               }
             },
@@ -10004,7 +10061,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Agent Diary",
+        "summary": "Read Agent Plan Detail",
         "tags": [
           "internal-agent"
         ],
@@ -10012,7 +10069,7 @@
         "x-momcozy-client": [
           "agent-runtime"
         ],
-        "x-momcozy-owner": "pregnancy-diary",
+        "x-momcozy-owner": "plans",
         "x-momcozy-stability": "stable"
       }
     },
@@ -10109,6 +10166,194 @@
           "agent-runtime"
         ],
         "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/schedule-timeline": {
+      "get": {
+        "operationId": "read_agent_schedule_timeline_v1_internal_agent_schedule_timeline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone_name",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Timezone Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "domains",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Domains"
+            }
+          },
+          {
+            "in": "query",
+            "name": "states",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "States"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_executions",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Executions",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleTimelineReadOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Schedule Timeline",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
         "x-momcozy-stability": "stable"
       }
     },

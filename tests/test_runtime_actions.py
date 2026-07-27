@@ -11,6 +11,7 @@ import pytest
 from app.agent_runtime.actions import (
     ActionApplyResult,
     ActionExecutor,
+    ActionPolicy,
     ActionProposal,
     ConfirmationExpiryService,
     RuntimeActionService,
@@ -18,6 +19,55 @@ from app.agent_runtime.actions import (
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.core.errors import ApiError, DependencyError
+
+
+CONFIRMATION_ACTION_TYPE = "plans.plan.delete"
+
+
+def _plan_delete_proposal(
+    *,
+    owner_id: UUID,
+    run_id: UUID,
+    idempotency_key: str,
+) -> ActionProposal:
+    plan_id = uuid4()
+    return ActionProposal(
+        actor_user_id=owner_id,
+        run_id=run_id,
+        action_type=CONFIRMATION_ACTION_TYPE,
+        target_type="plan",
+        target_id=str(plan_id),
+        side_effect_level="medium",
+        preview_payload={
+            "plan_id": str(plan_id),
+            "operation": "delete",
+        },
+        apply_payload={
+            "plan_id": str(plan_id),
+            "reason": "用户确认删除",
+        },
+        idempotency_key=idempotency_key,
+    )
+
+
+@pytest.mark.parametrize(
+    ("action_type", "target_type"),
+    (
+        ("diary.entry.delete", "diary_entry"),
+        ("plans.plan.delete", "plan"),
+    ),
+)
+def test_destructive_document_delete_requires_runtime_confirmation(
+    action_type: str,
+    target_type: str,
+) -> None:
+    rule = ActionPolicy().validate(
+        action_type=action_type,
+        target_type=target_type,
+        side_effect_level="medium",
+    )
+
+    assert rule.requires_confirmation is True
 
 
 def test_low_risk_action_applies_immediately_and_replays_by_key() -> None:
@@ -70,7 +120,10 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
     executor = ActionExecutor(
         repository=cast(RuntimeLedgerRepository, repository),
         applicators={
-            "notifications.milk_reminder.create": ApplyOnce(),
+            CONFIRMATION_ACTION_TYPE: ApplyOnce(
+                resource_type="plan",
+                application_event_type=None,
+            ),
         },
     )
     notifier = FakeRunNotifier()
@@ -82,16 +135,10 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
 
     proposed = asyncio.run(
         service.propose_action(
-            ActionProposal(
-                actor_user_id=owner_id,
+            _plan_delete_proposal(
+                owner_id=owner_id,
                 run_id=run_id,
-                action_type="notifications.milk_reminder.create",
-                target_type="notification",
-                target_id="new",
-                side_effect_level="medium",
-                preview_payload={"time": "08:00"},
-                apply_payload={"time": "08:00"},
-                idempotency_key="reminder-call",
+                idempotency_key="plan-delete-call",
             )
         )
     )
@@ -110,11 +157,13 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
         "action.confirmation_required",
         "action.confirmed",
         "action.applied",
-        "profile.changed",
         "run.queued",
     ]
     assert repository.context_items[-1].item["role"] == "developer"
     assert '"status":"applied"' in repository.context_items[-1].item[
+        "content"
+    ]
+    assert '"resource_type":"plan"' in repository.context_items[-1].item[
         "content"
     ]
     assert notifier.run_ids == []
@@ -210,23 +259,20 @@ def test_expired_confirmation_expires_run_and_releases_admission() -> None:
         executor=ActionExecutor(
             repository=cast(RuntimeLedgerRepository, repository),
             applicators={
-                "notifications.milk_reminder.create": ApplyOnce(),
+                CONFIRMATION_ACTION_TYPE: ApplyOnce(
+                    resource_type="plan",
+                    application_event_type=None,
+                ),
             },
         ),
         run_admission=admission,
     )
     proposed = asyncio.run(
         service.propose_action(
-            ActionProposal(
-                actor_user_id=owner_id,
+            _plan_delete_proposal(
+                owner_id=owner_id,
                 run_id=run_id,
-                action_type="notifications.milk_reminder.create",
-                target_type="notification",
-                target_id="new",
-                side_effect_level="medium",
-                preview_payload={"time": "08:00"},
-                apply_payload={"time": "08:00"},
-                idempotency_key="expired-reminder",
+                idempotency_key="expired-plan-delete",
             )
         )
     )
@@ -269,22 +315,19 @@ def test_confirmation_expiry_sweep_persists_terminal_events_and_releases_slot() 
         executor=ActionExecutor(
             repository=cast(RuntimeLedgerRepository, repository),
             applicators={
-                "notifications.milk_reminder.create": ApplyOnce(),
+                CONFIRMATION_ACTION_TYPE: ApplyOnce(
+                    resource_type="plan",
+                    application_event_type=None,
+                ),
             },
         ),
     )
     proposed = asyncio.run(
         action_service.propose_action(
-            ActionProposal(
-                actor_user_id=owner_id,
+            _plan_delete_proposal(
+                owner_id=owner_id,
                 run_id=run_id,
-                action_type="notifications.milk_reminder.create",
-                target_type="notification",
-                target_id="new",
-                side_effect_level="medium",
-                preview_payload={"time": "08:00"},
-                apply_payload={"time": "08:00"},
-                idempotency_key="abandoned-reminder",
+                idempotency_key="abandoned-plan-delete",
             )
         )
     )
@@ -328,23 +371,20 @@ def test_rejected_confirmation_cancels_run_and_releases_after_commit() -> None:
         executor=ActionExecutor(
             repository=cast(RuntimeLedgerRepository, repository),
             applicators={
-                "notifications.milk_reminder.create": ApplyOnce(),
+                CONFIRMATION_ACTION_TYPE: ApplyOnce(
+                    resource_type="plan",
+                    application_event_type=None,
+                ),
             },
         ),
         run_admission=admission,
     )
     proposed = asyncio.run(
         service.propose_action(
-            ActionProposal(
-                actor_user_id=owner_id,
+            _plan_delete_proposal(
+                owner_id=owner_id,
                 run_id=run_id,
-                action_type="notifications.milk_reminder.create",
-                target_type="notification",
-                target_id="new",
-                side_effect_level="medium",
-                preview_payload={"time": "08:00"},
-                apply_payload={"time": "08:00"},
-                idempotency_key="rejected-reminder",
+                idempotency_key="rejected-plan-delete",
             )
         )
     )
@@ -365,8 +405,16 @@ def test_rejected_confirmation_cancels_run_and_releases_after_commit() -> None:
 
 
 class ApplyOnce:
-    def __init__(self, *, timeout_once: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_once: bool = False,
+        resource_type: str = "profile",
+        application_event_type: str | None = "profile.changed",
+    ) -> None:
         self.timeout_once = timeout_once
+        self.resource_type = resource_type
+        self.application_event_type = application_event_type
         self.calls = 0
 
     async def __call__(self, action: AgentAction) -> ActionApplyResult:
@@ -379,16 +427,23 @@ class ApplyOnce:
                 status=504,
                 retryable=True,
             )
+        application_events = (
+            (
+                {
+                    "type": self.application_event_type,
+                    "payload": {
+                        "resource_id": action.target_id,
+                    },
+                },
+            )
+            if self.application_event_type is not None
+            else ()
+        )
         return ActionApplyResult(
-            resource_type="profile",
+            resource_type=self.resource_type,
             resource_id=action.target_id,
             details={"updated": True},
-            application_events=(
-                {
-                    "type": "profile.changed",
-                    "payload": {"resource_id": action.target_id},
-                },
-            ),
+            application_events=application_events,
         )
 
 
@@ -481,7 +536,11 @@ class FakeActionRepository:
         return None
 
     async def create_action(self, **kwargs: Any) -> AgentAction:
-        self.action = AgentAction(id=uuid4(), **kwargs)
+        self.action = AgentAction(
+            id=uuid4(),
+            result_payload={},
+            **kwargs,
+        )
         return self.action
 
     async def get_action_for_owner(
@@ -544,9 +603,12 @@ class FakeActionRepository:
         *,
         action: AgentAction,
         applied_at: datetime,
+        result_payload: dict[str, Any],
     ) -> AgentAction:
         action.status = "applied"
         action.applied_at = applied_at
+        action.result_payload = result_payload
+        action.failed_at = None
         action.error_code = ""
         return action
 
@@ -560,6 +622,7 @@ class FakeActionRepository:
         action.status = "failed"
         action.failed_at = failed_at
         action.error_code = error_code
+        action.result_payload = {}
         return action
 
     async def mark_action_expired(

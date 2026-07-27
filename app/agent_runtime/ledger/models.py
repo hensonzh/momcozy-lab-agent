@@ -80,6 +80,7 @@ class AgentRun(Base):
         ),
         Index("ix_agent_runs_request_id", "request_id"),
         Index("ix_agent_runs_trace_id", "trace_id"),
+        Index("ix_agent_runs_service_skill_id", "service_skill_id"),
         Index(
             "uq_agent_runs_thread_active",
             "thread_id",
@@ -94,6 +95,12 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
     runtime_pattern: Mapped[str] = mapped_column(String(64), default="sdk_only", server_default="sdk_only", nullable=False)
     runtime_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
+    service_skill_id: Mapped[str] = mapped_column(
+        String(64),
+        default="",
+        server_default="",
+        nullable=False,
+    )
     request_id: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
     trace_id: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
     error_code: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
@@ -216,14 +223,14 @@ class AgentToolOutput(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     tool_call_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_tool_calls.id"), nullable=False)
-    safe_output: Mapped[dict[str, Any]] = mapped_column(
-        "safe_output_json",
+    output: Mapped[dict[str, Any]] = mapped_column(
+        "output_json",
         postgresql.JSONB,
         default=dict,
         server_default=text("'{}'::jsonb"),
         nullable=False,
     )
-    raw_output_ref: Mapped[str] = mapped_column(String(512), default="", server_default="", nullable=False)
+    output_ref: Mapped[str] = mapped_column(String(512), default="", server_default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -314,6 +321,13 @@ class AgentAction(Base):
     )
     apply_payload: Mapped[dict[str, Any]] = mapped_column(
         "apply_payload_json",
+        postgresql.JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
+    result_payload: Mapped[dict[str, Any]] = mapped_column(
+        "result_payload_json",
         postgresql.JSONB,
         default=dict,
         server_default=text("'{}'::jsonb"),

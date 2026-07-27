@@ -16,14 +16,14 @@ from .contracts import ActionApplyResult
 
 DIARY_ACTION_TYPES = frozenset(
     {
-        "pregnancy_diary.entry.save",
-        "pregnancy_diary.entry.delete",
+        "diary.entry.save",
+        "diary.entry.delete",
     }
 )
 
 
 class _DiaryApplyClient(Protocol):
-    async def apply_pregnancy_diary(
+    async def apply_diary(
         self,
         *,
         command: DiaryApplyRequest,
@@ -32,18 +32,18 @@ class _DiaryApplyClient(Protocol):
     ) -> DiaryApplyResponse: ...
 
 
-class PregnancyDiaryActionApplicator:
+class DiaryActionApplicator:
     def __init__(self, *, client: _DiaryApplyClient) -> None:
         self.client = client
 
     async def __call__(self, action: AgentAction) -> ActionApplyResult:
         if (
             action.action_type not in DIARY_ACTION_TYPES
-            or action.target_type != "pregnancy_diary_entry"
+            or action.target_type != "diary_entry"
         ):
             raise ApiError(
                 code="agent_action_scope_violation",
-                message="Pregnancy diary action scope is invalid.",
+                message="Diary action scope is invalid.",
                 status=403,
             )
         try:
@@ -58,16 +58,16 @@ class PregnancyDiaryActionApplicator:
         except ValidationError as exc:
             raise ApiError(
                 code="agent_action_payload_invalid",
-                message="Pregnancy diary action payload is invalid.",
+                message="Diary action payload is invalid.",
                 status=422,
             ) from exc
         if command.payload.entry_date.isoformat() != action.target_id:
             raise ApiError(
                 code="agent_action_scope_violation",
-                message="Pregnancy diary action target is invalid.",
+                message="Diary action target is invalid.",
                 status=403,
             )
-        response = await self.client.apply_pregnancy_diary(
+        response = await self.client.apply_diary(
             command=command,
             idempotency_key=f"agent-action:{action.id}",
             request_id=f"agent-action:{action.id}",

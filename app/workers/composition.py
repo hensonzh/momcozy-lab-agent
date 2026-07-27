@@ -24,10 +24,14 @@ from app.agent_runtime.runs import (
     RedisRunAdmission,
 )
 from app.agent_runtime.runs.controls import AgentRunControls
-from app.agent_runtime.tools import ToolExecutor
+from app.agent_runtime.tools import (
+    ToolExecutor,
+    TrustedToolArgumentsProvider,
+)
 from app.core.settings import get_settings
 from app.infrastructure.db import create_db_engine, create_session_factory
 from app.infrastructure.product_backend import ProductBackendClient
+from app.infrastructure.object_storage import S3CompatibleObjectStore
 from app.infrastructure.redis import (
     RedisWorkerHeartbeat,
     close_redis_client,
@@ -69,6 +73,20 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
     openai_kwargs: dict[str, Any] = {"api_key": settings.openai_api_key}
     if settings.openai_base_url:
         openai_kwargs["base_url"] = settings.openai_base_url
+    output_store = (
+        S3CompatibleObjectStore(
+            bucket=settings.runtime_output_store_bucket,
+            prefix=settings.runtime_output_store_prefix,
+            endpoint_url=settings.runtime_output_store_endpoint_url,
+            region=settings.runtime_output_store_region,
+            access_key_id=settings.runtime_output_store_access_key_id,
+            secret_access_key=(
+                settings.runtime_output_store_secret_access_key
+            ),
+        )
+        if settings.runtime_output_store_bucket
+        else None
+    )
     try:
         async with (
             worker_heartbeat.maintain(),
@@ -122,6 +140,10 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     repository=repository,
                     registry=registry,
                     handlers=handlers,
+                    object_store=output_store,
+                    max_inline_output_bytes=(
+                        settings.agent_tool_output_max_inline_bytes
+                    ),
                 )
                 return AdmissionReleasingProcessor(
                     processor=AgentLoop(
@@ -131,6 +153,12 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                         tool_executor=executor,
                         max_turns=settings.agent_max_turns,
                         transient_delta_publisher=transient_stream,
+                        trusted_arguments_provider=(
+                            TrustedToolArgumentsProvider(
+                                repository=repository,
+                                product_client=product_client,
+                            )
+                        ),
                     ),
                     admission=run_admission,
                 )

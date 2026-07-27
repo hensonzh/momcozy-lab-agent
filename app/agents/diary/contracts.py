@@ -33,14 +33,21 @@ class DiaryWriteArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation: Literal["create", "update", "delete"]
-    entry_date: date
-    content: str | None = Field(default=None, min_length=1, max_length=20_000)
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=160)
+    entry_date: date | None = None
+    content: str | None = Field(default=None, min_length=1, max_length=5_000)
 
     @model_validator(mode="after")
     def validate_operation(self) -> DiaryWriteArguments:
         if self.operation in {"create", "update"} and not self.content:
             raise ValueError("content is required for create and update")
-        if self.operation == "delete" and "content" in self.model_fields_set:
-            raise ValueError("content is not accepted for delete")
+        if self.operation == "create":
+            return self
+        elif self.operation == "update":
+            if self.entry_date is None:
+                raise ValueError("entry_date is required for update")
+        else:
+            if self.entry_date is None:
+                raise ValueError("entry_date is required for delete")
+            if "content" in self.model_fields_set:
+                raise ValueError("content is not accepted for delete")
         return self

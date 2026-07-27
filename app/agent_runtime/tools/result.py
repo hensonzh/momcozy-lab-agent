@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, TypeAlias
-
-
-@dataclass(frozen=True)
-class ToolTextOutput:
-    text: str
 
 
 @dataclass(frozen=True)
@@ -35,61 +31,57 @@ class ToolFileOutput:
             raise ValueError("ToolFileOutput requires exactly one of file_id, file_url, or file_data.")
 
 
-ToolOutput: TypeAlias = ToolTextOutput | ToolImageOutput | ToolFileOutput
+ToolMediaOutput: TypeAlias = ToolImageOutput | ToolFileOutput
 FunctionCallOutput: TypeAlias = str | list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
 class ToolResult:
-    """Provider-neutral result appended as one function_call_output item."""
+    """One canonical business result plus optional media content blocks."""
 
-    output: tuple[ToolOutput, ...]
-    audit_output: dict[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if not self.output:
-            raise ValueError("ToolResult.output must contain at least one output block.")
+    canonical_output: dict[str, Any]
+    supplemental_content: tuple[ToolMediaOutput, ...] = ()
+    deferred_events: tuple[dict[str, Any], ...] = ()
 
     @classmethod
-    def text(cls, value: str) -> ToolResult:
-        return cls(output=(ToolTextOutput(text=value),))
-
-    @classmethod
-    def json(cls, value: Any) -> ToolResult:
+    def json(
+        cls,
+        value: dict[str, Any],
+        *,
+        supplemental_content: tuple[ToolMediaOutput, ...] = (),
+        deferred_events: tuple[dict[str, Any], ...] = (),
+    ) -> ToolResult:
         return cls(
-            output=(
-                ToolTextOutput(
-                    text=json.dumps(
-                        value,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                        sort_keys=True,
-                    )
-                ),
-            ),
-            audit_output=dict(value) if isinstance(value, dict) else None,
+            canonical_output=deepcopy(value),
+            supplemental_content=supplemental_content,
+            deferred_events=tuple(deepcopy(deferred_events)),
         )
 
     def to_function_call_output(self) -> FunctionCallOutput:
-        if len(self.output) == 1 and isinstance(self.output[0], ToolTextOutput):
-            return self.output[0].text
-        return [_serialize_output_block(block) for block in self.output]
+        primary = self._serialized_canonical_output()
+        if not self.supplemental_content:
+            return primary
+        return [
+            {"type": "input_text", "text": primary},
+            *(
+                _serialize_media_block(block)
+                for block in self.supplemental_content
+            ),
+        ]
 
-    def to_observation(self) -> Any:
-        if self.audit_output is not None:
-            return dict(self.audit_output)
-        serialized = self.to_function_call_output()
-        if not isinstance(serialized, str):
-            return serialized
-        try:
-            return json.loads(serialized)
-        except json.JSONDecodeError:
-            return serialized
+    def to_observation(self) -> dict[str, Any]:
+        return deepcopy(self.canonical_output)
+
+    def _serialized_canonical_output(self) -> str:
+        return json.dumps(
+            self.canonical_output,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
 
 
-def _serialize_output_block(block: ToolOutput) -> dict[str, Any]:
-    if isinstance(block, ToolTextOutput):
-        return {"type": "input_text", "text": block.text}
+def _serialize_media_block(block: ToolMediaOutput) -> dict[str, Any]:
     if isinstance(block, ToolImageOutput):
         payload: dict[str, Any] = {"type": "input_image", "detail": block.detail}
         if block.image_url:

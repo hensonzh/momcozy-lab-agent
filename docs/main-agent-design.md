@@ -7,32 +7,34 @@
 ## 回复
 
 - 通用问题：主智能体直接回复。
-- 单一专业意图：主智能体路由，专业智能体直接回复。
-- 多专业意图：主智能体并行或按依赖顺序调用专业智能体并汇总。
-- 全局账本按真实发生顺序追加；并行调用时，每个智能体只续接共同前缀和自身调用结果，主智能体只接收 `delegate_to_specialists` 的最终结果。
+- Runtime 先用无 Tool 的结构化路由器选择智能体。
+- 单一专业意图：专业智能体直接回复。
+- 多意图：按依赖顺序串行执行；首个待确认 Action 立即暂停；全部完成后由无 Tool 的主智能体汇总。
+- 全局账本按真实发生顺序追加，前序智能体结果作为不可信数据提供给后序智能体。
 
 ## Tool
 
 - 模型可见名称统一为 canonical `snake_case`，不保留旧名或兼容别名。
-- `read` 只读，`write` 写业务资源，`manage` 管理多阶段或混合流程。
-- create、update、delete 合并到同一 `write` Tool，通过 `operation` 区分。
-- 每个智能体只接收静态 allowlist；Tool 调用及原始标准 `ToolResult` 按 Agent Loop 顺序追加到上下文。
+- `read` 只读，`mutate` 通过 `operation` 统一 create、update、delete，`manage` 管理多阶段流程。
+- 每个 Tool 只有一份 canonical output，经过输出 schema 校验后完整追加给模型；事件仅记录 `output_summary`。
+- 小结果内联保存，大结果写入 Runtime 独立对象存储并在账本保存 `output_ref`。
+- 删除日记或整份计划必须生成待确认 Action，由用户确认后执行；模型不接收或生成确认凭据。
 
 ## 主智能体（9）
 
-`profile_read`、`profile_write`、`plans_current_read`、`plans_calendar_read`、`plans_task_write`、`plans_plan_write`、`pregnancy_diary_read`、`pregnancy_diary_write`、`conversation_history_image_read`
+`profile_read`、`profile_update`、`plan_read`、`plan_mutate`、`schedule_timeline_read`、`schedule_timeline_mutate`、`diary_read`、`diary_mutate`、`conversation_history_image_read`
 
-## 产前智能体（3）
+## 产前智能体（7）
 
-`pregnancy_plan_manage`、`hospital_bag_manage`、`hospital_bag_cart_write`
+`plan_read`、`plan_mutate`、`schedule_timeline_read`、`schedule_timeline_mutate`、`pregnancy_intake_manage`、`hospital_bag_manage`、`hospital_bag_cart_mutate`
 
 ## 泌乳智能体（8）
 
-`profile_read`、`profile_write`、`lactation_timeline_read`、`lactation_timeline_write`、`milk_analysis_manage`、`plans_milk_plan_write`、`notifications_milk_reminder_write`、`ibclc_consult_card_write`
+`profile_read`、`profile_update`、`plan_read`、`plan_mutate`、`schedule_timeline_read`、`schedule_timeline_mutate`、`milk_analysis_manage`、`ibclc_consult_card_create`
 
 ## 设备智能体（3）
 
-`devices_guidance_manage`、`pump_models_read`、`support_ticket_write`
+`devices_guidance_manage`、`pump_models_read`、`support_ticket_draft_create`
 
 ## 约束
 

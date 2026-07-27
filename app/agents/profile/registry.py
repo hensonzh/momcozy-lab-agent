@@ -3,11 +3,16 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from app.agent_runtime.tools import ToolContract, ToolContractRegistry
+from app.agent_runtime.tools import (
+    ToolContract,
+    ToolContractRegistry,
+    internal_input_schema,
+)
+from app.agents.model_input_schemas import input_schema_for_tool
 from app.infrastructure.product_backend import ProfileReadResponse
 
 
-MAIN_AGENT_PROFILE_TOOLS = ("profile_read", "profile_write")
+MAIN_AGENT_PROFILE_TOOLS = ("profile_read", "profile_update")
 LACTATION_AGENT_PROFILE_TOOLS = MAIN_AGENT_PROFILE_TOOLS
 
 
@@ -18,10 +23,10 @@ def profile_tool_registry() -> ToolContractRegistry:
             name="profile_read",
             domain="profiles",
             description=(
-                "读取当前妈妈与宝宝的基础资料。默认返回本次分娩宝宝；"
-                "需要选择其他宝宝时使用 infant_scope=all。"
+                "读取当前用户的妈妈资料和宝宝资料，不包含奶量产出和摄入记录或完整病史。"
+                "当回答母婴资料问题、进行奶量分析需要基础背景，或更新前需要定位宝宝时使用。"
             ),
-            input_schema=deepcopy(_PROFILE_READ_INPUT_SCHEMA),
+            input_schema=input_schema_for_tool("profile_read"),
             output_schema=ProfileReadResponse.model_json_schema(),
             effect_scope="none",
             blocking_policy="must_wait",
@@ -31,16 +36,53 @@ def profile_tool_registry() -> ToolContractRegistry:
     )
     registry.register(
         ToolContract(
-            name="profile_write",
+            name="profile_update",
             domain="profiles",
             description=(
-                "使用 operation=update 更新 profile_read 对应的妈妈与宝宝资料；"
-                "更新宝宝必须使用 profile_read 返回的 infant_id。"
+                "更新妈妈的称呼、年龄、孕产和喂养基础资料，以及已有宝宝的出生资料和当前分娩关联；"
+                "不更新奶量或生长记录。当用户在对话中提供需要持久化的新资料、"
+                "更正现有资料或要求清空资料时使用。"
             ),
-            input_schema=deepcopy(_PROFILE_WRITE_INPUT_SCHEMA),
+            input_schema=input_schema_for_tool("profile_update"),
+            internal_input_schema=internal_input_schema(
+                _PROFILE_WRITE_INPUT_SCHEMA,
+                trusted_properties={
+                    "runtime_local_date": {
+                        "type": "string",
+                        "format": "date",
+                    },
+                    "expected_current_infants": {
+                        "type": "array",
+                        "maxItems": 10,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "infant_id",
+                                "birth_order",
+                            ],
+                            "properties": {
+                                "infant_id": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                },
+                                "birth_order": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10,
+                                },
+                            },
+                        },
+                    },
+                },
+                required=("runtime_local_date",),
+            ),
             output_schema=deepcopy(_PROFILE_WRITE_OUTPUT_SCHEMA),
             effect_scope="user_resource",
-            action_types=("profile.update",),
+            action_types=(
+                "profile.update",
+                "profile.current_infants.replace",
+            ),
             blocking_policy="must_wait",
             result_dependency="final_response",
             timeout_seconds=10,
@@ -77,10 +119,13 @@ _PROFILE_READ_INPUT_SCHEMA: dict[str, Any] = {
 _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "minProperties": 2,
-    "required": ["operation"],
+    "minProperties": 1,
+    "anyOf": [
+        {"type": "object", "required": ["mother"]},
+        {"type": "object", "required": ["infants"]},
+        {"type": "object", "required": ["current_infants"]},
+    ],
     "properties": {
-        "operation": {"type": "string", "enum": ["update"]},
         "mother": {
             "type": "object",
             "additionalProperties": False,
@@ -191,11 +236,6 @@ _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {
                 },
             },
         },
-        "idempotency_key": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160,
-        },
     },
 }
 
@@ -214,7 +254,13 @@ _PROFILE_WRITE_OUTPUT_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "action_id": {"type": "string", "format": "uuid"},
-        "action_type": {"type": "string", "enum": ["profile.update"]},
+        "action_type": {
+            "type": "string",
+            "enum": [
+                "profile.update",
+                "profile.current_infants.replace",
+            ],
+        },
         "action_status": {"type": "string"},
         "requires_confirmation": {"type": "boolean"},
         "confirmation_policy": {

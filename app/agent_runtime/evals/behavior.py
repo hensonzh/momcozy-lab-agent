@@ -29,25 +29,21 @@ KNOWN_TOOL_NAMES = frozenset(
     {
         "conversation_history_image_read",
         "devices_guidance_manage",
-        "hospital_bag_cart_write",
+        "diary_mutate",
+        "diary_read",
+        "hospital_bag_cart_mutate",
         "hospital_bag_manage",
-        "ibclc_consult_card_write",
-        "lactation_timeline_read",
-        "lactation_timeline_write",
+        "ibclc_consult_card_create",
         "milk_analysis_manage",
-        "notifications_milk_reminder_write",
-        "plans_calendar_read",
-        "plans_current_read",
-        "plans_milk_plan_write",
-        "plans_plan_write",
-        "plans_task_write",
-        "pregnancy_diary_read",
-        "pregnancy_diary_write",
-        "pregnancy_plan_manage",
+        "plan_mutate",
+        "plan_read",
+        "pregnancy_intake_manage",
         "profile_read",
-        "profile_write",
+        "profile_update",
         "pump_models_read",
-        "support_ticket_write",
+        "schedule_timeline_mutate",
+        "schedule_timeline_read",
+        "support_ticket_draft_create",
     }
 )
 SPECIALIST_NAMES = frozenset({"prenatal", "lactation", "device"})
@@ -422,18 +418,39 @@ def _evaluate_structure(
             observed=responding_agent,
         )
 
-    started_specialists = [
-        payload.get("agent_name")
+    routing_events = [
+        event
         for event in events
-        if event.get("type") == "run.progress"
-        and isinstance((payload := event.get("payload")), dict)
-        and payload.get("phase") == "specialist.started"
+        if event.get("type") == "agent.routing.completed"
     ]
+    if len(routing_events) != 1:
+        _failure(
+            failures,
+            category="trace_contract_violation",
+            assertion="trace.routing_event",
+            expected="exactly one agent.routing.completed event",
+            observed=len(routing_events),
+        )
+    route_payload = (
+        routing_events[0].get("payload")
+        if len(routing_events) == 1
+        else None
+    )
+    raw_route_agents = (
+        route_payload.get("agents")
+        if isinstance(route_payload, dict)
+        else None
+    )
+    route_agents = (
+        [str(agent_name) for agent_name in raw_route_agents]
+        if isinstance(raw_route_agents, list)
+        else []
+    )
     unknown_started = sorted(
         {
             str(agent_name)
-            for agent_name in started_specialists
-            if agent_name not in SPECIALIST_NAMES
+            for agent_name in route_agents
+            if agent_name not in {*SPECIALIST_NAMES, "main"}
         }
     )
     if unknown_started:
@@ -444,20 +461,18 @@ def _evaluate_structure(
             expected=sorted(SPECIALIST_NAMES),
             observed=unknown_started,
         )
-    specialists = sorted(
-        {
-            str(agent_name)
-            for agent_name in started_specialists
-            if agent_name in SPECIALIST_NAMES
-        }
+    specialists = tuple(
+        agent_name
+        for agent_name in route_agents
+        if agent_name in SPECIALIST_NAMES
     )
-    if specialists != sorted(expected.exact_specialists):
+    if specialists != expected.exact_specialists:
         _failure(
             failures,
             category="routing_mismatch",
             assertion="routing.exact_specialists",
-            expected=sorted(expected.exact_specialists),
-            observed=specialists,
+            expected=list(expected.exact_specialists),
+            observed=list(specialists),
         )
 
     observed_tools = {

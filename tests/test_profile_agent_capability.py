@@ -18,7 +18,7 @@ from app.agents.profile import (
     LACTATION_AGENT_PROFILE_TOOLS,
     MAIN_AGENT_PROFILE_TOOLS,
     ProfileReadToolHandler,
-    ProfileWriteToolHandler,
+    ProfileUpdateToolHandler,
     profile_tool_registry,
 )
 from app.auth import RuntimePrincipal
@@ -32,14 +32,19 @@ from app.infrastructure.product_backend import (
 def test_profile_tools_are_shared_by_main_and_lactation_static_allowlists() -> None:
     registry = profile_tool_registry()
 
-    assert MAIN_AGENT_PROFILE_TOOLS == ("profile_read", "profile_write")
+    assert MAIN_AGENT_PROFILE_TOOLS == ("profile_read", "profile_update")
     assert LACTATION_AGENT_PROFILE_TOOLS == MAIN_AGENT_PROFILE_TOOLS
     assert registry.names_for_sdk() == MAIN_AGENT_PROFILE_TOOLS
     assert registry.get("profile_read").effect_scope == "none"
-    assert registry.get("profile_write").action_types == ("profile.update",)
-    assert registry.get("profile_write").input_schema["required"] == ["operation"]
-    assert registry.get("profile_write").input_schema["properties"]["operation"]["enum"] == [
-        "update"
+    assert registry.get("profile_update").action_types == (
+        "profile.update",
+        "profile.current_infants.replace",
+    )
+    assert "operation" not in registry.get("profile_update").input_schema["properties"]
+    assert registry.get("profile_update").input_schema["anyOf"] == [
+        {"type": "object", "required": ["mother"]},
+        {"type": "object", "required": ["infants"]},
+        {"type": "object", "required": ["current_infants"]},
     ]
 
 
@@ -85,15 +90,14 @@ def test_profile_read_rejects_unknown_model_arguments_before_http_call() -> None
     assert backend.read_query is None
 
 
-def test_profile_write_creates_action_proposal_without_calling_product_backend() -> None:
+def test_profile_update_creates_action_proposal_without_calling_product_backend() -> None:
     actor_user_id = uuid4()
     infant_id = uuid4()
     proposer = RecordingActionProposer()
-    handler = ProfileWriteToolHandler(action_proposer=proposer)
+    handler = ProfileUpdateToolHandler(action_proposer=proposer)
     context = _context(
         actor_user_id=actor_user_id,
         args={
-            "operation": "update",
             "mother": {
                 "preferred_name": None,
                 "actual_delivery_date": "2026-07-20",
@@ -105,6 +109,7 @@ def test_profile_write_creates_action_proposal_without_calling_product_backend()
                 }
             ],
         },
+        as_of_date=date(2026, 7, 26),
     )
 
     result = asyncio.run(handler(context))
@@ -130,6 +135,7 @@ def test_profile_write_creates_action_proposal_without_calling_product_backend()
                 "birth_weight_kg": 3.2,
             }
         ],
+        "reference_date": "2026-07-26",
     }
     assert result.to_observation() == {
         "action_id": str(proposer.action_id),
@@ -151,16 +157,16 @@ def test_profile_write_creates_action_proposal_without_calling_product_backend()
     }
 
 
-def test_profile_write_requires_a_real_update() -> None:
+def test_profile_update_requires_a_real_update() -> None:
     proposer = RecordingActionProposer()
-    handler = ProfileWriteToolHandler(action_proposer=proposer)
+    handler = ProfileUpdateToolHandler(action_proposer=proposer)
 
     with pytest.raises(ApiError) as exc_info:
         asyncio.run(
             handler(
                 _context(
                     actor_user_id=uuid4(),
-                    args={"operation": "update"},
+                    args={},
                 )
             )
         )
@@ -185,7 +191,10 @@ def test_profile_update_action_binds_all_identities_and_is_safe_to_retry_after_t
         status="confirmed",
         side_effect_level="low",
         preview_payload={},
-        apply_payload={"mother": {"preferred_name": None}},
+        apply_payload={
+            "mother": {"preferred_name": None},
+            "reference_date": "2026-07-26",
+        },
         idempotency_key="proposal-key",
     )
 
@@ -202,8 +211,10 @@ def test_profile_update_action_binds_all_identities_and_is_safe_to_retry_after_t
         assert call["command"].actor_user_id == actor_user_id
         assert call["command"].action_id == action_id
         assert call["command"].run_id == run_id
+        assert call["command"].action_type == "profile.update"
         assert call["command"].payload.model_dump(exclude_unset=True) == {
-            "mother": {"preferred_name": None}
+            "mother": {"preferred_name": None},
+            "reference_date": date(2026, 7, 26),
         }
         assert call["idempotency_key"] == f"agent-action:{action_id}"
         assert call["request_id"] == f"agent-action:{action_id}"

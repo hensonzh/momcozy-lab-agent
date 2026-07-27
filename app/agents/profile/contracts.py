@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -20,8 +21,7 @@ class ProfileReadArguments(_StrictArguments):
     infant_scope: Literal["current_delivery", "all"] = "current_delivery"
 
 
-class ProfileWriteArguments(_StrictArguments):
-    operation: Literal["update"]
+class ProfileUpdateArguments(_StrictArguments):
     mother: ProfileMotherUpdate | None = None
     infants: list[ProfileInfantUpdate] | None = Field(
         default=None,
@@ -32,10 +32,9 @@ class ProfileWriteArguments(_StrictArguments):
         default=None,
         max_length=10,
     )
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=160)
 
     @model_validator(mode="after")
-    def require_profile_update(self) -> ProfileWriteArguments:
+    def require_profile_update(self) -> ProfileUpdateArguments:
         profile_fields = {"mother", "infants", "current_infants"}
         if not self.model_fields_set.intersection(profile_fields):
             raise ValueError("at least one profile update is required")
@@ -60,10 +59,20 @@ class ProfileWriteArguments(_StrictArguments):
                 raise ValueError("current infant birth orders must be contiguous")
         return self
 
-    def to_profile_payload(self) -> ProfileUpdatePayload:
+    def to_profile_payload(
+        self,
+        *,
+        reference_date: date,
+        expected_current_infants: list[CurrentInfantLink] | None = None,
+    ) -> ProfileUpdatePayload:
         raw = self.model_dump(
             mode="json",
-            exclude={"operation", "idempotency_key"},
             exclude_unset=True,
         )
+        raw["reference_date"] = reference_date.isoformat()
+        if expected_current_infants is not None:
+            raw["expected_current_infants"] = [
+                link.model_dump(mode="json")
+                for link in expected_current_infants
+            ]
         return ProfileUpdatePayload.model_validate(raw)

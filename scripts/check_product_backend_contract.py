@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from pathlib import Path
+import re
 import sys
 import textwrap
 from typing import Any, Literal, TypeGuard, cast, get_type_hints
@@ -44,7 +45,11 @@ class ProductEndpointContract:
 
     @property
     def request_fields(self) -> frozenset[str]:
-        return frozenset(self.request_model.model_fields)
+        return frozenset(self.request_model.model_fields) - self.path_fields
+
+    @property
+    def path_fields(self) -> frozenset[str]:
+        return frozenset(re.findall(r"{([^{}]+)}", self.path))
 
     @property
     def response_fields(self) -> frozenset[str]:
@@ -181,13 +186,48 @@ def check_openapi_contract(openapi: Mapping[str, Any]) -> list[str]:
                 f"{contract.label}: required header contract Idempotency-Key is missing"
             )
 
-        if contract.request_location == "query":
-            request_schema = _query_schema(
+        all_parameters = (
+            *(_as_sequence(path_item.get("parameters"))),
+            *(_as_sequence(operation.get("parameters"))),
+        )
+        if contract.path_fields:
+            path_schema = _parameter_schema(
                 openapi=openapi,
-                parameters=(
-                    *(_as_sequence(path_item.get("parameters"))),
-                    *(_as_sequence(operation.get("parameters"))),
-                ),
+                parameters=all_parameters,
+                location="path",
+            )
+            path_names = _schema_fields(
+                openapi=openapi,
+                schema=path_schema,
+            )
+            missing_path_fields = contract.path_fields - path_names
+            if missing_path_fields:
+                errors.append(
+                    f"{contract.label}: path contract is missing Runtime fields: "
+                    f"{_format_fields(missing_path_fields)}"
+                )
+            runtime_path_schema = _runtime_schema_for_fields(
+                contract.request_model,
+                fields=contract.path_fields,
+            )
+            errors.extend(
+                _prefixed_schema_errors(
+                    contract=contract,
+                    boundary="path",
+                    source_document=runtime_path_schema,
+                    source_schema=runtime_path_schema,
+                    source_name="Runtime",
+                    target_document=openapi,
+                    target_schema=path_schema,
+                    target_name="Product",
+                )
+            )
+
+        if contract.request_location == "query":
+            request_schema = _parameter_schema(
+                openapi=openapi,
+                parameters=all_parameters,
+                location="query",
             )
             query_names = _schema_fields(
                 openapi=openapi,
@@ -199,7 +239,10 @@ def check_openapi_contract(openapi: Mapping[str, Any]) -> list[str]:
                     f"{contract.label}: query contract is missing Runtime fields: "
                     f"{_format_fields(missing_request_fields)}"
                 )
-            runtime_request_schema = _runtime_schema(contract.request_model)
+            runtime_request_schema = _runtime_schema_for_fields(
+                contract.request_model,
+                fields=contract.request_fields,
+            )
             errors.extend(
                 _prefixed_schema_errors(
                     contract=contract,
@@ -369,17 +412,40 @@ def _literal_method_and_path(
         )
     method = call.args[0]
     path = call.args[1]
+    resolved_path = _static_path_template(path)
     if (
         not isinstance(method, ast.Constant)
         or not isinstance(method.value, str)
-        or not isinstance(path, ast.Constant)
-        or not isinstance(path.value, str)
+        or resolved_path is None
     ):
         raise RuntimeError(
-            f"ProductBackendClient.{client_method} must pass literal method and path "
+            f"ProductBackendClient.{client_method} must pass a literal method and "
+            "static path template "
             "to _request_model"
         )
-    return method.value.upper(), path.value
+    return method.value.upper(), resolved_path
+
+
+def _static_path_template(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if not isinstance(node, ast.JoinedStr):
+        return None
+    parts: list[str] = []
+    for value in node.values:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            parts.append(value.value)
+            continue
+        if (
+            isinstance(value, ast.FormattedValue)
+            and value.conversion == -1
+            and value.format_spec is None
+            and isinstance(value.value, ast.Attribute)
+        ):
+            parts.append(f"{{{value.value.attr}}}")
+            continue
+        return None
+    return "".join(parts)
 
 
 def _is_model_type(candidate: object) -> TypeGuard[type[BaseModel]]:
@@ -412,16 +478,20 @@ def _parameter_names(
     return frozenset(names)
 
 
-def _query_schema(
+def _parameter_schema(
     *,
     openapi: Mapping[str, Any],
     parameters: Sequence[Any],
+    location: Literal["path", "query"],
 ) -> Mapping[str, Any]:
     properties: dict[str, Any] = {}
     required: list[str] = []
     for candidate in parameters:
         parameter = _resolve_reference(openapi=openapi, candidate=candidate)
-        if not isinstance(parameter, Mapping) or parameter.get("in") != "query":
+        if (
+            not isinstance(parameter, Mapping)
+            or parameter.get("in") != location
+        ):
             continue
         name = parameter.get("name")
         schema = parameter.get("schema")
@@ -513,10 +583,34 @@ def _runtime_schema(model: type[BaseModel]) -> Mapping[str, Any]:
     return model.model_json_schema(mode="validation")
 
 
+def _runtime_schema_for_fields(
+    model: type[BaseModel],
+    *,
+    fields: frozenset[str],
+) -> Mapping[str, Any]:
+    schema = dict(_runtime_schema(model))
+    properties = schema.get("properties")
+    if isinstance(properties, Mapping):
+        schema["properties"] = {
+            name: value
+            for name, value in properties.items()
+            if name in fields
+        }
+    required = schema.get("required")
+    if isinstance(required, Sequence) and not isinstance(
+        required,
+        (str, bytes, bytearray),
+    ):
+        schema["required"] = [
+            name for name in required if name in fields
+        ]
+    return schema
+
+
 def _prefixed_schema_errors(
     *,
     contract: ProductEndpointContract,
-    boundary: Literal["request", "response"],
+    boundary: Literal["path", "request", "response"],
     source_document: Mapping[str, Any],
     source_schema: Mapping[str, Any],
     source_name: str,

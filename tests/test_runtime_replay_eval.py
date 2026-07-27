@@ -20,7 +20,7 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
 
     assert bundle["schema_version"] == "agent_run_replay.v1"
     assert bundle["messages"][0]["content"] == {"redacted": True}
-    assert bundle["tool_outputs"][0]["safe_output"] == {"redacted": True}
+    assert bundle["tool_outputs"][0]["output"] == {"redacted": True}
     assert bundle["events"][0]["payload"] == {"redacted": True}
 
 
@@ -38,7 +38,7 @@ def test_replay_bundle_includes_sanitized_content_only_when_requested() -> None:
     )
 
     assert bundle["messages"][0]["content"] == {"text": "private"}
-    assert bundle["tool_outputs"][0]["safe_output"] == {"ok": True}
+    assert bundle["tool_outputs"][0]["output"] == {"ok": True}
     assert bundle["events"][0]["payload"]["token"] == "[redacted]"
 
 
@@ -114,6 +114,7 @@ class FakeReplayRepository:
             status="completed",
             runtime_pattern="sdk_only",
             runtime_version="v2",
+            service_skill_id="main",
             request_id="request",
             trace_id="trace",
             error_code="",
@@ -165,8 +166,8 @@ class FakeReplayRepository:
             SimpleNamespace(
                 id=uuid4(),
                 tool_call_id=uuid4(),
-                safe_output={"ok": True},
-                raw_output_ref="object://raw",
+                output={"ok": True},
+                output_ref="object://raw",
             )
         ]
 

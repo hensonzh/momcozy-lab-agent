@@ -221,9 +221,10 @@ def _sanitize_bundle_for_case(
     for item in _dict_list(sanitized.get("tool_calls")):
         item["safe_args"] = {"redacted": True}
     for item in _dict_list(sanitized.get("tool_outputs")):
-        item["safe_output"] = {"redacted": True}
+        item["output"] = {"redacted": True}
     for item in _dict_list(sanitized.get("actions")):
         item["preview_payload"] = {"redacted": True}
+        item["result_payload"] = {"redacted": True}
     return sanitized
 
 

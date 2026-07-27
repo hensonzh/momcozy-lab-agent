@@ -8,7 +8,6 @@ from app.agent_runtime.tools import (
     ToolContractRegistry,
     ToolImageOutput,
     ToolResult,
-    ToolTextOutput,
 )
 
 
@@ -41,15 +40,20 @@ def test_registry_fails_closed_for_missing_action_handler() -> None:
 
 
 def test_tool_result_preserves_provider_function_output_shape() -> None:
-    result = ToolResult(
-        output=(
-            ToolTextOutput(text="查看图片"),
-            ToolImageOutput(image_url="https://assets.test/image.jpg"),
-        )
+    result = ToolResult.json(
+        {"status": "image_ready"},
+        supplemental_content=(
+            ToolImageOutput(
+                image_url="https://assets.test/image.jpg"
+            ),
+        ),
     )
 
     assert result.to_function_call_output() == [
-        {"type": "input_text", "text": "查看图片"},
+        {
+            "type": "input_text",
+            "text": '{"status":"image_ready"}',
+        },
         {
             "type": "input_image",
             "detail": "auto",
@@ -72,7 +76,7 @@ def _contract(
     *,
     effect_scope: Literal["none", "agent_internal", "user_resource", "external_resource"],
     action_types: tuple[str, ...] = (),
-    name: str = "profile_write",
+    name: str = "profile_update",
 ) -> ToolContract:
     return ToolContract(
         name=name,
@@ -82,6 +86,7 @@ def _contract(
             "additionalProperties": False,
             "properties": {},
         },
+        output_schema={"type": "object"},
         effect_scope=effect_scope,
         action_types=action_types,
         blocking_policy="must_wait",

@@ -40,9 +40,12 @@ cp env/compose.local.env.example env/compose.local.env
 docker compose -f docker-compose.local.yml up --build --wait api worker fact-worker
 ```
 
-Compose starts PostgreSQL and Redis, applies `alembic upgrade head`, then starts
+Compose starts PostgreSQL, Redis, and a local S3-compatible MinIO bucket,
+applies `alembic upgrade head`, then starts
 the API and continuous workers. PostgreSQL defaults to `127.0.0.1:5433` and
 Redis to `127.0.0.1:6380`.
+MinIO defaults to `127.0.0.1:9002`; it stores tool outputs that exceed
+`AGENT_TOOL_OUTPUT_MAX_INLINE_BYTES`.
 
 The API binds to `127.0.0.1:8010` by default. For physical-device development,
 set `MOMCOZY_AGENT_API_BIND=0.0.0.0:8010` for the Compose command and

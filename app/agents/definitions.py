@@ -20,20 +20,18 @@ MAIN_AGENT = AgentDefinition(
     name="main",
     instructions=(
         f"{BASE_AGENT_INSTRUCTIONS}\n\n"
-        "你是主智能体。直接回答通用健康咨询和通用母婴问题；"
-        "专业任务必须使用 delegate_to_specialists 一次提交所需专业智能体。"
-        "单专业结果直接交给用户，多专业结果由你综合。"
-        "不得为了避免路由而自行回答应由专业智能体处理的任务。"
+        "你是主智能体，负责通用健康咨询、通用母婴问题和公共能力。"
+        "专业请求由 runtime 在调用你之前完成路由；不要讨论或模拟内部路由。"
     ),
     tool_names=(
         "profile_read",
-        "profile_write",
-        "plans_current_read",
-        "plans_calendar_read",
-        "plans_task_write",
-        "plans_plan_write",
-        "pregnancy_diary_read",
-        "pregnancy_diary_write",
+        "profile_update",
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
+        "diary_read",
+        "diary_mutate",
         "conversation_history_image_read",
     ),
 )
@@ -46,9 +44,13 @@ PRENATAL_AGENT = AgentDefinition(
         "完成主智能体委派的目标，不处理其他专业域。"
     ),
     tool_names=(
-        "pregnancy_plan_manage",
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
+        "pregnancy_intake_manage",
         "hospital_bag_manage",
-        "hospital_bag_cart_write",
+        "hospital_bag_cart_mutate",
     ),
 )
 
@@ -61,13 +63,13 @@ LACTATION_AGENT = AgentDefinition(
     ),
     tool_names=(
         "profile_read",
-        "profile_write",
-        "lactation_timeline_read",
-        "lactation_timeline_write",
+        "profile_update",
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
         "milk_analysis_manage",
-        "plans_milk_plan_write",
-        "notifications_milk_reminder_write",
-        "ibclc_consult_card_write",
+        "ibclc_consult_card_create",
     ),
 )
 
@@ -81,7 +83,7 @@ DEVICE_AGENT = AgentDefinition(
     tool_names=(
         "devices_guidance_manage",
         "pump_models_read",
-        "support_ticket_write",
+        "support_ticket_draft_create",
     ),
 )
 

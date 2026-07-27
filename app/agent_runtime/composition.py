@@ -4,37 +4,28 @@ from collections.abc import Collection, Mapping
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import AGENT_DEFINITIONS
 from app.agents.diary import (
-    PregnancyDiaryReadHandler,
-    PregnancyDiaryWriteHandler,
+    DiaryMutateHandler,
+    DiaryReadHandler,
     diary_tool_registry,
 )
 from app.agents.lactation import (
-    LactationTimelineReadToolHandler,
-    LactationTimelineWriteToolHandler,
     MilkAnalysisToolHandler,
-    MilkReminderWriteToolHandler,
     lactation_tool_registry,
 )
 from app.agents.plans import (
-    MilkPlanWriteToolHandler,
-    PlansCalendarReadToolHandler,
-    PlansCurrentReadToolHandler,
-    PlansPlanWriteToolHandler,
-    PlansTaskWriteToolHandler,
-    PregnancyPlanManageToolHandler,
+    PlanMutateToolHandler,
+    PlanReadToolHandler,
+    ScheduleTimelineMutateToolHandler,
+    ScheduleTimelineReadToolHandler,
     plans_tool_registry,
 )
 from app.agents.profile import (
     ProfileReadToolHandler,
-    ProfileWriteToolHandler,
+    ProfileUpdateToolHandler,
     profile_tool_registry,
 )
-from app.agents.support import (
-    SupportTicketWriteToolHandler,
-    support_tool_registry,
-)
-from app.agents import AGENT_DEFINITIONS
 from app.agents.runtime_native import (
     HOSPITAL_BAG_CART_UPDATE_ACTION,
     HospitalBagCartActionApplicator,
@@ -47,18 +38,15 @@ from .actions import (
     ACTION_POLICY_RULES,
     DIARY_ACTION_TYPES,
     LACTATION_RECORD_ACTION_TYPES,
-    MILK_REMINDER_ACTION_TYPES,
     PLANS_ACTION_TYPES,
+    PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
     PROFILE_UPDATE_ACTION,
-    SUPPORT_TICKET_ACTION,
     ActionExecutor,
+    DiaryActionApplicator,
     LactationRecordActionApplicator,
-    MilkReminderActionApplicator,
     PlansActionApplicator,
-    PregnancyDiaryActionApplicator,
     ProfileUpdateActionApplicator,
     RuntimeActionService,
-    SupportTicketActionApplicator,
 )
 from .actions.executor import ActionApplicator
 from .actions.service import RunAdmissionReleaser, RunNotifier
@@ -71,24 +59,18 @@ def build_product_action_applicators(
     client: ProductBackendClient,
 ) -> Mapping[str, ActionApplicator]:
     profile = ProfileUpdateActionApplicator(client=client)
-    diary = PregnancyDiaryActionApplicator(client=client)
+    diary = DiaryActionApplicator(client=client)
     plans = PlansActionApplicator(client=client)
     lactation = LactationRecordActionApplicator(client=client)
-    reminder = MilkReminderActionApplicator(client=client)
-    support = SupportTicketActionApplicator(client=client)
     return {
         PROFILE_UPDATE_ACTION: profile,
+        PROFILE_CURRENT_INFANTS_REPLACE_ACTION: profile,
         **{action_type: diary for action_type in DIARY_ACTION_TYPES},
         **{action_type: plans for action_type in PLANS_ACTION_TYPES},
         **{
             action_type: lactation
             for action_type in LACTATION_RECORD_ACTION_TYPES
         },
-        **{
-            action_type: reminder
-            for action_type in MILK_REMINDER_ACTION_TYPES
-        },
-        SUPPORT_TICKET_ACTION: support,
     }
 
 
@@ -130,7 +112,6 @@ def build_product_tool_registry() -> ToolContractRegistry:
         diary_tool_registry(),
         plans_tool_registry(),
         lactation_tool_registry(),
-        support_tool_registry(),
     ):
         for contract in source.list():
             registry.register(contract)
@@ -149,42 +130,31 @@ def build_product_tool_handlers(
     *,
     client: ProductBackendClient,
     action_service: RuntimeActionService,
+    repository: RuntimeLedgerRepository | None = None,
 ) -> dict[str, ToolHandler]:
     return {
         "profile_read": ProfileReadToolHandler(client=client),
-        "profile_write": ProfileWriteToolHandler(
+        "profile_update": ProfileUpdateToolHandler(
             action_proposer=action_service
         ),
-        "pregnancy_diary_read": PregnancyDiaryReadHandler(client=client),
-        "pregnancy_diary_write": PregnancyDiaryWriteHandler(
+        "diary_read": DiaryReadHandler(client=client),
+        "diary_mutate": DiaryMutateHandler(
             action_proposer=action_service
         ),
-        "plans_current_read": PlansCurrentReadToolHandler(client=client),
-        "plans_calendar_read": PlansCalendarReadToolHandler(client=client),
-        "plans_task_write": PlansTaskWriteToolHandler(
+        "plan_read": PlanReadToolHandler(client=client),
+        "plan_mutate": PlanMutateToolHandler(
             action_proposer=action_service
         ),
-        "plans_plan_write": PlansPlanWriteToolHandler(
-            action_proposer=action_service
-        ),
-        "pregnancy_plan_manage": PregnancyPlanManageToolHandler(
-            action_proposer=action_service
-        ),
-        "plans_milk_plan_write": MilkPlanWriteToolHandler(
-            action_proposer=action_service
-        ),
-        "lactation_timeline_read": LactationTimelineReadToolHandler(
+        "schedule_timeline_read": ScheduleTimelineReadToolHandler(
             client=client
         ),
-        "lactation_timeline_write": LactationTimelineWriteToolHandler(
-            action_proposer=action_service
+        "schedule_timeline_mutate": ScheduleTimelineMutateToolHandler(
+            action_proposer=action_service,
+            client=client,
         ),
-        "milk_analysis_manage": MilkAnalysisToolHandler(client=client),
-        "notifications_milk_reminder_write": MilkReminderWriteToolHandler(
-            action_proposer=action_service
-        ),
-        "support_ticket_write": SupportTicketWriteToolHandler(
-            action_proposer=action_service
+        "milk_analysis_manage": MilkAnalysisToolHandler(
+            client=client,
+            repository=repository,
         ),
     }
 
@@ -198,6 +168,7 @@ def build_runtime_tool_handlers(
     handlers = build_product_tool_handlers(
         client=client,
         action_service=action_service,
+        repository=repository,
     )
     native_handlers = runtime_native_tool_handlers(
         repository=repository,
@@ -228,6 +199,17 @@ def validate_runtime_composition(
             f"missing_handlers={sorted(registered - handled)}, "
             f"unknown_handlers={sorted(handled - registered)}"
         )
+    expected = {
+        tool_name
+        for definition in AGENT_DEFINITIONS.values()
+        for tool_name in definition.tool_names
+    }
+    if registered != expected:
+        raise ValueError(
+            "runtime tool set/agent allowlist mismatch: "
+            f"missing_tools={sorted(expected - registered)}, "
+            f"unused_tools={sorted(registered - expected)}"
+        )
     _validate_agent_tool_allowlists(registry)
 
 
@@ -241,7 +223,9 @@ def _validate_agent_tool_allowlists(
         if set(definition.tool_names) - registered
     }
     if missing:
-        raise ValueError(f"agent allowlists reference unknown tools: {missing}")
+        raise ValueError(
+            f"agent allowlists reference unknown tools: {missing}"
+        )
 
 
 __all__ = [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from collections.abc import Mapping, Sequence
+from typing import Any, TypeAlias, TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -16,30 +17,34 @@ from .contracts import (
     DiaryReadResponse,
     LactationRecordApplyRequest,
     LactationRecordApplyResponse,
-    LactationTimelineReadRequest,
-    LactationTimelineReadResponse,
     MilkAnalysisSnapshotRequest,
     MilkAnalysisSnapshotResponse,
-    MilkReminderApplyRequest,
-    MilkReminderApplyResponse,
     ProfileReadRequest,
     ProfileReadResponse,
     ProfileUpdateApplyRequest,
     ProfileUpdateApplyResponse,
-    SupportTicketApplyRequest,
-    SupportTicketApplyResponse,
 )
 from .plans_contracts import (
+    PlanDetail,
+    PlanDetailReadRequest,
     PlansActionApplyRequest,
     PlansActionApplyResponse,
-    PlansCalendarReadRequest,
-    PlansCalendarReadResponse,
     PlansCurrentReadRequest,
     PlansCurrentReadResponse,
+    ScheduleTimelineReadRequest,
+    ScheduleTimelineReadResponse,
 )
 
 
 ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
+QueryParamValue: TypeAlias = str | int | float | bool | None
+QueryParams: TypeAlias = Mapping[
+    str,
+    QueryParamValue | Sequence[QueryParamValue],
+] | list[tuple[str, QueryParamValue]] | tuple[
+    tuple[str, QueryParamValue],
+    ...,
+]
 
 
 class ProductBackendClient:
@@ -110,7 +115,7 @@ class ProductBackendClient:
             raise _invalid_response()
         return result
 
-    async def read_pregnancy_diary(
+    async def read_diary(
         self,
         *,
         query: DiaryReadRequest,
@@ -125,13 +130,13 @@ class ProductBackendClient:
         }
         return await self._request_model(
             "GET",
-            "/v1/internal/agent/pregnancy-diary",
+            "/v1/internal/agent/diary",
             response_model=DiaryReadResponse,
             params=params,
             request_id=request_id,
         )
 
-    async def apply_pregnancy_diary(
+    async def apply_diary(
         self,
         *,
         command: DiaryApplyRequest,
@@ -140,7 +145,7 @@ class ProductBackendClient:
     ) -> DiaryApplyResponse:
         result = await self._request_model(
             "POST",
-            "/v1/internal/agent/actions/pregnancy-diary.entry/apply",
+            "/v1/internal/agent/actions/diary.entry/apply",
             response_model=DiaryApplyResponse,
             json=command.model_dump(mode="json"),
             idempotency_key=idempotency_key,
@@ -149,27 +154,6 @@ class ProductBackendClient:
         if result.action_id != command.action_id:
             raise _invalid_response()
         return result
-
-    async def read_lactation_timeline(
-        self,
-        *,
-        query: LactationTimelineReadRequest,
-        request_id: str,
-    ) -> LactationTimelineReadResponse:
-        params = {
-            key: str(value)
-            for key, value in query.model_dump(
-                mode="json",
-                exclude_none=True,
-            ).items()
-        }
-        return await self._request_model(
-            "GET",
-            "/v1/internal/agent/lactation/timeline",
-            response_model=LactationTimelineReadResponse,
-            params=params,
-            request_id=request_id,
-        )
 
     async def read_milk_analysis_snapshot(
         self,
@@ -215,44 +199,6 @@ class ProductBackendClient:
             raise _invalid_response()
         return result
 
-    async def apply_milk_reminder(
-        self,
-        *,
-        command: MilkReminderApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> MilkReminderApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/notifications.milk_reminder/apply",
-            response_model=MilkReminderApplyResponse,
-            json=command.model_dump(mode="json", exclude_unset=True),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        if result.action_id != command.action_id:
-            raise _invalid_response()
-        return result
-
-    async def apply_support_ticket(
-        self,
-        *,
-        command: SupportTicketApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> SupportTicketApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/support.ticket/apply",
-            response_model=SupportTicketApplyResponse,
-            json=command.model_dump(mode="json", exclude_unset=True),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        if result.action_id != command.action_id:
-            raise _invalid_response()
-        return result
-
     async def read_current_plans(
         self,
         *,
@@ -274,23 +220,37 @@ class ProductBackendClient:
             request_id=request_id,
         )
 
-    async def read_plan_calendar(
+    async def read_plan_detail(
         self,
         *,
-        query: PlansCalendarReadRequest,
+        query: PlanDetailReadRequest,
         request_id: str,
-    ) -> PlansCalendarReadResponse:
-        params = {
-            key: str(value)
-            for key, value in query.model_dump(
-                mode="json",
-                exclude_none=True,
-            ).items()
-        }
+    ) -> PlanDetail:
         return await self._request_model(
             "GET",
-            "/v1/internal/agent/plans/calendar",
-            response_model=PlansCalendarReadResponse,
+            f"/v1/internal/agent/plans/{query.plan_id}",
+            response_model=PlanDetail,
+            params={"actor_user_id": str(query.actor_user_id)},
+            request_id=request_id,
+        )
+
+    async def read_schedule_timeline(
+        self,
+        *,
+        query: ScheduleTimelineReadRequest,
+        request_id: str,
+    ) -> ScheduleTimelineReadResponse:
+        raw = query.model_dump(mode="json", exclude_none=True)
+        params: list[tuple[str, QueryParamValue]] = []
+        for key, value in raw.items():
+            if isinstance(value, list):
+                params.extend((key, str(item)) for item in value)
+            else:
+                params.append((key, str(value)))
+        return await self._request_model(
+            "GET",
+            "/v1/internal/agent/schedule-timeline",
+            response_model=ScheduleTimelineReadResponse,
             params=params,
             request_id=request_id,
         )
@@ -328,7 +288,7 @@ class ProductBackendClient:
         path: str,
         *,
         response_model: type[ResponseModelT],
-        params: dict[str, str] | None = None,
+        params: QueryParams | None = None,
         json: dict[str, Any] | None = None,
         idempotency_key: str = "",
         request_id: str,

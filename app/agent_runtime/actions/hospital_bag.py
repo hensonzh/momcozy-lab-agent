@@ -21,8 +21,8 @@ class HospitalBagCartActionApplicator:
         artifact = await self.repository.create_artifact(
             run_id=action.run_id,
             owner_user_id=action.actor_user_id,
-            artifact_type="hospital_bag_cart_update",
-            schema_version="hospital-bag-cart-update.v1",
+            artifact_type="hospital_bag_cart",
+            schema_version="v1",
             status="created",
             payload=dict(action.apply_payload),
         )

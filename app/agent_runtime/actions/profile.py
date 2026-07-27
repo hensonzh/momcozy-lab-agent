@@ -15,6 +15,9 @@ from .contracts import ActionApplyResult
 
 
 PROFILE_UPDATE_ACTION = "profile.update"
+PROFILE_CURRENT_INFANTS_REPLACE_ACTION = (
+    "profile.current_infants.replace"
+)
 
 
 class _ProfileUpdateClient(Protocol):
@@ -41,6 +44,7 @@ class ProfileUpdateActionApplicator:
                     "actor_user_id": action.actor_user_id,
                     "action_id": action.id,
                     "run_id": action.run_id,
+                    "action_type": action.action_type,
                     "payload": dict(action.apply_payload or {}),
                 }
             )
@@ -67,7 +71,11 @@ class ProfileUpdateActionApplicator:
     @staticmethod
     def _validate_action_binding(action: AgentAction) -> None:
         if (
-            action.action_type != PROFILE_UPDATE_ACTION
+            action.action_type
+            not in {
+                PROFILE_UPDATE_ACTION,
+                PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
+            }
             or action.target_type != "profile"
             or action.target_id != str(action.actor_user_id)
         ):

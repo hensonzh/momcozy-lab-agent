@@ -1,14 +1,15 @@
 from .contracts import ToolContract
 from .executor import ToolExecutionResult, ToolExecutor
 from .handlers import ToolHandler, ToolHandlerContext
+from .internal import internal_input_schema
 from .registry import ToolContractRegistry
 from .result import (
     FunctionCallOutput,
     ToolFileOutput,
     ToolImageOutput,
     ToolResult,
-    ToolTextOutput,
 )
+from .trusted import TrustedToolArgumentsProvider
 
 __all__ = [
     "FunctionCallOutput",
@@ -19,7 +20,8 @@ __all__ = [
     "ToolFileOutput",
     "ToolHandler",
     "ToolHandlerContext",
+    "internal_input_schema",
     "ToolImageOutput",
     "ToolResult",
-    "ToolTextOutput",
+    "TrustedToolArgumentsProvider",
 ]

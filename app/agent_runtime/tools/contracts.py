@@ -12,7 +12,8 @@ class ToolContract(BaseModel):
     domain: str = Field(min_length=1, max_length=120)
     description: str = ""
     input_schema: dict[str, Any]
-    output_schema: dict[str, Any] | None = None
+    internal_input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any]
     effect_scope: Literal["none", "agent_internal", "user_resource", "external_resource"]
     action_types: tuple[str, ...] = ()
     blocking_policy: Literal["must_wait", "enqueue_and_continue", "wait_for_confirmation"]

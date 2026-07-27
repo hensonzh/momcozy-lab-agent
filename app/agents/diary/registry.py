@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from app.agent_runtime.tools import ToolContract, ToolContractRegistry
+from app.agent_runtime.tools import (
+    ToolContract,
+    ToolContractRegistry,
+    internal_input_schema,
+)
+from app.agents.model_input_schemas import input_schema_for_tool
 from app.infrastructure.product_backend import DiaryReadResponse
 
-from .contracts import DiaryReadArguments, DiaryWriteArguments
+from .contracts import DiaryWriteArguments
 
 
 MAIN_AGENT_DIARY_TOOLS = (
-    "pregnancy_diary_read",
-    "pregnancy_diary_write",
+    "diary_read",
+    "diary_mutate",
 )
 
 
@@ -16,10 +21,13 @@ def diary_tool_registry() -> ToolContractRegistry:
     registry = ToolContractRegistry()
     registry.register(
         ToolContract(
-            name="pregnancy_diary_read",
-            domain="pregnancy_diary",
-            description="按日期读取一篇孕期日记，或按日期范围读取日记列表。",
-            input_schema=DiaryReadArguments.model_json_schema(),
+            name="diary_read",
+            domain="diary",
+            description=(
+                "读取当前用户某天的完整日记，或日期范围内的日记摘要。"
+                "当需要查看日记、确认待修改或删除的目标，或更新前取得完整旧正文时使用。"
+            ),
+            input_schema=input_schema_for_tool("diary_read"),
             output_schema=DiaryReadResponse.model_json_schema(),
             effect_scope="none",
             blocking_policy="must_wait",
@@ -29,14 +37,28 @@ def diary_tool_registry() -> ToolContractRegistry:
     )
     registry.register(
         ToolContract(
-            name="pregnancy_diary_write",
-            domain="pregnancy_diary",
-            description="通过 operation=create、update 或 delete 管理孕期日记。",
-            input_schema=DiaryWriteArguments.model_json_schema(),
+            name="diary_mutate",
+            domain="diary",
+            description=(
+                "创建、完整更新或删除当前用户的日记。"
+                "当用户表达记录、完整改写或删除某日日记的意图时使用。"
+            ),
+            input_schema=input_schema_for_tool("diary_mutate"),
+            internal_input_schema=internal_input_schema(
+                DiaryWriteArguments.model_json_schema(),
+                trusted_properties={
+                    "runtime_local_date": {
+                        "type": "string",
+                        "format": "date",
+                    },
+                },
+                required=("runtime_local_date",),
+            ),
+            output_schema=_ACTION_OUTPUT_SCHEMA,
             effect_scope="user_resource",
             action_types=(
-                "pregnancy_diary.entry.save",
-                "pregnancy_diary.entry.delete",
+                "diary.entry.save",
+                "diary.entry.delete",
             ),
             blocking_policy="must_wait",
             result_dependency="final_response",
@@ -44,3 +66,9 @@ def diary_tool_registry() -> ToolContractRegistry:
         )
     )
     return registry
+
+
+_ACTION_OUTPUT_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+}

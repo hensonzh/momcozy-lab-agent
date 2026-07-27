@@ -54,6 +54,7 @@ class ModelRequest:
     instructions: str
     input_items: tuple[dict[str, Any], ...]
     tools: tuple[ModelTool, ...]
+    response_format: dict[str, Any] | None = None
     on_text_delta: TextDeltaHandler | None = None
 
 

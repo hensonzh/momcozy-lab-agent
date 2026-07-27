@@ -95,8 +95,8 @@ def _response_schema(
 def test_contracts_are_discovered_from_the_runtime_product_client() -> None:
     contracts = discover_product_backend_client_contracts()
 
-    assert len(contracts) == 13
-    assert len({(contract.method, contract.path) for contract in contracts}) == 13
+    assert len(contracts) == 11
+    assert len({(contract.method, contract.path) for contract in contracts}) == 11
 
     profile_update = next(
         contract
@@ -109,6 +109,7 @@ def test_contracts_are_discovered_from_the_runtime_product_client() -> None:
         "actor_user_id",
         "action_id",
         "run_id",
+        "action_type",
         "payload",
     }
     assert profile_update.response_fields >= {
@@ -463,4 +464,4 @@ def test_cli_accepts_an_explicit_openapi_path(
     exit_code = main(["--openapi-path", str(openapi_path)])
 
     assert exit_code == 0
-    assert "13 Product Backend endpoint contracts are compatible" in capsys.readouterr().out
+    assert "11 Product Backend endpoint contracts are compatible" in capsys.readouterr().out

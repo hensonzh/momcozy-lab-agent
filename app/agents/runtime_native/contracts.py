@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Annotated, Literal
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -33,19 +32,8 @@ class HospitalBagIntake(_StrictArguments):
 
 
 class HospitalBagManageArguments(_StrictArguments):
-    operation: Literal["start_or_resume", "submit", "restart"] = "start_or_resume"
-    generation_mode: Literal["standard", "quick", "immediate"] = "standard"
-    intake_artifact_id: UUID | None = None
-    intake: HospitalBagIntake | None = None
-
-    @model_validator(mode="after")
-    def validate_operation(self) -> HospitalBagManageArguments:
-        if self.operation == "submit":
-            if self.intake_artifact_id is None or self.intake is None:
-                raise ValueError("submit requires intake_artifact_id and intake")
-        elif "intake_artifact_id" in self.model_fields_set or "intake" in self.model_fields_set:
-            raise ValueError("intake fields are accepted only for submit")
-        return self
+    generation_mode: Literal["standard", "immediate"] = "standard"
+    restart: bool = False
 
 
 class QuantityUpdate(_StrictArguments):
@@ -53,10 +41,9 @@ class QuantityUpdate(_StrictArguments):
     qty: int = Field(ge=0, le=99)
 
 
-class HospitalBagCartWriteArguments(_StrictArguments):
+class HospitalBagCartMutateArguments(_StrictArguments):
     operation: Literal[
-        "replace_pump_model",
-        "add_pump_model",
+        "set_pump_model",
         "optimize_budget",
         "remove_items",
         "restore_items",
@@ -72,50 +59,62 @@ class HospitalBagCartWriteArguments(_StrictArguments):
         default_factory=list,
         max_length=40,
     )
-    target_budget: float | None = Field(default=None, ge=0, le=100_000)
+    target_budget: float | None = Field(default=None, gt=0)
     budget_mode: (
         Literal[
-            "under",
-            "around",
             "cheaper",
             "minimal",
-            "none",
         ]
         | None
     ) = None
     preference: (
         Literal[
             "balanced",
-            "cheapest",
             "comfort",
             "breastfeeding",
-            "minimal",
-            "budget",
-            "portable",
-            "performance",
-            "app",
-            "simple",
-            "premium",
         ]
         | None
     ) = None
     preserve_item_ids: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(default_factory=list, max_length=40)
     allow_remove_pump: bool = False
-    idempotency_key: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=160,
-    )
-
     @model_validator(mode="after")
     def validate_operation_payload(
         self,
-    ) -> HospitalBagCartWriteArguments:
-        if self.operation in {"replace_pump_model", "add_pump_model"}:
+    ) -> HospitalBagCartMutateArguments:
+        supplied = self.model_fields_set - {"operation"}
+        if self.operation == "set_pump_model":
             if not self.product_sku_id:
-                raise ValueError("pump model operations require product_sku_id")
-        if self.operation == "optimize_budget" and self.target_budget is None:
-            raise ValueError("optimize_budget requires target_budget")
+                raise ValueError("set_pump_model requires product_sku_id")
+            if supplied != {"product_sku_id"}:
+                raise ValueError(
+                    "set_pump_model accepts only product_sku_id"
+                )
+            return self
+        if self.operation == "optimize_budget":
+            mode_fields = {
+                field
+                for field in ("target_budget", "budget_mode")
+                if field in supplied
+            }
+            if len(mode_fields) != 1:
+                raise ValueError(
+                    "optimize_budget requires exactly one budget target"
+                )
+            if supplied - {
+                "target_budget",
+                "budget_mode",
+                "preference",
+                "preserve_item_ids",
+                "allow_remove_pump",
+            }:
+                raise ValueError(
+                    "optimize_budget contains unsupported fields"
+                )
+            if len(set(self.preserve_item_ids)) != len(
+                self.preserve_item_ids
+            ):
+                raise ValueError("preserve_item_ids must be unique")
+            return self
         if (
             self.operation
             in {
@@ -128,23 +127,51 @@ class HospitalBagCartWriteArguments(_StrictArguments):
             and not self.item_ids
         ):
             raise ValueError(f"{self.operation} requires item_ids")
-        if self.operation == "update_quantity" and not self.quantity_updates:
-            raise ValueError("update_quantity requires quantity_updates")
+        if self.operation in {
+            "remove_items",
+            "restore_items",
+            "replace_items",
+            "mark_provided",
+            "mark_owned",
+        }:
+            if supplied != {"item_ids"}:
+                raise ValueError(
+                    f"{self.operation} accepts only item_ids"
+                )
+            if len(set(self.item_ids)) != len(self.item_ids):
+                raise ValueError("item_ids must be unique")
+            return self
+        if self.operation == "update_quantity":
+            if not self.quantity_updates:
+                raise ValueError(
+                    "update_quantity requires quantity_updates"
+                )
+            if supplied != {"quantity_updates"}:
+                raise ValueError(
+                    "update_quantity accepts only quantity_updates"
+                )
+            item_ids = [
+                update.item_id for update in self.quantity_updates
+            ]
+            if len(set(item_ids)) != len(item_ids):
+                raise ValueError(
+                    "quantity_updates item_id must be unique"
+                )
+            return self
+        if supplied:
+            raise ValueError("reset_cart accepts no additional fields")
         return self
 
 
-class IbclcConsultCardWriteArguments(_StrictArguments):
-    operation: Literal["create"]
+class IbclcConsultCardCreateArguments(_StrictArguments):
     reason: str = Field(min_length=1, max_length=500)
     feeding_context: str = Field(default="", max_length=2000)
     urgency: Literal["routine", "soon", "urgent"] = "routine"
     preferred_language: str = Field(default="", max_length=80)
-    locale: str = Field(default="", max_length=35)
-    timezone: str = Field(default="", max_length=80)
 
 
 class DeviceGuidanceManageArguments(_StrictArguments):
-    model: str = Field(min_length=1, max_length=120)
+    model: Literal["Air1", "BP334"] | None = None
     operation: Literal[
         "read",
         "start_or_resume",
@@ -168,25 +195,36 @@ class DeviceGuidanceManageArguments(_StrictArguments):
         default=None,
         min_length=1,
         max_length=80,
-        pattern=r"^guide\.[a-z0-9_]+$",
     )
+    resource_kind: (
+        Literal["auto", "image", "pdf", "video"] | None
+    ) = None
     measured_nipple_mm: float | None = Field(
         default=None,
         ge=0,
-        le=60,
+        le=50,
     )
 
     @model_validator(mode="after")
     def validate_operation(self) -> DeviceGuidanceManageArguments:
-        direct_fields = {"topic", "step", "measured_nipple_mm"}
+        direct_fields = {
+            "topic",
+            "step",
+            "resource_kind",
+            "measured_nipple_mm",
+        }
         supplied = direct_fields.intersection(self.model_fields_set)
         if self.operation == "read":
+            if self.model is None:
+                raise ValueError("read requires model")
             if self.topic is None and self.step is None:
                 raise ValueError("read requires topic or step")
             if self.topic is not None and self.step is not None:
                 raise ValueError("read accepts topic or step, not both")
             if self.measured_nipple_mm is not None and self.topic != "flange":
                 raise ValueError("measured_nipple_mm is accepted only for flange")
+        elif self.operation == "start_or_resume" and self.model is None:
+            raise ValueError("start_or_resume requires model")
         elif supplied:
             raise ValueError("walkthrough operations do not accept read fields")
         return self
@@ -197,7 +235,101 @@ class PumpModelsReadArguments(_StrictArguments):
 
 
 class ConversationHistoryImageReadArguments(_StrictArguments):
-    source_type: Literal["tool_output", "artifact"]
-    source_id: UUID
-    image_index: int = Field(default=0, ge=0, le=20)
+    image_url: str = Field(
+        min_length=1,
+        max_length=2048,
+        pattern=r"^https://",
+    )
     detail: Literal["low", "high"] = "low"
+
+
+class PregnancyIntakeManageArguments(_StrictArguments):
+    command: Literal[
+        "start_or_resume",
+        "answer_current",
+        "edit_answer",
+        "pause",
+        "resume",
+        "abandon",
+    ]
+    restart: bool = False
+    choice_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
+    answer: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=2_000,
+    )
+    step_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
+
+    @model_validator(mode="after")
+    def validate_command(self) -> PregnancyIntakeManageArguments:
+        supplied = self.model_fields_set - {"command"}
+        answer_fields = {"choice_id", "answer"}
+        if self.command == "start_or_resume":
+            if supplied - {"restart"}:
+                raise ValueError(
+                    "start_or_resume contains unsupported fields"
+                )
+            return self
+        if self.command == "answer_current":
+            if not supplied.intersection(answer_fields):
+                raise ValueError(
+                    "answer_current requires choice_id or answer"
+                )
+            if supplied - answer_fields:
+                raise ValueError(
+                    "answer_current contains unsupported fields"
+                )
+            return self
+        if self.command == "edit_answer":
+            if self.step_id is None:
+                raise ValueError("edit_answer requires step_id")
+            if (
+                self.step_id != "basic_intake"
+                and not supplied.intersection(answer_fields)
+            ):
+                raise ValueError(
+                    "edit_answer requires choice_id or answer"
+                )
+            if supplied - {"step_id", *answer_fields}:
+                raise ValueError(
+                    "edit_answer contains unsupported fields"
+                )
+            return self
+        if supplied:
+            raise ValueError(
+                f"{self.command} contains unsupported fields"
+            )
+        return self
+
+
+class SupportTicketDraftCreateArguments(_StrictArguments):
+    issue_summary: str = Field(min_length=1, max_length=2_000)
+    issue_type: Literal[
+        "malfunction",
+        "missing_parts",
+        "defect",
+        "warranty",
+        "return_or_refund",
+        "order_or_shipping",
+        "usage_help",
+        "safety_concern",
+        "other",
+    ] = "other"
+    product_model: str = Field(default="", max_length=120)
+    order_number: str = Field(default="", max_length=120)
+    purchase_channel: str = Field(default="", max_length=120)
+    user_contact: str = Field(default="", max_length=255)
+    troubleshooting_done: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+    )
+    urgency: Literal["normal", "high", "safety"] = "normal"

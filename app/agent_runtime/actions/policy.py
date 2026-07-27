@@ -19,11 +19,20 @@ ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     "profile.update": ActionPolicyRule(
         "profile.update", "profile", "low"
     ),
-    "pregnancy_diary.entry.save": ActionPolicyRule(
-        "pregnancy_diary.entry.save", "pregnancy_diary_entry", "low"
+    "profile.current_infants.replace": ActionPolicyRule(
+        "profile.current_infants.replace",
+        "profile",
+        "medium",
+        requires_confirmation=True,
     ),
-    "pregnancy_diary.entry.delete": ActionPolicyRule(
-        "pregnancy_diary.entry.delete", "pregnancy_diary_entry", "medium"
+    "diary.entry.save": ActionPolicyRule(
+        "diary.entry.save", "diary_entry", "low"
+    ),
+    "diary.entry.delete": ActionPolicyRule(
+        "diary.entry.delete",
+        "diary_entry",
+        "medium",
+        requires_confirmation=True,
     ),
     "plans.task.create": ActionPolicyRule(
         "plans.task.create", "plan_task", "medium"
@@ -38,16 +47,16 @@ ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
         "plans.task.delete", "plan_task", "medium"
     ),
     "plans.plan.delete": ActionPolicyRule(
-        "plans.plan.delete", "plan", "medium"
-    ),
-    "pregnancy.plan.create": ActionPolicyRule(
-        "pregnancy.plan.create", "plan", "medium"
-    ),
-    "plans.milk_plan.create": ActionPolicyRule(
-        "plans.milk_plan.create",
+        "plans.plan.delete",
         "plan",
         "medium",
         requires_confirmation=True,
+    ),
+    "plans.plan.update": ActionPolicyRule(
+        "plans.plan.update", "plan", "medium"
+    ),
+    "pregnancy.plan.create": ActionPolicyRule(
+        "pregnancy.plan.create", "plan", "medium"
     ),
     "plans.milk_schedule.reschedule": ActionPolicyRule(
         "plans.milk_schedule.reschedule",
@@ -82,35 +91,8 @@ ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     "records.growth_record.delete": ActionPolicyRule(
         "records.growth_record.delete", "growth_record", "medium"
     ),
-    "notifications.milk_reminder.create": ActionPolicyRule(
-        "notifications.milk_reminder.create",
-        "notification",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "notifications.milk_reminder.update": ActionPolicyRule(
-        "notifications.milk_reminder.update",
-        "notification",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "notifications.milk_reminder.delete": ActionPolicyRule(
-        "notifications.milk_reminder.delete",
-        "notification",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "notifications.milk_reminder.disable": ActionPolicyRule(
-        "notifications.milk_reminder.disable",
-        "notification",
-        "medium",
-        requires_confirmation=True,
-    ),
     "hospital_bag.cart.update": ActionPolicyRule(
         "hospital_bag.cart.update", "hospital_bag_cart", "low"
-    ),
-    "support.ticket.create": ActionPolicyRule(
-        "support.ticket.create", "support_ticket", "medium"
     ),
 }
 

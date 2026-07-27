@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -22,7 +23,7 @@ ArgumentsT = TypeVar("ArgumentsT", bound=BaseModel)
 
 
 class _DiaryReadClient(Protocol):
-    async def read_pregnancy_diary(
+    async def read_diary(
         self,
         *,
         query: DiaryReadRequest,
@@ -30,13 +31,13 @@ class _DiaryReadClient(Protocol):
     ) -> DiaryReadResponse: ...
 
 
-class PregnancyDiaryReadHandler:
+class DiaryReadHandler:
     def __init__(self, *, client: _DiaryReadClient) -> None:
         self.client = client
 
     async def __call__(self, context: ToolHandlerContext) -> ToolResult:
         arguments = _validate(DiaryReadArguments, context.args)
-        response: DiaryReadResponse = await self.client.read_pregnancy_diary(
+        response: DiaryReadResponse = await self.client.read_diary(
             query=DiaryReadRequest(
                 actor_user_id=context.actor.user_id,
                 **arguments.model_dump(exclude_none=True),
@@ -46,39 +47,43 @@ class PregnancyDiaryReadHandler:
         return ToolResult.json(response.model_dump(mode="json"))
 
 
-class PregnancyDiaryWriteHandler:
+class DiaryMutateHandler:
     def __init__(self, *, action_proposer: ActionProposer) -> None:
         self.action_proposer = action_proposer
 
     async def __call__(self, context: ToolHandlerContext) -> ToolResult:
         arguments = _validate(DiaryWriteArguments, context.args)
+        entry_date = arguments.entry_date
+        if entry_date is None:
+            entry_date = _runtime_local_date(context)
         action_type = (
-            "pregnancy_diary.entry.delete"
+            "diary.entry.delete"
             if arguments.operation == "delete"
-            else "pregnancy_diary.entry.save"
+            else "diary.entry.save"
         )
         payload = arguments.model_dump(
             mode="json",
-            exclude={"idempotency_key"},
             exclude_unset=True,
         )
+        payload["entry_date"] = entry_date.isoformat()
         proposed = await self.action_proposer.propose_action(
             ActionProposal(
                 actor_user_id=context.actor.user_id,
                 run_id=context.run_id,
                 action_type=action_type,
-                target_type="pregnancy_diary_entry",
-                target_id=arguments.entry_date.isoformat(),
+                target_type="diary_entry",
+                target_id=entry_date.isoformat(),
                 side_effect_level=(
                     "medium" if arguments.operation == "delete" else "low"
                 ),
                 preview_payload={
                     "operation": arguments.operation,
-                    "entry_date": arguments.entry_date.isoformat(),
+                    "entry_date": entry_date.isoformat(),
                 },
                 apply_payload=payload,
-                idempotency_key=arguments.idempotency_key
-                or f"{context.run_id}:{context.call_id}:pregnancy-diary",
+                idempotency_key=(
+                    f"{context.run_id}:{context.call_id}:diary"
+                ),
             )
         )
         return ToolResult.json(
@@ -108,7 +113,27 @@ def _validate(
     except ValidationError as exc:
         raise ApiError(
             code="validation_failed",
-            message="Pregnancy diary tool arguments are invalid.",
+            message="Diary tool arguments are invalid.",
             status=422,
             details={"errors": exc.errors(include_url=False)},
         ) from exc
+
+
+def _runtime_local_date(context: ToolHandlerContext) -> date:
+    raw = (context.trusted_args or {}).get("runtime_local_date")
+    if isinstance(raw, str) and raw:
+        try:
+            return date.fromisoformat(raw)
+        except ValueError as exc:
+            raise ApiError(
+                code="runtime_context_invalid",
+                message="Runtime local date is invalid.",
+                status=500,
+            ) from exc
+    if context.as_of_date is not None:
+        return context.as_of_date
+    raise ApiError(
+        code="runtime_context_unavailable",
+        message="Runtime local date is unavailable.",
+        status=503,
+    )

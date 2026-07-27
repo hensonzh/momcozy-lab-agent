@@ -27,10 +27,16 @@ def test_tool_executor_emits_correlated_outcome_metric(
         ToolContract(
             name="profile_read",
             domain="profile",
-            input_schema={
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "private": {"type": "string"},
+                    },
+                },
+            output_schema={
                 "type": "object",
-                "additionalProperties": False,
-                "properties": {},
+                "additionalProperties": True,
             },
             effect_scope="none",
             blocking_policy="must_wait",

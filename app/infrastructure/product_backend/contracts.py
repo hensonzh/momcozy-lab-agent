@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -176,10 +176,21 @@ class ProfileUpdatePayload(_StrictContract):
     mother: ProfileMotherUpdate | None = None
     infants: list[ProfileInfantUpdate] | None = Field(default=None, min_length=1, max_length=10)
     current_infants: list[CurrentInfantLink] | None = Field(default=None, max_length=10)
+    expected_current_infants: list[CurrentInfantLink] | None = Field(
+        default=None,
+        max_length=10,
+    )
+    reference_date: date
 
     @model_validator(mode="after")
     def require_update(self) -> ProfileUpdatePayload:
-        if not self.model_fields_set:
+        mutation_fields = {
+            "mother",
+            "infants",
+            "current_infants",
+            "expected_current_infants",
+        }
+        if not self.model_fields_set.intersection(mutation_fields):
             raise ValueError("at least one profile update is required")
         if "mother" in self.model_fields_set and self.mother is None:
             raise ValueError("mother must be an object")
@@ -187,6 +198,13 @@ class ProfileUpdatePayload(_StrictContract):
             raise ValueError("infants must be an array")
         if "current_infants" in self.model_fields_set and self.current_infants is None:
             raise ValueError("current_infants must be an array")
+        if (
+            "expected_current_infants" in self.model_fields_set
+            and self.expected_current_infants is None
+        ):
+            raise ValueError(
+                "expected_current_infants must be an array"
+            )
         return self
 
 
@@ -194,7 +212,33 @@ class ProfileUpdateApplyRequest(_StrictContract):
     actor_user_id: UUID
     action_id: UUID
     run_id: UUID
+    action_type: Literal[
+        "profile.update",
+        "profile.current_infants.replace",
+    ]
     payload: ProfileUpdatePayload
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> ProfileUpdateApplyRequest:
+        supplied = self.payload.model_fields_set
+        relation_fields = {
+            "current_infants",
+            "expected_current_infants",
+        }
+        if self.action_type == "profile.current_infants.replace":
+            if not relation_fields.issubset(supplied):
+                raise ValueError(
+                    "relationship replacement requires current and expected infants"
+                )
+            if supplied.intersection({"mother", "infants"}):
+                raise ValueError(
+                    "relationship replacement cannot update profile fields"
+                )
+        elif supplied.intersection(relation_fields):
+            raise ValueError(
+                "profile.update cannot replace current infants"
+            )
+        return self
 
 
 class ProfileInfantUpdateSummary(_StrictContract):
@@ -293,7 +337,7 @@ class DiaryApplyRequest(_StrictContract):
 class DiaryApplyResponse(_StrictContract):
     status: Literal["applied"]
     action_id: UUID
-    resource_type: Literal["pregnancy_diary_entry"]
+    resource_type: Literal["diary_entry"]
     resource_id: str
     details: dict[str, Any] = Field(default_factory=dict)
     application_events: list[dict[str, Any]] = Field(default_factory=list)
@@ -301,80 +345,6 @@ class DiaryApplyResponse(_StrictContract):
 
 LactationRecordOperation = Literal["create", "update", "delete"]
 LactationRecordItemType = Literal["feeding", "pumping", "growth"]
-
-
-class LactationTimelineReadRequest(_StrictContract):
-    actor_user_id: UUID
-    as_of_date: date | None = None
-    start_date: date | None = None
-    end_date: date | None = None
-    timezone_name: str = Field(default="UTC", min_length=1, max_length=64)
-    limit: int = Field(default=50, ge=1, le=50)
-
-    @model_validator(mode="after")
-    def validate_range(self) -> LactationTimelineReadRequest:
-        if (
-            self.start_date is not None
-            and self.end_date is not None
-            and self.end_date < self.start_date
-        ):
-            raise ValueError("end_date must be on or after start_date")
-        return self
-
-
-class LactationTimelineSchedule(_StrictContract):
-    task_id: UUID
-    plan_id: UUID | None = None
-    scheduled_at: datetime | None = None
-    title: str
-    description: str
-    status: str
-    completed_at: datetime | None = None
-
-
-class LactationTimelineRecord(_StrictContract):
-    record_type: LactationRecordItemType
-    record_id: UUID
-    plan_task_id: UUID | None = None
-    infant_id: UUID | None = None
-    occurred_at: datetime
-    ended_at: datetime | None = None
-    title: str
-    volume_ml: float | None = None
-    milk_volume_ml: float | None = None
-    duration_seconds: int | None = None
-    feed_type: str | None = None
-    feed_action: str | None = None
-    pump_type: str | None = None
-    source: str | None = None
-    height_cm: float | None = None
-    weight_kg: float | None = None
-    head_cm: float | None = None
-
-
-class LactationTimelineItem(_StrictContract):
-    item_id: str
-    event_type: Literal["feeding", "pumping", "growth", "other"]
-    state: Literal["pending", "completed", "skipped", "recorded"]
-    schedule: LactationTimelineSchedule | None = None
-    records: list[LactationTimelineRecord] = Field(default_factory=list)
-
-
-class LactationTimelineCounts(_StrictContract):
-    pending: int = Field(ge=0)
-    completed: int = Field(ge=0)
-    skipped: int = Field(ge=0)
-    recorded: int = Field(ge=0)
-
-
-class LactationTimelineReadResponse(_StrictContract):
-    as_of_date: date
-    timezone: str
-    start_date: date
-    end_date: date
-    items: list[LactationTimelineItem]
-    counts: LactationTimelineCounts
-    truncated: bool
 
 
 class LactationRecordApplyPayload(_StrictContract):
@@ -615,120 +585,3 @@ class MilkAnalysisSnapshotResponse(_StrictContract):
     recent_growth: list[MilkAnalysisGrowthRecord]
     pumping_trends: list[MilkAnalysisTrendDay]
     analysis: MilkAnalysisInterpretation
-
-
-MilkReminderOperation = Literal["create", "update", "delete", "disable"]
-
-
-class MilkReminderApplyPayload(_StrictContract):
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
-
-    operation: MilkReminderOperation
-    reminder_id: UUID | None = None
-    title: str | None = Field(default=None, min_length=1, max_length=255)
-    body: str | None = Field(default=None, max_length=2000)
-    remind_at: datetime | None = None
-    payload: dict[str, Any] | None = None
-
-    @model_validator(mode="after")
-    def validate_operation_fields(self) -> MilkReminderApplyPayload:
-        supplied = self.model_fields_set
-        mutable_fields = {"title", "body", "remind_at", "payload"}
-        if self.operation == "create":
-            if self.reminder_id is not None:
-                raise ValueError("reminder_id is not accepted for create")
-            if self.title is None or self.remind_at is None:
-                raise ValueError("title and remind_at are required for create")
-        elif self.operation == "update":
-            if self.reminder_id is None:
-                raise ValueError("reminder_id is required for update")
-            if not supplied.intersection(mutable_fields):
-                raise ValueError(
-                    "at least one reminder field is required for update"
-                )
-            if "title" in supplied and self.title is None:
-                raise ValueError("title cannot be null")
-            if "remind_at" in supplied and self.remind_at is None:
-                raise ValueError("remind_at cannot be null")
-        else:
-            if self.reminder_id is None:
-                raise ValueError(
-                    f"reminder_id is required for {self.operation}"
-                )
-            if supplied.intersection(mutable_fields):
-                raise ValueError(
-                    f"reminder fields are not accepted for {self.operation}"
-                )
-        if self.remind_at is not None and self.remind_at.tzinfo is None:
-            raise ValueError("remind_at must include a timezone offset")
-        return self
-
-
-class MilkReminderApplyRequest(_StrictContract):
-    actor_user_id: UUID
-    action_id: UUID
-    run_id: UUID
-    payload: MilkReminderApplyPayload
-
-
-class MilkReminderApplyResponse(_StrictContract):
-    status: Literal["applied"]
-    action_id: UUID
-    resource_type: Literal["milk_reminder"]
-    resource_id: str
-    details: dict[str, Any] = Field(default_factory=dict)
-    application_events: list[dict[str, Any]] = Field(default_factory=list)
-
-
-SupportIssueType = Literal[
-    "malfunction",
-    "missing_parts",
-    "defect",
-    "warranty",
-    "return_or_refund",
-    "order_or_shipping",
-    "usage_help",
-    "safety_concern",
-    "other",
-]
-SupportUrgency = Literal["normal", "high", "safety"]
-
-
-class SupportTicketApplyPayload(_StrictContract):
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
-
-    operation: Literal["create"]
-    issue_type: SupportIssueType = "other"
-    issue_summary: str = Field(min_length=1, max_length=2000)
-    product_model: str = Field(default="", max_length=120)
-    order_number: str = Field(default="", max_length=120)
-    purchase_channel: str = Field(default="", max_length=120)
-    user_contact: str = Field(default="", max_length=255)
-    troubleshooting_done: list[
-        Annotated[str, Field(min_length=1, max_length=500)]
-    ] = Field(default_factory=list, max_length=20)
-    urgency: SupportUrgency = "normal"
-    user_emotion: str = Field(default="", max_length=500)
-    attachments_note: str = Field(default="", max_length=1000)
-    locale: str = Field(default="", max_length=35)
-
-class SupportTicketApplyRequest(_StrictContract):
-    actor_user_id: UUID
-    action_id: UUID
-    run_id: UUID
-    payload: SupportTicketApplyPayload
-
-
-class SupportTicketApplyResponse(_StrictContract):
-    status: Literal["applied"]
-    action_id: UUID
-    resource_type: Literal["support_ticket"]
-    resource_id: str
-    details: dict[str, str] = Field(default_factory=dict)
-    application_events: list[dict[str, Any]] = Field(default_factory=list)

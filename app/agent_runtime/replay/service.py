@@ -179,6 +179,7 @@ def _run(run: AgentRun) -> dict[str, Any]:
         "status": run.status,
         "runtime_pattern": run.runtime_pattern,
         "runtime_version": run.runtime_version,
+        "service_skill_id": run.service_skill_id,
         "request_id": run.request_id,
         "trace_id": run.trace_id,
         "error_code": run.error_code,
@@ -269,12 +270,12 @@ def _tool_output(
     return {
         "id": str(item.id),
         "tool_call_id": str(item.tool_call_id),
-        "safe_output": (
-            redact_value(item.safe_output)
+        "output": (
+            redact_value(item.output)
             if include_content
             else {"redacted": True}
         ),
-        "has_raw_output": bool(item.raw_output_ref),
+        "has_externalized_output": bool(item.output_ref),
     }
 
 
@@ -288,6 +289,11 @@ def _action(
         "action_type": item.action_type,
         "target_type": item.target_type,
         "target_id": item.target_id,
+        "result_payload": (
+            redact_value(item.result_payload)
+            if include_content
+            else {"redacted": True}
+        ),
         "status": item.status,
         "side_effect_level": item.side_effect_level,
         "preview_payload": (

@@ -38,8 +38,14 @@ class ActionExecutor:
         self.policy = policy or ActionPolicy()
 
     async def apply(self, action: AgentAction) -> ActionExecutionOutcome:
-        if action.status == "applied":
-            return ActionExecutionOutcome(action=action, replayed=True)
+        if action.status in {"applied", "failed"}:
+            return ActionExecutionOutcome(
+                action=action,
+                apply_result=_result_from_payload(
+                    action.result_payload
+                ),
+                replayed=True,
+            )
         if action.status not in {"confirmed", "applying"}:
             raise ApiError(
                 code="agent_action_not_confirmed",
@@ -82,6 +88,7 @@ class ActionExecutor:
         applied = await self.repository.mark_action_applied(
             action=action,
             applied_at=_utcnow(),
+            result_payload=_result_payload(result),
         )
         presentation = action_presentation(rule=rule)
         await self.repository.append_event(
@@ -161,6 +168,27 @@ def _error_code(exc: Exception) -> str:
     if isinstance(exc, ApiError):
         return exc.code
     return "agent_action_handler_error"
+
+
+def _result_payload(result: ActionApplyResult) -> dict[str, Any]:
+    return {
+        "resource_type": result.resource_type,
+        "resource_id": result.resource_id,
+        "details": dict(result.details),
+    }
+
+
+def _result_from_payload(
+    payload: dict[str, Any],
+) -> ActionApplyResult | None:
+    if not payload:
+        return None
+    details = payload.get("details")
+    return ActionApplyResult(
+        resource_type=str(payload.get("resource_type") or ""),
+        resource_id=str(payload.get("resource_id") or ""),
+        details=dict(details) if isinstance(details, dict) else {},
+    )
 
 
 def _utcnow() -> datetime:

@@ -186,6 +186,15 @@ class RuntimeActionService:
                     "preview_payload": dict(action.preview_payload),
                 },
             )
+        elif not _proposal_matches(action=action, proposal=proposal):
+            raise ApiError(
+                code="agent_action_idempotency_conflict",
+                message=(
+                    "Agent action idempotency key was already used "
+                    "with a different payload."
+                ),
+                status=409,
+            )
         elif (
             action.status == "failed"
             and action.error_code in RETRYABLE_ACTION_ERROR_CODES
@@ -357,6 +366,9 @@ class RuntimeActionService:
                                     "error_code": (
                                         resolved.error_code or None
                                     ),
+                                    "result": dict(
+                                        resolved.result_payload
+                                    ),
                                 }
                             },
                             ensure_ascii=False,
@@ -485,3 +497,17 @@ def _event_payload(action: AgentAction) -> dict[str, str]:
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _proposal_matches(
+    *,
+    action: AgentAction,
+    proposal: ActionProposal,
+) -> bool:
+    return (
+        action.target_type == proposal.target_type
+        and action.target_id == proposal.target_id
+        and action.side_effect_level == proposal.side_effect_level
+        and action.preview_payload == proposal.preview_payload
+        and action.apply_payload == proposal.apply_payload
+    )

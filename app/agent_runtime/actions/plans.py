@@ -7,9 +7,9 @@ from pydantic import ValidationError
 from app.agent_runtime.ledger import AgentAction
 from app.core.errors import ApiError
 from app.infrastructure.product_backend.plans_contracts import (
-    MilkPlanCreatePayload,
     MilkScheduleReschedulePayload,
     PlanDeletePayload,
+    PlanUpdatePayload,
     PlanTaskCompletePayload,
     PlanTaskCreatePayload,
     PlanTaskDeletePayload,
@@ -28,9 +28,9 @@ PLANS_ACTION_TYPES = frozenset(
         "plans.task.complete",
         "plans.task.update",
         "plans.task.delete",
+        "plans.plan.update",
         "plans.plan.delete",
         "pregnancy.plan.create",
-        "plans.milk_plan.create",
         "plans.milk_schedule.reschedule",
     }
 )
@@ -109,12 +109,9 @@ def _expected_target(
         ),
     ):
         return "plan_task", str(payload.task_id)
-    if isinstance(payload, PlanDeletePayload):
+    if isinstance(payload, (PlanUpdatePayload, PlanDeletePayload)):
         return "plan", str(payload.plan_id)
-    if isinstance(
-        payload,
-        (PregnancyPlanCreatePayload, MilkPlanCreatePayload),
-    ):
+    if isinstance(payload, PregnancyPlanCreatePayload):
         return "plan", "new"
     if isinstance(payload, MilkScheduleReschedulePayload):
         return "plan", str(payload.plan_id)

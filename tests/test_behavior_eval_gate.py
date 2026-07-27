@@ -137,7 +137,7 @@ def test_user_message_event_cannot_masquerade_as_final_assistant_response() -> N
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][1]["payload"] = {
+    bundle["events"][2]["payload"] = {
         "message_id": str(uuid4()),
         "role": "user",
     }
@@ -164,7 +164,7 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
         "responding_agent": "main",
         "exact_specialists": ["prenatal", "lactation"],
         "required_tools": ["hospital_bag_manage"],
-        "forbidden_tools": ["profile_write"],
+        "forbidden_tools": ["profile_update"],
         "forbid_actions": True,
         "require_final_response_event": True,
     }
@@ -176,25 +176,16 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
     ).cases[0]
     run_id = uuid4()
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"].insert(
-        2,
-        {
-            "event_id": str(uuid4()),
-            "sequence": 3,
-            "type": "run.progress",
-            "payload": {
-                "phase": "specialist.started",
-                "agent_name": "prenatal",
-            },
-        },
-    )
-    bundle["events"][-2]["sequence"] = 4
-    bundle["events"][-1]["sequence"] = 5
+    bundle["events"][1]["payload"] = {
+        "agents": ["prenatal"],
+        "mode": "direct",
+        "service_skill_id": "prenatal",
+    }
     bundle["tool_calls"] = [
         {
             "id": str(uuid4()),
             "call_id": "call-1",
-            "tool_name": "profile_write",
+            "tool_name": "profile_update",
             "status": "completed",
         }
     ]
@@ -229,20 +220,11 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"].insert(
-        1,
-        {
-            "event_id": str(uuid4()),
-            "sequence": 0,
-            "type": "run.progress",
-            "payload": {
-                "phase": "specialist.started",
-                "agent_name": "legacy_agent",
-            },
-        },
-    )
-    for sequence, event in enumerate(bundle["events"], start=1):
-        event["sequence"] = sequence
+    bundle["events"][1]["payload"] = {
+        "agents": ["legacy_agent"],
+        "mode": "direct",
+        "service_skill_id": "legacy_agent",
+    }
     bundle["tool_calls"] = [
         {
             "id": str(uuid4()),
@@ -313,7 +295,7 @@ def test_quality_judge_cannot_pass_a_redacted_response() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][1]["payload"].pop("text")
+    bundle["events"][2]["payload"].pop("text")
     judge = RecordingJudge()
 
     result = asyncio.run(
@@ -469,7 +451,7 @@ def _suite_payload() -> dict[str, Any]:
                     "responding_agent": "main",
                     "exact_specialists": [],
                     "required_tools": [],
-                    "forbidden_tools": ["profile_write"],
+                    "forbidden_tools": ["profile_update"],
                     "forbid_actions": True,
                     "require_final_response_event": True,
                 },
@@ -513,6 +495,16 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
             {
                 "event_id": str(uuid4()),
                 "sequence": 2,
+                "type": "agent.routing.completed",
+                "payload": {
+                    "agents": ["main"],
+                    "mode": "direct",
+                    "service_skill_id": "main",
+                },
+            },
+            {
+                "event_id": str(uuid4()),
+                "sequence": 3,
                 "type": "message.completed",
                 "payload": {
                     "message_id": str(uuid4()),
@@ -522,7 +514,7 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
             },
             {
                 "event_id": str(uuid4()),
-                "sequence": 3,
+                "sequence": 4,
                 "type": "run.completed",
                 "payload": {"responding_agent": "main"},
             },

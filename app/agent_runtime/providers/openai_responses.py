@@ -228,6 +228,8 @@ class OpenAIResponsesProvider:
         }
         if not self.store:
             kwargs["include"] = ["reasoning.encrypted_content"]
+        if request.response_format is not None:
+            kwargs["text"]["format"] = dict(request.response_format)
         return kwargs
 
 

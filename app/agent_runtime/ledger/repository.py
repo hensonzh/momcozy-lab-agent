@@ -184,6 +184,16 @@ class RuntimeLedgerRepository:
         )
         return cast(AgentRun | None, await self.session.scalar(statement))
 
+    async def set_run_service_skill_id(
+        self,
+        *,
+        run: AgentRun,
+        service_skill_id: str,
+    ) -> AgentRun:
+        run.service_skill_id = service_skill_id
+        await self.session.flush()
+        return run
+
     async def lock_run_for_owner(
         self,
         *,
@@ -967,9 +977,11 @@ class RuntimeLedgerRepository:
         *,
         action: AgentAction,
         applied_at: datetime,
+        result_payload: dict[str, Any],
     ) -> AgentAction:
         action.status = "applied"
         action.applied_at = applied_at
+        action.result_payload = result_payload
         action.failed_at = None
         action.error_code = ""
         await self.session.flush()
@@ -985,6 +997,7 @@ class RuntimeLedgerRepository:
         action.status = "failed"
         action.failed_at = failed_at
         action.error_code = error_code
+        action.result_payload = {}
         await self.session.flush()
         return action
 
@@ -1095,17 +1108,17 @@ class RuntimeLedgerRepository:
         self,
         *,
         tool_call_id: UUID,
-        safe_output: dict[str, Any],
-        raw_output_ref: str = "",
+        output: dict[str, Any],
+        output_ref: str = "",
     ) -> AgentToolOutput:
-        output = AgentToolOutput(
+        tool_output = AgentToolOutput(
             tool_call_id=tool_call_id,
-            safe_output=safe_output,
-            raw_output_ref=raw_output_ref,
+            output=output,
+            output_ref=output_ref,
         )
-        self.session.add(output)
+        self.session.add(tool_output)
         await self.session.flush()
-        return output
+        return tool_output
 
     async def list_tool_calls_for_run(
         self,
@@ -1238,6 +1251,36 @@ class RuntimeLedgerRepository:
             .join(AgentThread, AgentThread.id == AgentRun.thread_id)
             .where(
                 AgentArtifact.run_id == run_id,
+                AgentArtifact.owner_user_id == owner_user_id,
+                AgentArtifact.artifact_type == artifact_type,
+                AgentArtifact.status != "deleted",
+                AgentThread.owner_user_id == owner_user_id,
+                AgentThread.deleted_at.is_(None),
+            )
+            .order_by(
+                AgentArtifact.created_at.desc(),
+                AgentArtifact.id.desc(),
+            )
+            .limit(1)
+        )
+        return cast(
+            AgentArtifact | None,
+            await self.session.scalar(statement),
+        )
+
+    async def get_latest_artifact_for_thread_owner(
+        self,
+        *,
+        thread_id: UUID,
+        owner_user_id: UUID,
+        artifact_type: str,
+    ) -> AgentArtifact | None:
+        statement = (
+            select(AgentArtifact)
+            .join(AgentRun, AgentRun.id == AgentArtifact.run_id)
+            .join(AgentThread, AgentThread.id == AgentRun.thread_id)
+            .where(
+                AgentRun.thread_id == thread_id,
                 AgentArtifact.owner_user_id == owner_user_id,
                 AgentArtifact.artifact_type == artifact_type,
                 AgentArtifact.status != "deleted",

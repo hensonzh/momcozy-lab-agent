@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, timezone
+import json
 import logging
 from types import SimpleNamespace
 from typing import Any, cast
@@ -28,22 +29,45 @@ from app.agents import (
     MAIN_AGENT,
     PRENATAL_AGENT,
 )
+from app.core.errors import ApiError
 
 
 def test_general_question_is_answered_by_main_agent_without_delegation() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider({"main": [ModelTurn.final("可以先观察体温和精神状态。", deltas=("可以先观察", "体温和精神状态。"))]})
+    provider = ScriptedModelProvider(
+        {
+            "router": [_route("main")],
+            "main": [
+                ModelTurn.final(
+                    "可以先观察体温和精神状态。",
+                    deltas=("可以先观察", "体温和精神状态。"),
+                )
+            ],
+        }
+    )
     loop = _loop(repository=repository, provider=provider)
 
     run = asyncio.run(loop.process(repository.run.id))
 
     assert run.status == "completed"
-    assert [request.agent_name for request in provider.requests] == ["main"]
-    assert repository.assistant_text == "可以先观察体温和精神状态。"
-    assert repository.context_payloads == [
-        {"role": "user", "content": "宝宝有点发热怎么办？"},
-        {"role": "assistant", "content": "可以先观察体温和精神状态。"},
+    assert [request.agent_name for request in provider.requests] == [
+        "router",
+        "main",
     ]
+    assert repository.run.service_skill_id == "main"
+    assert repository.assistant_text == "可以先观察体温和精神状态。"
+    assert repository.context_payloads[0] == {
+        "role": "user",
+        "content": "宝宝有点发热怎么办？",
+    }
+    assert repository.context_payloads[1]["role"] == "developer"
+    assert '"agent":"main"' in repository.context_payloads[1][
+        "content"
+    ]
+    assert repository.context_payloads[2] == {
+        "role": "assistant",
+        "content": "可以先观察体温和精神状态。",
+    }
     assert repository.event_types[-2:] == ["message.completed", "run.completed"]
     assert "message.delta" not in repository.event_types
 
@@ -53,7 +77,10 @@ def test_run_processing_emits_correlated_outcome_metric(
 ) -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
-        {"main": [ModelTurn.final("完成。")]}
+        {
+            "router": [_route("main")],
+            "main": [ModelTurn.final("完成。")],
+        }
     )
 
     with caplog.at_level(logging.INFO, logger="agent_runtime.run"):
@@ -97,6 +124,7 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     publisher = RecordingDeltaPublisher()
     provider = ScriptedModelProvider(
         {
+            "router": [_route("main")],
             "main": [
                 ModelTurn.final(
                     "你好",
@@ -105,8 +133,6 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
             ]
         }
     )
-    commits_before = repository.commits
-
     asyncio.run(
         _loop(
             repository=repository,
@@ -117,13 +143,26 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
 
     assert publisher.deltas == ["你", "好"]
     assert "message.delta" not in repository.event_types
-    assert repository.commits - commits_before == 3
+    control_repository = MemoryLedger()
+    asyncio.run(
+        _loop(
+            repository=control_repository,
+            provider=ScriptedModelProvider(
+                {
+                    "router": [_route("main")],
+                    "main": [ModelTurn.final("你好")],
+                }
+            ),
+        ).process(control_repository.run.id)
+    )
+    assert repository.commits == control_repository.commits
 
 
 def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
+            "router": [_route("main")],
             "main": [
                 ModelTurn.final(
                     "最终回复仍然可用。",
@@ -159,7 +198,12 @@ def test_cancellation_during_provider_call_cannot_be_overwritten_by_completion()
 
 def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
     repository = FencedMemoryLedger()
-    provider = ScriptedModelProvider({"main": [ModelTurn.final("这条晚到回复不能落库。")]})
+    provider = ScriptedModelProvider(
+        {
+            "router": [_route("main")],
+            "main": [ModelTurn.final("这条晚到回复不能落库。")],
+        }
+    )
     guard_calls = 0
 
     async def lease_guard() -> None:
@@ -187,22 +231,7 @@ def test_single_specialist_reply_becomes_final_without_second_main_call() -> Non
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "main": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
-                        call_id="route-prenatal",
-                        name="delegate_to_specialists",
-                        arguments={
-                            "tasks": [
-                                {
-                                    "agent": "prenatal",
-                                    "instruction": "给出待产包建议",
-                                }
-                            ]
-                        },
-                    )
-                )
-            ],
+            "router": [_route("prenatal")],
             "prenatal": [ModelTurn.final("证件、产褥垫和宝宝衣物先装好。")],
         }
     )
@@ -211,51 +240,102 @@ def test_single_specialist_reply_becomes_final_without_second_main_call() -> Non
     asyncio.run(loop.process(repository.run.id))
 
     assert [request.agent_name for request in provider.requests] == [
-        "main",
+        "router",
         "prenatal",
     ]
     assert repository.assistant_text == "证件、产褥垫和宝宝衣物先装好。"
-    assert [item.get("type") for item in repository.context_payloads] == [
-        None,
-        "function_call",
-        "function_call_output",
-        None,
+    assert repository.run.service_skill_id == "prenatal"
+    assert "main" not in [
+        request.agent_name for request in provider.requests
     ]
-    assert repository.context_payloads[1]["name"] == "delegate_to_specialists"
 
 
-def test_multiple_specialists_run_in_parallel_then_main_summarizes() -> None:
+def test_multiple_agents_run_in_dependency_order_then_main_summarizes() -> None:
     repository = MemoryLedger()
-    provider = ConcurrentScriptedProvider()
+    provider = ScriptedModelProvider(
+        {
+            "router": [_route("prenatal", "lactation")],
+            "prenatal": [ModelTurn.final("先准备证件和待产用品。")],
+            "lactation": [ModelTurn.final("再核对近七天奶量趋势。")],
+            "main": [
+                ModelTurn.final(
+                    "先准备待产用品，再按泌乳建议观察奶量。"
+                )
+            ],
+        }
+    )
     loop = _loop(repository=repository, provider=provider)
 
     asyncio.run(loop.process(repository.run.id))
 
-    assert provider.max_active_specialists == 2
-    assert [request.agent_name for request in provider.requests].count("main") == 2
+    assert [request.agent_name for request in provider.requests] == [
+        "router",
+        "prenatal",
+        "lactation",
+        "main",
+    ]
     assert repository.assistant_text == "先准备待产用品，再按泌乳建议观察奶量。"
-    delegation_output = next(
-        item
-        for item in repository.context_payloads
-        if item.get("type") == "function_call_output" and item.get("call_id") == "route-multiple"
-    )
-    assert '"agent":"prenatal"' in delegation_output["output"]
-    assert '"agent":"lactation"' in delegation_output["output"]
+    assert repository.run.service_skill_id == "main"
+    lactation_request = provider.requests[2]
+    prior_result = lactation_request.input_items[-1]
+    assert prior_result["role"] == "developer"
+    assert "先准备证件和待产用品" in prior_result["content"]
+    synthesis_request = provider.requests[3]
+    assert synthesis_request.tools == ()
+    assert "specialist_results" in synthesis_request.input_items[-1][
+        "content"
+    ]
 
 
-def test_parallel_specialists_use_isolated_causal_model_branches() -> None:
+def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
     repository = MemoryLedger()
-    provider = ToolCallingConcurrentProvider()
-    loop = _loop(repository=repository, provider=provider)
+    provider = ScriptedModelProvider(
+        {
+            "router": [_route("prenatal", "lactation")],
+            "prenatal": [
+                ModelTurn.calls(
+                    ModelFunctionCall(
+                        call_id="prenatal-tool-call",
+                        name="plan_read",
+                        arguments={"scope": "current"},
+                    )
+                ),
+                ModelTurn.final("产前结果"),
+            ],
+            "lactation": [
+                ModelTurn.calls(
+                    ModelFunctionCall(
+                        call_id="lactation-tool-call",
+                        name="milk_analysis_manage",
+                        arguments={
+                            "operation": "review",
+                            "days": 7,
+                        },
+                    )
+                ),
+                ModelTurn.final("泌乳结果"),
+            ],
+            "main": [ModelTurn.final("综合产前和泌乳结果。")],
+        }
+    )
+    executor = RecordingToolExecutor(repository)
+    loop = _loop(
+        repository=repository,
+        provider=provider,
+        tool_executor=cast(ToolExecutor, executor),
+    )
 
     run = asyncio.run(loop.process(repository.run.id))
 
     assert run.status == "completed"
-    assert provider.max_active_specialists == 2
     assert repository.assistant_text == "综合产前和泌乳结果。"
-
-    main_requests = [
-        request for request in provider.requests if request.agent_name == "main"
+    assert [request.agent_name for request in provider.requests] == [
+        "router",
+        "prenatal",
+        "prenatal",
+        "lactation",
+        "lactation",
+        "main",
     ]
     prenatal_requests = [
         request
@@ -267,38 +347,34 @@ def test_parallel_specialists_use_isolated_causal_model_branches() -> None:
         for request in provider.requests
         if request.agent_name == "lactation"
     ]
-    assert len(main_requests) == 2
     assert len(prenatal_requests) == 2
     assert len(lactation_requests) == 2
 
-    for request in provider.requests:
-        _assert_function_context_is_paired(request.input_items)
-
     assert _call_ids(prenatal_requests[0].input_items) == set()
-    assert _call_ids(lactation_requests[0].input_items) == set()
     assert _call_ids(prenatal_requests[1].input_items) == {
         "prenatal-tool-call"
     }
+    assert _call_ids(lactation_requests[0].input_items) == set()
     assert _call_ids(lactation_requests[1].input_items) == {
         "lactation-tool-call"
     }
-    assert _call_ids(main_requests[1].input_items) == {
-        "route-with-tools"
-    }
-
     global_call_ids = _call_ids(tuple(repository.context_payloads))
     assert global_call_ids == {
-        "route-with-tools",
         "prenatal-tool-call",
         "lactation-tool-call",
     }
-    global_types = [
-        item.get("type")
-        for item in repository.context_payloads
-        if item.get("type") in {"function_call", "function_call_output"}
+    assert executor.calls == [
+        (
+            "plan_read",
+            "prenatal-tool-call",
+            {"scope": "current"},
+        ),
+        (
+            "milk_analysis_manage",
+            "lactation-tool-call",
+            {"operation": "review", "days": 7},
+        ),
     ]
-    assert global_types[-1] == "function_call_output"
-    assert repository.context_payloads[-2]["call_id"] == "route-with-tools"
 
 
 def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
@@ -318,6 +394,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     )
     provider = ScriptedModelProvider(
         {
+            "router": [_route("main")],
             "main": [
                 ModelTurn.calls(
                     ModelFunctionCall(
@@ -341,8 +418,10 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
 
     assert executor.calls == [("profile_read", "profile-call", {"infant_scope": "all"})]
     assert executor.as_of_dates == [date(2026, 7, 27)]
-    assert provider.requests[0].input_items[0]["role"] == "developer"
-    assert '"locale":"zh-CN"' in provider.requests[0].input_items[0]["content"]
+    assert provider.requests[1].input_items[0]["role"] == "developer"
+    assert '"locale":"zh-CN"' in provider.requests[1].input_items[0][
+        "content"
+    ]
     assert repository.context_payloads[2] == {
         "type": "function_call",
         "call_id": "profile-call",
@@ -360,6 +439,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
     first_provider = ScriptedModelProvider(
         {
+            "router": [_route("main")],
             "main": [
                 ModelTurn.calls(
                     ModelFunctionCall(
@@ -398,7 +478,14 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     asyncio.run(second_loop.process(repository.run.id))
 
     assert second_executor.calls == [("profile_read", "recover-call", {})]
-    assert second_provider.requests[0].input_items == tuple(repository.context_payloads[:-1])
+    _assert_function_context_is_paired(
+        second_provider.requests[0].input_items
+    )
+    assert second_provider.requests[0].input_items[-1] == {
+        "type": "function_call_output",
+        "call_id": "recover-call",
+        "output": '{"profile":"ok"}',
+    }
     assert repository.run.status == "completed"
 
 
@@ -406,45 +493,13 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
     repository = MemoryLedger()
     first_provider = ScriptedModelProvider(
         {
-            "main": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
-                        call_id="recover-route",
-                        name="delegate_to_specialists",
-                        arguments={
-                            "tasks": [
-                                {
-                                    "agent": "prenatal",
-                                    "instruction": "读取产前计划",
-                                }
-                            ]
-                        },
-                    ),
-                    response_id="recover-route-response",
-                    context_items=(
-                        {
-                            "id": "recover-main-reasoning",
-                            "type": "reasoning",
-                            "encrypted_content": "encrypted",
-                        },
-                        {
-                            "type": "function_call",
-                            "call_id": "recover-route",
-                            "name": "delegate_to_specialists",
-                            "arguments": (
-                                '{"tasks":[{"agent":"prenatal",'
-                                '"instruction":"读取产前计划"}]}'
-                            ),
-                        },
-                    ),
-                )
-            ],
+            "router": [_route("prenatal")],
             "prenatal": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="recover-prenatal-tool",
-                        name="pregnancy_plan_manage",
-                        arguments={"operation": "read"},
+                        name="plan_read",
+                        arguments={"scope": "current"},
                     )
                 )
             ],
@@ -467,7 +522,6 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
 
     assert repository.run.status == "running"
     assert _call_ids(tuple(repository.context_payloads)) == {
-        "recover-route",
         "recover-prenatal-tool",
     }
 
@@ -490,9 +544,9 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
     assert run.status == "completed"
     assert second_executor.calls == [
         (
-            "pregnancy_plan_manage",
+            "plan_read",
             "recover-prenatal-tool",
-            {"operation": "read"},
+            {"scope": "current"},
         )
     ]
     assert [request.agent_name for request in second_provider.requests] == [
@@ -505,18 +559,40 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
 
 
 def test_agent_definitions_use_fixed_domain_allowlists() -> None:
-    assert "profile_read" in MAIN_AGENT.tool_names
-    assert "pregnancy_plan_manage" not in MAIN_AGENT.tool_names
-    assert PRENATAL_AGENT.tool_names == (
-        "pregnancy_plan_manage",
-        "hospital_bag_manage",
-        "hospital_bag_cart_write",
+    assert MAIN_AGENT.tool_names == (
+        "profile_read",
+        "profile_update",
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
+        "diary_read",
+        "diary_mutate",
+        "conversation_history_image_read",
     )
-    assert "profile_read" in LACTATION_AGENT.tool_names
+    assert PRENATAL_AGENT.tool_names == (
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
+        "pregnancy_intake_manage",
+        "hospital_bag_manage",
+        "hospital_bag_cart_mutate",
+    )
+    assert LACTATION_AGENT.tool_names == (
+        "profile_read",
+        "profile_update",
+        "plan_read",
+        "plan_mutate",
+        "schedule_timeline_read",
+        "schedule_timeline_mutate",
+        "milk_analysis_manage",
+        "ibclc_consult_card_create",
+    )
     assert DEVICE_AGENT.tool_names == (
         "devices_guidance_manage",
         "pump_models_read",
-        "support_ticket_write",
+        "support_ticket_draft_create",
     )
 
 
@@ -524,6 +600,7 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
+            "router": [_route("main")],
             "main": [
                 ModelTurn.calls(
                     ModelFunctionCall(
@@ -559,6 +636,140 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     assert repository.event_types[-1] == "run.waiting_for_confirmation"
 
 
+def test_confirmation_resume_restores_each_tool_item_once() -> None:
+    repository = MemoryLedger()
+    action_id = uuid4()
+    first_provider = ScriptedModelProvider(
+        {
+            "router": [_route("main")],
+            "main": [
+                ModelTurn.calls(
+                    ModelFunctionCall(
+                        call_id="confirmation-resume-call",
+                        name="profile_read",
+                        arguments={},
+                    )
+                )
+            ],
+        }
+    )
+    executor = RecordingToolExecutor(
+        repository,
+        result=ToolResult.json(
+            {
+                "action_id": str(action_id),
+                "action_status": "confirmation_required",
+                "requires_confirmation": True,
+            },
+        ),
+    )
+
+    paused = asyncio.run(
+        _loop(
+            repository=repository,
+            provider=first_provider,
+            tool_executor=cast(ToolExecutor, executor),
+        ).process(repository.run.id)
+    )
+    assert paused.status == "waiting_for_confirmation"
+
+    repository.run.status = "queued"
+    asyncio.run(
+        repository.append_context_items(
+            thread_id=repository.run.thread_id,
+            run_id=repository.run.id,
+            items=(
+                ContextItemAppend(
+                    item_key="action-result:confirmed",
+                    item={
+                        "role": "developer",
+                        "content": json.dumps(
+                            {
+                                "runtime_action": {
+                                    "action_id": str(action_id),
+                                    "status": "applied",
+                                }
+                            },
+                            separators=(",", ":"),
+                        ),
+                    },
+                ),
+            ),
+        )
+    )
+    resumed_provider = ScriptedModelProvider(
+        {"main": [ModelTurn.final("确认后已完成。")]}
+    )
+
+    resumed = asyncio.run(
+        _loop(
+            repository=repository,
+            provider=resumed_provider,
+            tool_executor=cast(ToolExecutor, executor),
+        ).process(repository.run.id)
+    )
+
+    assert resumed.status == "completed"
+    restored = resumed_provider.requests[0].input_items
+    assert sum(
+        item.get("type") == "function_call"
+        and item.get("call_id") == "confirmation-resume-call"
+        for item in restored
+    ) == 1
+    assert sum(
+        item.get("type") == "function_call_output"
+        and item.get("call_id") == "confirmation-resume-call"
+        for item in restored
+    ) == 1
+    assert any(
+        item.get("role") == "developer"
+        and "runtime_action" in str(item.get("content") or "")
+        for item in restored
+    )
+
+
+def test_fatal_tool_output_persistence_error_terminates_run() -> None:
+    repository = MemoryLedger()
+    provider = ScriptedModelProvider(
+        {
+            "router": [_route("main")],
+            "main": [
+                ModelTurn.calls(
+                    ModelFunctionCall(
+                        call_id="fatal-output-call",
+                        name="profile_read",
+                        arguments={},
+                    )
+                ),
+                ModelTurn.final("不应继续生成回复。"),
+            ],
+        }
+    )
+
+    run = asyncio.run(
+        _loop(
+            repository=repository,
+            provider=provider,
+            tool_executor=cast(
+                ToolExecutor,
+                FatalToolOutputExecutor(),
+            ),
+        ).process(repository.run.id)
+    )
+
+    assert run.status == "failed"
+    assert run.error_code == "tool_output_store_failed"
+    assert [request.agent_name for request in provider.requests] == [
+        "router",
+        "main",
+    ]
+    assert not any(
+        item.get("type") == "function_call_output"
+        and item.get("call_id") == "fatal-output-call"
+        for item in repository.context_payloads
+    )
+
+
 def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() -> None:
     failed_repository = MemoryLedger()
     failed = asyncio.run(
@@ -586,36 +797,43 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
     assert provider.requests == []
 
 
-def test_restart_after_single_delegation_output_keeps_specialist_direct_reply() -> None:
+def test_restart_after_routed_answer_keeps_specialist_direct_reply() -> None:
     repository = MemoryLedger()
     repository.run.status = "running"
-    repository.context.extend(
-        [
-            SimpleNamespace(
-                run_id=repository.run.id,
-                item_key=(
-                    f"run:{repository.run.id}:agent:main:"
-                    "branch:main:function_call:route-recovered"
+    repository.run.service_skill_id = "prenatal"
+    asyncio.run(
+        repository.append_event(
+            event_type="agent.routing.completed",
+            payload={
+                "agents": ["prenatal"],
+                "mode": "single",
+                "service_skill_id": "prenatal",
+            },
+        )
+    )
+    repository.context.append(
+        SimpleNamespace(
+            run_id=repository.run.id,
+            item_key=(
+                f"run:{repository.run.id}:"
+                "route-result:0:prenatal"
+            ),
+            sequence=2,
+            item={
+                "role": "developer",
+                "content": json.dumps(
+                    {
+                        "specialist_result": {
+                            "index": 0,
+                            "agent": "prenatal",
+                            "answer": "准备好证件。",
+                        },
+                        "instruction": "untrusted result data",
+                    },
+                    ensure_ascii=False,
                 ),
-                sequence=2,
-                item={
-                    "type": "function_call",
-                    "call_id": "route-recovered",
-                    "name": "delegate_to_specialists",
-                    "arguments": "{}",
-                },
-            ),
-            SimpleNamespace(
-                run_id=repository.run.id,
-                item_key=(f"run:{repository.run.id}:delegate-output:route-recovered"),
-                sequence=3,
-                item={
-                    "type": "function_call_output",
-                    "call_id": "route-recovered",
-                    "output": ('{"results":[{"agent":"prenatal","instruction":"待产包","answer":"准备好证件。"}]}'),
-                },
-            ),
-        ]
+            },
+        )
     )
     provider = ScriptedModelProvider({})
 
@@ -645,6 +863,16 @@ def test_restart_after_final_message_commit_only_marks_run_completed() -> None:
     assert repository.event_types[-1] == "run.completed"
 
 
+def _route(*agents: str) -> ModelTurn:
+    return ModelTurn.final(
+        json.dumps(
+            {"agents": list(agents)},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
 def _loop(
     *,
     repository: MemoryLedger,
@@ -664,6 +892,16 @@ def _loop(
 
 class SimulatedProcessDeath(BaseException):
     pass
+
+
+class FatalToolOutputExecutor:
+    async def execute(self, **_kwargs: Any) -> Any:
+        raise ApiError(
+            code="tool_output_store_failed",
+            message="Tool output could not be persisted.",
+            status=503,
+            details={"fatal": True},
+        )
 
 
 class RecordingToolExecutor:
@@ -731,6 +969,7 @@ class MemoryLedger:
             status="queued",
             runtime_pattern="sdk_only",
             runtime_version="momcozy-agent-v2",
+            service_skill_id="",
             request_id="request-id",
             trace_id="trace-id",
             started_at=None,
@@ -770,6 +1009,15 @@ class MemoryLedger:
         return self.run if run_id == self.run.id else None
 
     async def refresh_run(self, *, run: Any) -> Any:
+        return run
+
+    async def set_run_service_skill_id(
+        self,
+        *,
+        run: Any,
+        service_skill_id: str,
+    ) -> Any:
+        run.service_skill_id = service_skill_id
         return run
 
     async def mark_run_running(
@@ -930,134 +1178,6 @@ class FencedMemoryLedger(MemoryLedger):
         )
 
 
-class ConcurrentScriptedProvider:
-    def __init__(self) -> None:
-        self.requests: list[Any] = []
-        self.main_calls = 0
-        self.active_specialists = 0
-        self.max_active_specialists = 0
-        self.release = asyncio.Event()
-
-    async def respond(self, request: Any) -> ModelTurn:
-        self.requests.append(request)
-        if request.agent_name == "main":
-            self.main_calls += 1
-            if self.main_calls == 1:
-                return ModelTurn.calls(
-                    ModelFunctionCall(
-                        call_id="route-multiple",
-                        name="delegate_to_specialists",
-                        arguments={
-                            "tasks": [
-                                {
-                                    "agent": "prenatal",
-                                    "instruction": "准备待产用品",
-                                },
-                                {
-                                    "agent": "lactation",
-                                    "instruction": "给出奶量建议",
-                                },
-                            ]
-                        },
-                    )
-                )
-            return ModelTurn.final("先准备待产用品，再按泌乳建议观察奶量。")
-
-        self.active_specialists += 1
-        self.max_active_specialists = max(
-            self.max_active_specialists,
-            self.active_specialists,
-        )
-        if self.active_specialists == 2:
-            self.release.set()
-        await self.release.wait()
-        self.active_specialists -= 1
-        return ModelTurn.final(f"{request.agent_name} answer")
-
-
-class ToolCallingConcurrentProvider:
-    def __init__(self) -> None:
-        self.requests: list[Any] = []
-        self.calls_by_agent: dict[str, int] = {}
-        self.active_specialists = 0
-        self.max_active_specialists = 0
-        self.release = asyncio.Event()
-
-    async def respond(self, request: Any) -> ModelTurn:
-        self.requests.append(request)
-        call_number = self.calls_by_agent.get(request.agent_name, 0) + 1
-        self.calls_by_agent[request.agent_name] = call_number
-        if request.agent_name == "main":
-            if call_number == 1:
-                return ModelTurn.calls(
-                    ModelFunctionCall(
-                        call_id="route-with-tools",
-                        name="delegate_to_specialists",
-                        arguments={
-                            "tasks": [
-                                {
-                                    "agent": "prenatal",
-                                    "instruction": "读取产前计划",
-                                },
-                                {
-                                    "agent": "lactation",
-                                    "instruction": "读取泌乳时间线",
-                                },
-                            ]
-                        },
-                    ),
-                    response_id="main-route-response",
-                    context_items=(
-                        {
-                            "id": "main-reasoning",
-                            "type": "reasoning",
-                            "encrypted_content": "main-encrypted",
-                        },
-                        {
-                            "type": "function_call",
-                            "call_id": "route-with-tools",
-                            "name": "delegate_to_specialists",
-                            "arguments": (
-                                '{"tasks":[{"agent":"prenatal",'
-                                '"instruction":"读取产前计划"},'
-                                '{"agent":"lactation",'
-                                '"instruction":"读取泌乳时间线"}]}'
-                            ),
-                        },
-                    ),
-                )
-            return ModelTurn.final("综合产前和泌乳结果。")
-
-        if call_number == 1:
-            self.active_specialists += 1
-            self.max_active_specialists = max(
-                self.max_active_specialists,
-                self.active_specialists,
-            )
-            if self.active_specialists == 2:
-                self.release.set()
-            await self.release.wait()
-            self.active_specialists -= 1
-            if request.agent_name == "prenatal":
-                return ModelTurn.calls(
-                    ModelFunctionCall(
-                        call_id="prenatal-tool-call",
-                        name="pregnancy_plan_manage",
-                        arguments={"operation": "read"},
-                    ),
-                    response_id="prenatal-tool-response",
-                )
-            return ModelTurn.calls(
-                ModelFunctionCall(
-                    call_id="lactation-tool-call",
-                    name="lactation_timeline_read",
-                    arguments={},
-                ),
-                response_id="lactation-tool-response",
-            )
-        return ModelTurn.final(f"{request.agent_name} 专业结果")
-
-
 def _call_ids(
     input_items: tuple[dict[str, Any], ...],
 ) -> set[str]:
@@ -1100,6 +1220,8 @@ class CancellingProvider:
 
     async def respond(self, request: Any) -> ModelTurn:
         self.requests.append(request)
+        if request.agent_name == "router":
+            return _route("main")
         self.repository.run.status = "cancelled"
         self.repository.run.cancelled_at = datetime.now(timezone.utc)
         return ModelTurn.final("这条回复不应持久化。")

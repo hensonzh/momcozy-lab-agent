@@ -18,6 +18,7 @@ class ToolHandlerContext:
     call_id: str
     args: dict[str, Any]
     request_id: str
+    trusted_args: dict[str, Any] | None = None
     as_of_date: date | None = None
     thread_id: UUID | None = None
 

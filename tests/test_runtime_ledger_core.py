@@ -288,7 +288,7 @@ def test_start_tool_call_reuses_committed_started_call_during_recovery() -> None
     existing = AgentToolCall(
         id=uuid4(),
         run_id=run.id,
-        tool_name="profile_write",
+        tool_name="profile_update",
         call_id="stable-call",
         status="started",
         safe_args={"operation": "update"},
@@ -299,7 +299,7 @@ def test_start_tool_call_reuses_committed_started_call_during_recovery() -> None
     recovered = asyncio.run(
         repository.start_tool_call(
             run_id=run.id,
-            tool_name="profile_write",
+            tool_name="profile_update",
             call_id="stable-call",
             safe_args={"operation": "update"},
             started_at=datetime.now(timezone.utc),

@@ -52,6 +52,13 @@ class Settings:
     product_backend_base_url: str = "http://localhost:8000"
     product_backend_service_key: str = ""
     product_backend_timeout_seconds: float = 5.0
+    runtime_output_store_bucket: str = ""
+    runtime_output_store_prefix: str = "agent-runtime"
+    runtime_output_store_endpoint_url: str = ""
+    runtime_output_store_region: str = ""
+    runtime_output_store_access_key_id: str = ""
+    runtime_output_store_secret_access_key: str = ""
+    agent_tool_output_max_inline_bytes: int = 32 * 1024
     runtime_admin_service_key: str = ""
     auth_jwks_url: str = ""
     auth_jwt_issuer: str = ""
@@ -140,6 +147,34 @@ class Settings:
             product_backend_timeout_seconds=_env_float(
                 "PRODUCT_BACKEND_TIMEOUT_SECONDS",
                 cls.product_backend_timeout_seconds,
+            ),
+            runtime_output_store_bucket=_env(
+                "RUNTIME_OUTPUT_STORE_BUCKET",
+                cls.runtime_output_store_bucket,
+            ),
+            runtime_output_store_prefix=_env(
+                "RUNTIME_OUTPUT_STORE_PREFIX",
+                cls.runtime_output_store_prefix,
+            ),
+            runtime_output_store_endpoint_url=_env(
+                "RUNTIME_OUTPUT_STORE_ENDPOINT_URL",
+                cls.runtime_output_store_endpoint_url,
+            ).rstrip("/"),
+            runtime_output_store_region=_env(
+                "RUNTIME_OUTPUT_STORE_REGION",
+                cls.runtime_output_store_region,
+            ),
+            runtime_output_store_access_key_id=_env(
+                "RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID",
+                cls.runtime_output_store_access_key_id,
+            ),
+            runtime_output_store_secret_access_key=_env(
+                "RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY",
+                cls.runtime_output_store_secret_access_key,
+            ),
+            agent_tool_output_max_inline_bytes=_env_int(
+                "AGENT_TOOL_OUTPUT_MAX_INLINE_BYTES",
+                cls.agent_tool_output_max_inline_bytes,
             ),
             runtime_admin_service_key=_env(
                 "RUNTIME_ADMIN_SERVICE_KEY",
@@ -249,6 +284,9 @@ class Settings:
         parsed_database_url = urlparse(self.database_url)
         parsed_redis_url = urlparse(self.redis_url)
         parsed_backend_url = urlparse(self.product_backend_base_url)
+        parsed_output_store_url = urlparse(
+            self.runtime_output_store_endpoint_url
+        )
         parsed_jwks_url = urlparse(self.auth_jwks_url)
         if normalized_app_env not in VALID_APP_ENVS:
             errors.append("APP_ENV must be one of: local, test, staging, production")
@@ -315,6 +353,21 @@ class Settings:
             errors.append("PRODUCT_BACKEND_BASE_URL must be an absolute HTTP(S) URL")
         if self.product_backend_timeout_seconds <= 0:
             errors.append("PRODUCT_BACKEND_TIMEOUT_SECONDS must be positive")
+        if (
+            self.runtime_output_store_endpoint_url
+            and (
+                parsed_output_store_url.scheme not in {"http", "https"}
+                or not parsed_output_store_url.netloc
+            )
+        ):
+            errors.append(
+                "RUNTIME_OUTPUT_STORE_ENDPOINT_URL must be an absolute "
+                "HTTP(S) URL"
+            )
+        if self.agent_tool_output_max_inline_bytes <= 0:
+            errors.append(
+                "AGENT_TOOL_OUTPUT_MAX_INLINE_BYTES must be positive"
+            )
         if self.auth_jwks_url and (parsed_jwks_url.scheme not in {"http", "https"} or not parsed_jwks_url.netloc):
             errors.append("AUTH_JWKS_URL must be an absolute HTTP(S) URL")
         if not self.auth_jwt_audience:
@@ -380,6 +433,11 @@ class Settings:
             errors.append("OPENAI_API_KEY must not use a placeholder value")
         if not self.openai_model:
             errors.append("OPENAI_MODEL is required")
+        if self.is_production and not self.runtime_output_store_bucket:
+            errors.append(
+                "RUNTIME_OUTPUT_STORE_BUCKET is required for the "
+                "Agent worker in production"
+            )
         if self.openai_reasoning_effort not in OPENAI_REASONING_EFFORTS:
             errors.append("OPENAI_REASONING_EFFORT is invalid")
         if self.openai_text_verbosity not in {"low", "medium", "high"}:
