@@ -1,0 +1,64 @@
+name: momcozy-agent-runtime
+
+x-runtime-service: &runtime-service
+  image: ${MOMCOZY_AGENT_RUNTIME_IMAGE:?Set MOMCOZY_AGENT_RUNTIME_IMAGE}
+  env_file:
+    - ${MOMCOZY_AGENT_RUNTIME_ENV_FILE:-env/compose.prod.env}
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  migrate:
+    <<: *runtime-service
+    command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *runtime-service
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${MOMCOZY_AGENT_RUNTIME_PORT:-8010}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health/ready', timeout=2)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    <<: *runtime-service
+    command: ["python", "-m", "app.workers.agent_run"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  fact-worker:
+    <<: *runtime-service
+    command: ["python", "scripts/run_fact_extraction_worker.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  memory-consolidation:
+    <<: *runtime-service
+    command: ["python", "scripts/run_memory_consolidation.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["ops"]
+    restart: "no"

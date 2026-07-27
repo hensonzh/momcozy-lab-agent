@@ -1,0 +1,665 @@
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from typing import Any, cast
+from uuid import UUID, uuid4
+
+import pytest
+
+from app.agent_runtime.actions import (
+    ActionApplyResult,
+    ActionExecutor,
+    ActionProposal,
+    ConfirmationExpiryService,
+    RuntimeActionService,
+)
+from app.agent_runtime.ledger import AgentAction
+from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
+from app.core.errors import ApiError, DependencyError
+
+
+def test_low_risk_action_applies_immediately_and_replays_by_key() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(owner_id=owner_id, run_id=run_id)
+    applicator = ApplyOnce()
+    executor = ActionExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        applicators={"profile.update": applicator},
+    )
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=executor,
+    )
+    proposal = ActionProposal(
+        actor_user_id=owner_id,
+        run_id=run_id,
+        action_type="profile.update",
+        target_type="profile",
+        target_id=str(owner_id),
+        side_effect_level="low",
+        preview_payload={"mother_fields": ["preferred_name"]},
+        apply_payload={"mother": {"preferred_name": "Mai"}},
+        idempotency_key="same-call",
+    )
+
+    first = asyncio.run(service.propose_action(proposal))
+    second = asyncio.run(service.propose_action(proposal))
+
+    assert first.id == second.id
+    assert first.status == second.status == "applied"
+    assert first.requires_confirmation is False
+    assert applicator.calls == 1
+    assert repository.event_types == [
+        "action.proposed",
+        "action.applied",
+        "profile.changed",
+    ]
+
+
+def test_confirmation_action_waits_then_requeues_run() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(
+        owner_id=owner_id,
+        run_id=run_id,
+        run_status="waiting_for_confirmation",
+    )
+    executor = ActionExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        applicators={
+            "notifications.milk_reminder.create": ApplyOnce(),
+        },
+    )
+    notifier = FakeRunNotifier()
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=executor,
+        run_notifier=notifier,
+    )
+
+    proposed = asyncio.run(
+        service.propose_action(
+            ActionProposal(
+                actor_user_id=owner_id,
+                run_id=run_id,
+                action_type="notifications.milk_reminder.create",
+                target_type="notification",
+                target_id="new",
+                side_effect_level="medium",
+                preview_payload={"time": "08:00"},
+                apply_payload={"time": "08:00"},
+                idempotency_key="reminder-call",
+            )
+        )
+    )
+    confirmed = asyncio.run(
+        service.confirm_action(
+            owner_user_id=owner_id,
+            action_id=proposed.id,
+        )
+    )
+
+    assert proposed.status == "confirmation_required"
+    assert proposed.requires_confirmation is True
+    assert confirmed.status == "applied"
+    assert repository.run.status == "queued"
+    assert repository.event_types == [
+        "action.confirmation_required",
+        "action.confirmed",
+        "action.applied",
+        "profile.changed",
+        "run.queued",
+    ]
+    assert repository.context_items[-1].item["role"] == "developer"
+    assert '"status":"applied"' in repository.context_items[-1].item[
+        "content"
+    ]
+    assert notifier.run_ids == []
+    assert len(repository.after_commit_callbacks) == 1
+    asyncio.run(repository.after_commit_callbacks[0]())
+    assert notifier.run_ids == [run_id]
+
+
+def test_retryable_product_failure_reuses_action_id_and_retries_safely() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(owner_id=owner_id, run_id=run_id)
+    applicator = ApplyOnce(timeout_once=True)
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={"profile.update": applicator},
+        ),
+    )
+    proposal = ActionProposal(
+        actor_user_id=owner_id,
+        run_id=run_id,
+        action_type="profile.update",
+        target_type="profile",
+        target_id=str(owner_id),
+        side_effect_level="low",
+        preview_payload={},
+        apply_payload={"mother": {"preferred_name": "Mai"}},
+        idempotency_key="retry-call",
+    )
+
+    failed = asyncio.run(service.propose_action(proposal))
+    applied = asyncio.run(service.propose_action(proposal))
+
+    assert failed.id == applied.id
+    assert failed.status == "failed"
+    assert failed.error_code == "product_backend_timeout"
+    assert applied.status == "applied"
+    assert applicator.calls == 2
+
+
+def test_auto_action_identity_is_committed_before_product_side_effect() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(owner_id=owner_id, run_id=run_id)
+    applicator = CrashAfterProductSuccess()
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={"profile.update": applicator},
+        ),
+    )
+    proposal = ActionProposal(
+        actor_user_id=owner_id,
+        run_id=run_id,
+        action_type="profile.update",
+        target_type="profile",
+        target_id=str(owner_id),
+        side_effect_level="low",
+        preview_payload={},
+        apply_payload={"mother": {"preferred_name": "Mai"}},
+        idempotency_key="stable-tool-call",
+    )
+
+    with pytest.raises(SimulatedProcessDeath):
+        asyncio.run(service.propose_action(proposal))
+
+    repository.rollback_uncommitted()
+    recovered = asyncio.run(service.propose_action(proposal))
+
+    assert repository.committed_action_id is not None
+    assert recovered.id == repository.committed_action_id
+    assert applicator.action_ids == [
+        repository.committed_action_id,
+        repository.committed_action_id,
+    ]
+    assert recovered.status == "applied"
+
+
+def test_expired_confirmation_expires_run_and_releases_admission() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(
+        owner_id=owner_id,
+        run_id=run_id,
+        run_status="waiting_for_confirmation",
+    )
+    admission = FakeRunAdmission()
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={
+                "notifications.milk_reminder.create": ApplyOnce(),
+            },
+        ),
+        run_admission=admission,
+    )
+    proposed = asyncio.run(
+        service.propose_action(
+            ActionProposal(
+                actor_user_id=owner_id,
+                run_id=run_id,
+                action_type="notifications.milk_reminder.create",
+                target_type="notification",
+                target_id="new",
+                side_effect_level="medium",
+                preview_payload={"time": "08:00"},
+                apply_payload={"time": "08:00"},
+                idempotency_key="expired-reminder",
+            )
+        )
+    )
+    assert repository.action is not None
+    repository.action.expires_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            service.confirm_action(
+                owner_user_id=owner_id,
+                action_id=proposed.id,
+            )
+        )
+    replay = asyncio.run(
+        service.confirm_action(
+            owner_user_id=owner_id,
+            action_id=proposed.id,
+        )
+    )
+
+    assert captured.value.code == "agent_action_expired"
+    assert replay.status == "expired"
+    assert repository.run.status == "expired"
+    assert repository.run.error_code == "action_confirmation_expired"
+    assert repository.event_types[-2:] == ["action.expired", "run.expired"]
+    assert admission.released == [(owner_id, run_id)]
+
+
+def test_confirmation_expiry_sweep_persists_terminal_events_and_releases_slot() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(
+        owner_id=owner_id,
+        run_id=run_id,
+        run_status="waiting_for_confirmation",
+    )
+    admission = FakeRunAdmission()
+    action_service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={
+                "notifications.milk_reminder.create": ApplyOnce(),
+            },
+        ),
+    )
+    proposed = asyncio.run(
+        action_service.propose_action(
+            ActionProposal(
+                actor_user_id=owner_id,
+                run_id=run_id,
+                action_type="notifications.milk_reminder.create",
+                target_type="notification",
+                target_id="new",
+                side_effect_level="medium",
+                preview_payload={"time": "08:00"},
+                apply_payload={"time": "08:00"},
+                idempotency_key="abandoned-reminder",
+            )
+        )
+    )
+    assert repository.action is not None
+    repository.action.expires_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    expiry_service = ConfirmationExpiryService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        run_admission=admission,
+    )
+
+    expired_count = asyncio.run(
+        expiry_service.expire_due_confirmations(limit=64)
+    )
+    replay_count = asyncio.run(
+        expiry_service.expire_due_confirmations(limit=64)
+    )
+
+    assert proposed.status == "confirmation_required"
+    assert expired_count == 1
+    assert replay_count == 0
+    assert repository.action.status == "expired"
+    assert repository.action.error_code == "agent_action_expired"
+    assert repository.run.status == "expired"
+    assert repository.run.error_code == "action_confirmation_expired"
+    assert repository.event_types[-2:] == ["action.expired", "run.expired"]
+    assert repository.commits == 1
+    assert admission.released == [(owner_id, run_id)]
+
+
+def test_rejected_confirmation_cancels_run_and_releases_after_commit() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(
+        owner_id=owner_id,
+        run_id=run_id,
+        run_status="waiting_for_confirmation",
+    )
+    admission = FakeRunAdmission()
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={
+                "notifications.milk_reminder.create": ApplyOnce(),
+            },
+        ),
+        run_admission=admission,
+    )
+    proposed = asyncio.run(
+        service.propose_action(
+            ActionProposal(
+                actor_user_id=owner_id,
+                run_id=run_id,
+                action_type="notifications.milk_reminder.create",
+                target_type="notification",
+                target_id="new",
+                side_effect_level="medium",
+                preview_payload={"time": "08:00"},
+                apply_payload={"time": "08:00"},
+                idempotency_key="rejected-reminder",
+            )
+        )
+    )
+
+    asyncio.run(
+        service.reject_action(
+            owner_user_id=owner_id,
+            action_id=proposed.id,
+            reason="no",
+        )
+    )
+
+    assert repository.run.status == "cancelled"
+    assert admission.released == []
+    assert len(repository.after_commit_callbacks) == 1
+    asyncio.run(repository.commit())
+    assert admission.released == [(owner_id, run_id)]
+
+
+class ApplyOnce:
+    def __init__(self, *, timeout_once: bool = False) -> None:
+        self.timeout_once = timeout_once
+        self.calls = 0
+
+    async def __call__(self, action: AgentAction) -> ActionApplyResult:
+        self.calls += 1
+        if self.timeout_once:
+            self.timeout_once = False
+            raise DependencyError(
+                code="product_backend_timeout",
+                message="Product Backend request timed out.",
+                status=504,
+                retryable=True,
+            )
+        return ActionApplyResult(
+            resource_type="profile",
+            resource_id=action.target_id,
+            details={"updated": True},
+            application_events=(
+                {
+                    "type": "profile.changed",
+                    "payload": {"resource_id": action.target_id},
+                },
+            ),
+        )
+
+
+class SimulatedProcessDeath(BaseException):
+    pass
+
+
+class CrashAfterProductSuccess:
+    def __init__(self) -> None:
+        self.action_ids: list[UUID] = []
+        self.crash_once = True
+
+    async def __call__(self, action: AgentAction) -> ActionApplyResult:
+        self.action_ids.append(action.id)
+        if self.crash_once:
+            self.crash_once = False
+            raise SimulatedProcessDeath
+        return ActionApplyResult(
+            resource_type="profile",
+            resource_id=action.target_id,
+            details={"updated": True},
+        )
+
+
+class FakeActionRepository:
+    def __init__(
+        self,
+        *,
+        owner_id: UUID,
+        run_id: UUID,
+        run_status: str = "running",
+    ) -> None:
+        self.owner_id = owner_id
+        self.run = SimpleNamespace(
+            id=run_id,
+            thread_id=uuid4(),
+            actor_user_id=owner_id,
+            status=run_status,
+        )
+        self.action: AgentAction | None = None
+        self.event_types: list[str] = []
+        self.context_items: list[Any] = []
+        self.after_commit_callbacks: list[Any] = []
+        self.commits = 0
+        self.committed_action_id: UUID | None = None
+        self.committed_action_status = ""
+
+    def add_after_commit_callback(self, callback: Any) -> None:
+        self.after_commit_callbacks.append(callback)
+
+    async def commit(self) -> None:
+        self.commits += 1
+        if self.action is not None:
+            self.committed_action_id = self.action.id
+            self.committed_action_status = self.action.status
+        callbacks = list(self.after_commit_callbacks)
+        self.after_commit_callbacks.clear()
+        for callback in callbacks:
+            await callback()
+
+    def rollback_uncommitted(self) -> None:
+        if (
+            self.action is None
+            or self.committed_action_id is None
+            or self.action.id != self.committed_action_id
+        ):
+            self.action = None
+            return
+        self.action.status = self.committed_action_status
+
+    async def get_run_for_owner(
+        self,
+        *,
+        run_id: UUID,
+        owner_user_id: UUID,
+    ) -> Any | None:
+        if run_id == self.run.id and owner_user_id == self.owner_id:
+            return self.run
+        return None
+
+    async def get_reusable_action_by_idempotency_key(
+        self,
+        **kwargs: Any,
+    ) -> AgentAction | None:
+        if (
+            self.action is not None
+            and self.action.idempotency_key == kwargs["idempotency_key"]
+        ):
+            return self.action
+        return None
+
+    async def create_action(self, **kwargs: Any) -> AgentAction:
+        self.action = AgentAction(id=uuid4(), **kwargs)
+        return self.action
+
+    async def get_action_for_owner(
+        self,
+        *,
+        action_id: UUID,
+        owner_user_id: UUID,
+        for_update: bool = False,
+    ) -> AgentAction | None:
+        del for_update
+        if (
+            self.action is not None
+            and self.action.id == action_id
+            and owner_user_id == self.owner_id
+        ):
+            return self.action
+        return None
+
+    async def lock_due_action_confirmations(
+        self,
+        *,
+        limit: int,
+    ) -> list[tuple[AgentAction, Any]]:
+        assert limit > 0
+        if (
+            self.action is not None
+            and self.action.status == "confirmation_required"
+            and self.action.expires_at is not None
+            and self.action.expires_at
+            <= datetime.now(timezone.utc)
+            and self.run.status == "waiting_for_confirmation"
+        ):
+            return [(self.action, self.run)]
+        return []
+
+    async def mark_action_confirmed(
+        self,
+        *,
+        action: AgentAction,
+        confirmed_at: datetime,
+        apply_payload: dict[str, Any] | None = None,
+    ) -> AgentAction:
+        action.status = "confirmed"
+        action.confirmed_at = confirmed_at
+        action.error_code = ""
+        if apply_payload is not None:
+            action.apply_payload = apply_payload
+        return action
+
+    async def mark_action_applying(
+        self,
+        *,
+        action: AgentAction,
+    ) -> AgentAction:
+        action.status = "applying"
+        return action
+
+    async def mark_action_applied(
+        self,
+        *,
+        action: AgentAction,
+        applied_at: datetime,
+    ) -> AgentAction:
+        action.status = "applied"
+        action.applied_at = applied_at
+        action.error_code = ""
+        return action
+
+    async def mark_action_failed(
+        self,
+        *,
+        action: AgentAction,
+        failed_at: datetime,
+        error_code: str,
+    ) -> AgentAction:
+        action.status = "failed"
+        action.failed_at = failed_at
+        action.error_code = error_code
+        return action
+
+    async def mark_action_expired(
+        self,
+        *,
+        action: AgentAction,
+        expired_at: datetime,
+        error_code: str,
+    ) -> AgentAction:
+        action.status = "expired"
+        action.failed_at = expired_at
+        action.error_code = error_code
+        return action
+
+    async def mark_action_rejected(
+        self,
+        *,
+        action: AgentAction,
+        rejected_at: datetime,
+        error_code: str,
+    ) -> AgentAction:
+        action.status = "rejected"
+        action.failed_at = rejected_at
+        action.error_code = error_code
+        return action
+
+    async def append_event(
+        self,
+        *,
+        event_type: str,
+        **_kwargs: Any,
+    ) -> Any:
+        self.event_types.append(event_type)
+        return SimpleNamespace(
+            event_id=uuid4(),
+            event_type=event_type,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    async def mark_run_queued(self, *, run: Any) -> Any:
+        run.status = "queued"
+        return run
+
+    async def mark_run_cancelled(
+        self,
+        *,
+        run: Any,
+        cancelled_at: datetime,
+        error_code: str,
+    ) -> Any:
+        run.status = "cancelled"
+        run.completed_at = cancelled_at
+        run.error_code = error_code
+        return run
+
+    async def mark_run_expired(
+        self,
+        *,
+        run: Any,
+        expired_at: datetime,
+        error_code: str,
+    ) -> Any:
+        run.status = "expired"
+        run.completed_at = expired_at
+        run.error_code = error_code
+        return run
+
+    async def append_context_items(
+        self,
+        *,
+        items: tuple[Any, ...],
+        **_kwargs: Any,
+    ) -> list[Any]:
+        appended = [
+            SimpleNamespace(
+                item_key=item.item_key,
+                item=dict(item.item),
+            )
+            for item in items
+        ]
+        self.context_items.extend(appended)
+        return appended
+
+
+class FakeRunNotifier:
+    def __init__(self) -> None:
+        self.run_ids: list[UUID] = []
+
+    async def notify_queued(self, *, run_id: UUID) -> None:
+        self.run_ids.append(run_id)
+
+
+class FakeRunAdmission:
+    def __init__(self) -> None:
+        self.released: list[tuple[UUID, UUID]] = []
+
+    async def release(
+        self,
+        *,
+        owner_user_id: UUID,
+        run_id: UUID,
+    ) -> None:
+        self.released.append((owner_user_id, run_id))

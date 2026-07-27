@@ -1,0 +1,59 @@
+# Observability
+
+API, Agent worker, fact worker, memory consolidation, and replay/eval processes
+write one-line JSON logs to stderr using `LOG_LEVEL`.
+
+## Operational events
+
+| `metric_name` | One event represents | Allowed aggregation dimensions |
+| --- | --- | --- |
+| `agent_runtime_http_request` | one HTTP request | `method`, `route`, `status_code`, `outcome` |
+| `agent_runtime_run` | one run processing attempt | `outcome`, `error_code` |
+| `agent_runtime_tool` | one tool execution attempt | `tool_name`, `outcome`, `error_code` |
+| `agent_runtime_model` | one model operation | `provider`, `model`, `agent_name`, `outcome`, `error_code` |
+
+Each event contains `duration_ms`; the log collector derives an operation
+counter and latency histogram from these events. `request_id`, `trace_id`,
+`run_id`, `thread_id`, `tool_call_id`, and `action_id` are search/correlation
+fields only and must never become metric labels.
+
+There is intentionally no public or process-local metrics endpoint. API and
+workers run in separate processes, so an in-memory endpoint would be incomplete
+and easy to expose accidentally. Production log collection is the shared,
+service-controlled operations boundary.
+
+The Agent worker and fact worker refresh fixed role heartbeat keys in Redis
+every `WORKER_HEARTBEAT_INTERVAL_SECONDS`; keys expire after
+`WORKER_HEARTBEAT_TTL_SECONDS`. With `WORKER_HEARTBEATS_REQUIRED=true`,
+`GET /v1/health/ready` checks both roles in one Redis MGET and returns 503 when
+either role is missing or reports a version different from the API's
+`APP_VERSION`. Heartbeat keys contain only the Runtime version and no user,
+request, or run data.
+
+## Privacy
+
+Runtime instrumentation uses fixed log messages, and the JSON formatter accepts
+only an explicit operational-field allowlist. Instrumentation never passes
+prompts, messages, tool arguments/results, URLs, files, business records, or
+actor identifiers to that logger. Exception output contains only the exception
+type and stack frame locations; exception messages and source lines are
+omitted. HTTP logs use the declared route template, never the raw path or query
+string.
+
+Incoming `X-Request-ID` and `X-Trace-ID` values are accepted only when they use
+the bounded correlation-ID format; otherwise Runtime creates a new request ID.
+Both IDs are returned as response headers, and new runs persist them for worker
+correlation.
+
+## Minimum alerts
+
+- HTTP 5xx rate and p95/p99 `agent_runtime_http_request` latency.
+- `agent_runtime_run{outcome="failed"}` and interrupted-run events.
+- Tool timeout/error rate by the bounded tool catalog.
+- Model timeout/error rate by configured provider/model.
+- `http.request.unhandled` events, grouped by route and exception type.
+- Missing worker heartbeat or repeated `worker.heartbeat.failed` events.
+
+Start incident investigation with `request_id` or `run_id`, then use the
+persisted run replay and audit records. Do not copy message or tool payloads into
+logs while investigating.

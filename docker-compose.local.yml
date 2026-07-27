@@ -1,0 +1,108 @@
+name: momcozy-agent-runtime
+
+x-runtime-service: &runtime-service
+  image: momcozy-agent-runtime:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - ${MOMCOZY_AGENT_RUNTIME_ENV_FILE:-env/compose.local.env}
+  init: true
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: momcozy_agent_runtime
+      POSTGRES_PASSWORD: momcozy_agent_runtime
+      POSTGRES_USER: momcozy_agent_runtime
+    ports:
+      - "127.0.0.1:${MOMCOZY_AGENT_RUNTIME_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - runtime-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U momcozy_agent_runtime -d momcozy_agent_runtime",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${MOMCOZY_AGENT_RUNTIME_REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  migrate:
+    <<: *runtime-service
+    command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *runtime-service
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MOMCOZY_AGENT_RUNTIME_API_BIND:-127.0.0.1:8010}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health/ready', timeout=2)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    <<: *runtime-service
+    command: ["python", "-m", "app.workers.agent_run"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  fact-worker:
+    <<: *runtime-service
+    command: ["python", "scripts/run_fact_extraction_worker.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  memory-consolidation:
+    <<: *runtime-service
+    command: ["python", "scripts/run_memory_consolidation.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["ops"]
+    restart: "no"
+
+volumes:
+  runtime-postgres-data:

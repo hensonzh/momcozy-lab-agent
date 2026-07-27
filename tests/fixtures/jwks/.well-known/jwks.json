@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "agent-runtime-ci",
+      "kty": "RSA",
+      "n": "wIRaIoG2MqoVk5nM3yraVVYgS2T-uaEXB-WNoLEVBxatgHVI5pnSpZTLkwK-xVp8I_r0vyzgBSztIwBLFcWaqCfs60HAiD35SFr7qp6brsw4CXjGokJcFcxDLohj4m-ACokgT4sYpMFYp3mX5Uupwx3NBTZTARhZ5-BRZ4Jy6Iq1lzOyxP4bXb-2-Rpokc499tpTTTxWZJ-L5jQVQsfrS_OOAvWj0ezXTHSLKI0a2wKHSgkxtPlPYDZqcKwaJAe9lLDB36ZklZdfvQSyz03e0w94rCMN6bRM073R-P72T83MpfqjaCVOBy5cjMBYwyKx7k0GX2JbaEExnpT39vwoHQ",
+      "use": "sig"
+    }
+  ]
+}

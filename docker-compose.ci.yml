@@ -1,0 +1,29 @@
+services:
+  jwks:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./tests/fixtures/jwks:/usr/share/nginx/html:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1/.well-known/jwks.json",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  api:
+    environment:
+      AUTH_JWKS_URL: http://jwks/.well-known/jwks.json
+    depends_on:
+      jwks:
+        condition: service_healthy
+
+  worker:
+    environment:
+      OPENAI_API_KEY: ci-agent-runtime-openai-key
+
+  fact-worker:
+    environment:
+      OPENAI_API_KEY: ci-agent-runtime-openai-key

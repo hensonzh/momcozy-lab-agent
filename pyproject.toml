@@ -1,0 +1,32 @@
+[project]
+name = "momcozy-agent-runtime"
+version = "0.1.0"
+description = "MomCozy Agent Runtime service"
+requires-python = ">=3.12,<3.14"
+
+[tool.ruff]
+line-length = 140
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "B"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["app", "tests"]
+explicit_package_bases = true
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
