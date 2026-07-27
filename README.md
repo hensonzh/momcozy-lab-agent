@@ -10,6 +10,10 @@ Independent production Agent service owned by the Agent team.
   through typed `/v1/internal/agent/*` HTTPS APIs using its service identity.
 - Runtime has its own PostgreSQL database and never imports Product Backend
   implementation modules or reads product tables.
+- `app/agents/<name>_agent/` owns each Agent definition, system prompt,
+  versioned skills, and tool allowlist, including
+  `app/agents/main_agent/`. Reusable Tool implementations live under
+  `app/capabilities/`; the shared Runtime never duplicates them per Agent.
 
 ## Processes
 
@@ -116,3 +120,6 @@ and a valid Product Backend JWKS when `WORKER_HEARTBEATS_REQUIRED=true`.
 Runtime processes emit privacy-safe structured operation logs for HTTP, run,
 tool, and model outcomes/latency. Collection dimensions and incident guidance
 are defined in [observability.md](docs/observability.md).
+
+The current multi-agent package structure and Tool ownership model are defined
+in [main-agent-design.md](docs/main-agent-design.md).

@@ -184,13 +184,13 @@ class RuntimeLedgerRepository:
         )
         return cast(AgentRun | None, await self.session.scalar(statement))
 
-    async def set_run_service_skill_id(
+    async def set_run_skill_id(
         self,
         *,
         run: AgentRun,
-        service_skill_id: str,
+        skill_id: str,
     ) -> AgentRun:
-        run.service_skill_id = service_skill_id
+        run.skill_id = skill_id
         await self.session.flush()
         return run
 

@@ -17,7 +17,7 @@ from app.agent_runtime.actions.plans import (
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.tools import ToolHandlerContext
-from app.agents.plans import (
+from app.capabilities.plans import (
     PLAN_TOOL_NAMES,
     SCHEDULE_TIMELINE_TOOL_NAMES,
     PlanMutateToolHandler,

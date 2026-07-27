@@ -9,7 +9,7 @@
       "priority": "p0",
       "status": "active",
       "scenario": "主智能体直接回答不需要专业服务的通用健康咨询。",
-      "tags": ["main", "direct_answer", "health"],
+      "tags": ["main_agent", "direct_answer", "health"],
       "turns": [
         {
           "role": "user",
@@ -18,7 +18,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update"],
@@ -42,7 +42,7 @@
       "priority": "p0",
       "status": "active",
       "scenario": "待产包生成只委派产前智能体，并由产前智能体直接回复。",
-      "tags": ["routing", "prenatal", "single_specialist"],
+      "tags": ["routing", "prenatal_agent", "single_specialist"],
       "turns": [
         {
           "role": "user",
@@ -51,8 +51,8 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "prenatal",
-        "exact_specialists": ["prenatal"],
+        "responding_agent": "prenatal_agent",
+        "exact_specialists": ["prenatal_agent"],
         "required_tools": ["hospital_bag_manage"],
         "forbidden_tools": ["milk_analysis_manage", "devices_guidance_manage"],
         "forbid_actions": true,
@@ -79,7 +79,7 @@
       "priority": "p0",
       "status": "active",
       "scenario": "奶量分析只委派泌乳智能体，并由泌乳智能体直接回复。",
-      "tags": ["routing", "lactation", "single_specialist"],
+      "tags": ["routing", "lactation_agent", "single_specialist"],
       "turns": [
         {
           "role": "user",
@@ -88,8 +88,8 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "lactation",
-        "exact_specialists": ["lactation"],
+        "responding_agent": "lactation_agent",
+        "exact_specialists": ["lactation_agent"],
         "required_tools": ["milk_analysis_manage"],
         "forbidden_tools": ["hospital_bag_manage", "devices_guidance_manage"],
         "forbid_actions": true,
@@ -116,7 +116,7 @@
       "priority": "p0",
       "status": "active",
       "scenario": "设备开箱指导只委派设备智能体，并由设备智能体直接回复。",
-      "tags": ["routing", "device", "single_specialist"],
+      "tags": ["routing", "device_agent", "single_specialist"],
       "turns": [
         {
           "role": "user",
@@ -125,8 +125,8 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "device",
-        "exact_specialists": ["device"],
+        "responding_agent": "device_agent",
+        "exact_specialists": ["device_agent"],
         "required_tools": ["devices_guidance_manage"],
         "forbidden_tools": ["hospital_bag_manage", "milk_analysis_manage"],
         "forbid_actions": true,
@@ -162,8 +162,8 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
-        "exact_specialists": ["prenatal", "lactation"],
+        "responding_agent": "main_agent",
+        "exact_specialists": ["prenatal_agent", "lactation_agent"],
         "required_tools": ["hospital_bag_manage", "milk_analysis_manage"],
         "forbidden_tools": ["devices_guidance_manage"],
         "forbid_actions": true,
@@ -199,7 +199,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -232,7 +232,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -269,7 +269,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -306,7 +306,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -343,7 +343,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "profile_read"],
@@ -380,7 +380,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main",
+        "responding_agent": "main_agent",
         "exact_specialists": [],
         "required_tools": [],
         "forbidden_tools": ["profile_read", "profile_update"],

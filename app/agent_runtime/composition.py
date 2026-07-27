@@ -5,32 +5,34 @@ from collections.abc import Collection, Mapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import AGENT_DEFINITIONS
-from app.agents.diary import (
+from app.capabilities.diary import (
     DiaryMutateHandler,
     DiaryReadHandler,
     diary_tool_registry,
 )
-from app.agents.lactation import (
-    MilkAnalysisToolHandler,
-    lactation_tool_registry,
+from app.capabilities.hospital_bag import (
+    HOSPITAL_BAG_CART_UPDATE_ACTION,
+    HospitalBagCartActionApplicator,
 )
-from app.agents.plans import (
+from app.capabilities.lactation_analysis import (
+    MilkAnalysisToolHandler,
+    lactation_analysis_tool_registry,
+)
+from app.capabilities.plans import (
     PlanMutateToolHandler,
     PlanReadToolHandler,
     ScheduleTimelineMutateToolHandler,
     ScheduleTimelineReadToolHandler,
     plans_tool_registry,
 )
-from app.agents.profile import (
+from app.capabilities.profile import (
     ProfileReadToolHandler,
     ProfileUpdateToolHandler,
     profile_tool_registry,
 )
-from app.agents.runtime_native import (
-    HOSPITAL_BAG_CART_UPDATE_ACTION,
-    HospitalBagCartActionApplicator,
-    runtime_native_tool_handlers,
-    runtime_native_tool_registry,
+from app.capabilities.runtime import (
+    runtime_capability_tool_handlers,
+    runtime_capability_tool_registry,
 )
 from app.infrastructure.product_backend import ProductBackendClient
 
@@ -111,7 +113,7 @@ def build_product_tool_registry() -> ToolContractRegistry:
         profile_tool_registry(),
         diary_tool_registry(),
         plans_tool_registry(),
-        lactation_tool_registry(),
+        lactation_analysis_tool_registry(),
     ):
         for contract in source.list():
             registry.register(contract)
@@ -120,7 +122,7 @@ def build_product_tool_registry() -> ToolContractRegistry:
 
 def build_runtime_tool_registry() -> ToolContractRegistry:
     registry = build_product_tool_registry()
-    for contract in runtime_native_tool_registry().list():
+    for contract in runtime_capability_tool_registry().list():
         registry.register(contract)
     _validate_agent_tool_allowlists(registry)
     return registry
@@ -170,7 +172,7 @@ def build_runtime_tool_handlers(
         action_service=action_service,
         repository=repository,
     )
-    native_handlers = runtime_native_tool_handlers(
+    native_handlers = runtime_capability_tool_handlers(
         repository=repository,
         action_proposer=action_service,
     )

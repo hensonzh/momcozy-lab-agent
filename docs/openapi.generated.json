@@ -1122,8 +1122,8 @@
             "title": "Runtime Version",
             "type": "string"
           },
-          "service_skill_id": {
-            "title": "Service Skill Id",
+          "skill_id": {
+            "title": "Skill Id",
             "type": "string"
           },
           "started_at": {
@@ -1159,7 +1159,7 @@
           "status",
           "runtime_pattern",
           "runtime_version",
-          "service_skill_id",
+          "skill_id",
           "request_id",
           "trace_id",
           "error_code"

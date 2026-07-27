@@ -3,15 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.agent_runtime.tools.trusted import _visible_image_urls
-from app.agents.diary.registry import diary_tool_registry
-from app.agents.plans.registry import plans_tool_registry
-from app.agents.runtime_native.handlers import (
+from app.capabilities._internal.handlers import (
     _ibclc_consult_allowed,
     _support_ticket_creation_confirmed,
 )
-from app.agents.runtime_native.registry import (
-    runtime_native_tool_registry,
-)
+from app.capabilities.diary.registry import diary_tool_registry
+from app.capabilities.plans.registry import plans_tool_registry
+from app.capabilities.runtime import runtime_capability_tool_registry
 
 
 def test_ibclc_consent_binds_current_request_or_previous_offer() -> None:
@@ -50,7 +48,7 @@ def test_support_draft_requires_current_turn_confirmation() -> None:
 
 
 def test_model_schemas_never_expose_runtime_consent_or_form_state() -> None:
-    registry = runtime_native_tool_registry()
+    registry = runtime_capability_tool_registry()
     ibclc = registry.get("ibclc_consult_card_create")
     support = registry.get("support_ticket_draft_create")
     pregnancy = registry.get("pregnancy_intake_manage")

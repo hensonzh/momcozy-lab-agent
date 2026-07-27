@@ -14,7 +14,7 @@ from app.agent_runtime.actions import (
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.tools import ToolHandlerContext, ToolResult
-from app.agents.profile import (
+from app.capabilities.profile import (
     LACTATION_AGENT_PROFILE_TOOLS,
     MAIN_AGENT_PROFILE_TOOLS,
     ProfileReadToolHandler,

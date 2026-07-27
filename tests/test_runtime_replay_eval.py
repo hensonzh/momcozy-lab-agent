@@ -19,6 +19,7 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
     bundle = asyncio.run(service.export_run_bundle(run_id=run_id))
 
     assert bundle["schema_version"] == "agent_run_replay.v1"
+    assert bundle["run"]["skill_id"] == "main_agent"
     assert bundle["messages"][0]["content"] == {"redacted": True}
     assert bundle["tool_outputs"][0]["output"] == {"redacted": True}
     assert bundle["events"][0]["payload"] == {"redacted": True}
@@ -114,7 +115,7 @@ class FakeReplayRepository:
             status="completed",
             runtime_pattern="sdk_only",
             runtime_version="v2",
-            service_skill_id="main",
+            skill_id="main_agent",
             request_id="request",
             trace_id="trace",
             error_code="",

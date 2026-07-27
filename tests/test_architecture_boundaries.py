@@ -56,3 +56,57 @@ def test_product_backend_http_paths_are_owned_by_single_adapter() -> None:
             owners.append(str(path.relative_to(REPOSITORY_ROOT)))
 
     assert owners == ["app/infrastructure/product_backend/client.py"]
+
+
+def test_agent_definitions_do_not_import_capability_implementations() -> None:
+    violations: list[str] = []
+    for path in (REPOSITORY_ROOT / "app" / "agents").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Import)
+                and any(
+                    alias.name == "app.capabilities"
+                    or alias.name.startswith("app.capabilities.")
+                    for alias in node.names
+                )
+            ) or (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and (
+                    node.module == "app.capabilities"
+                    or node.module.startswith("app.capabilities.")
+                )
+            ):
+                violations.append(
+                    f"{path.relative_to(REPOSITORY_ROOT)}:{node.lineno}"
+                )
+
+    assert violations == []
+
+
+def test_capabilities_do_not_import_agent_definitions() -> None:
+    violations: list[str] = []
+    for path in (REPOSITORY_ROOT / "app" / "capabilities").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Import)
+                and any(
+                    alias.name == "app.agents"
+                    or alias.name.startswith("app.agents.")
+                    for alias in node.names
+                )
+            ) or (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and (
+                    node.module == "app.agents"
+                    or node.module.startswith("app.agents.")
+                )
+            ):
+                violations.append(
+                    f"{path.relative_to(REPOSITORY_ROOT)}:{node.lineno}"
+                )
+
+    assert violations == []

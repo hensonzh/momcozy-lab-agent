@@ -156,7 +156,7 @@ class AgentRunRead(BaseModel):
     status: str
     runtime_pattern: str
     runtime_version: str
-    service_skill_id: str
+    skill_id: str
     request_id: str
     trace_id: str
     error_code: str

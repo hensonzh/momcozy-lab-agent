@@ -14,10 +14,10 @@ from app.agent_runtime.ledger.repository import (
     RuntimeLedgerRepository,
 )
 from app.agent_runtime.tools import ToolHandlerContext
-from app.agents.lactation import (
-    LACTATION_AGENT_DOMAIN_TOOLS,
+from app.capabilities.lactation_analysis import (
+    LACTATION_ANALYSIS_TOOL_NAMES,
     MilkAnalysisToolHandler,
-    lactation_tool_registry,
+    lactation_analysis_tool_registry,
 )
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
@@ -29,10 +29,10 @@ from test_product_backend_lactation_client import _analysis_response
 
 
 def test_lactation_registry_only_exposes_milk_analysis() -> None:
-    registry = lactation_tool_registry()
+    registry = lactation_analysis_tool_registry()
 
-    assert LACTATION_AGENT_DOMAIN_TOOLS == ("milk_analysis_manage",)
-    assert registry.names_for_sdk() == LACTATION_AGENT_DOMAIN_TOOLS
+    assert LACTATION_ANALYSIS_TOOL_NAMES == ("milk_analysis_manage",)
+    assert registry.names_for_sdk() == LACTATION_ANALYSIS_TOOL_NAMES
     contract = registry.get("milk_analysis_manage")
     assert contract.effect_scope == "agent_internal"
     assert contract.action_types == ()

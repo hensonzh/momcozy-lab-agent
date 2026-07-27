@@ -53,7 +53,7 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "lease_token UUID" in sql
     assert "locked_until TIMESTAMP WITH TIME ZONE" in sql
     assert "CREATE INDEX ix_agent_runs_runnable_lease" in sql
-    assert "CREATE INDEX ix_agent_runs_service_skill_id" in sql
+    assert "CREATE INDEX ix_agent_runs_skill_id" in sql
     assert "CREATE INDEX ix_agent_actions_confirmation_expiry" in sql
     assert "CREATE TABLE user_fact_extraction_runs" in sql
     assert "consent_version INTEGER" in sql

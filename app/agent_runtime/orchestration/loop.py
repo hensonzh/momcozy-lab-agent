@@ -290,15 +290,15 @@ class AgentLoop:
                 status=502,
             )
         decision = parse_route_decision(turn.final_text)
-        service_skill_id = (
+        skill_id = (
             decision.agents[0]
             if len(decision.agents) == 1
-            else "main"
+            else "main_agent"
         )
         async with self._persistence_lock:
-            await self.repository.set_run_service_skill_id(
+            await self.repository.set_run_skill_id(
                 run=run,
-                service_skill_id=service_skill_id,
+                skill_id=skill_id,
             )
             await self.repository.append_event(
                 run_id=run.id,
@@ -306,7 +306,7 @@ class AgentLoop:
                 payload={
                     "agents": list(decision.agents),
                     "mode": decision.mode,
-                    "service_skill_id": service_skill_id,
+                    "skill_id": skill_id,
                 },
             )
             await self._checkpoint_unlocked()

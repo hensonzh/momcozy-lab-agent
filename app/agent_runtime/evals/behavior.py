@@ -14,13 +14,14 @@ from pydantic import (
     model_validator,
 )
 
+from app.agents.contracts import AgentName
+
 
 BEHAVIOR_SUITE_SCHEMA_VERSION = "momcozy.behavior_eval_suite.v1"
 BEHAVIOR_RUN_MAP_SCHEMA_VERSION = "momcozy.behavior_eval_run_map.v1"
 BEHAVIOR_REPORT_SCHEMA_VERSION = "momcozy.behavior_eval_report.v1"
 RUNTIME_REPLAY_SCHEMA_VERSION = "agent_run_replay.v1"
 
-AgentName = Literal["main", "prenatal", "lactation", "device"]
 TerminalStatus = Literal["completed", "failed", "cancelled", "expired"]
 ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
 ReleaseStatus = Literal["passed", "failed", "review_required"]
@@ -46,7 +47,9 @@ KNOWN_TOOL_NAMES = frozenset(
         "support_ticket_draft_create",
     }
 )
-SPECIALIST_NAMES = frozenset({"prenatal", "lactation", "device"})
+SPECIALIST_NAMES = frozenset(
+    {"prenatal_agent", "lactation_agent", "device_agent"}
+)
 
 
 class _StrictModel(BaseModel):
@@ -450,7 +453,7 @@ def _evaluate_structure(
         {
             str(agent_name)
             for agent_name in route_agents
-            if agent_name not in {*SPECIALIST_NAMES, "main"}
+            if agent_name not in {*SPECIALIST_NAMES, "main_agent"}
         }
     )
     if unknown_started:

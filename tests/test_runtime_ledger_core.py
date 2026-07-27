@@ -111,7 +111,7 @@ def test_message_and_context_reads_can_be_owner_scoped() -> None:
     assert "agent_threads.deleted_at IS NULL" in context_sql
 
 
-def test_runtime_native_resources_are_current_thread_owner_scoped() -> None:
+def test_runtime_capability_resources_are_current_thread_owner_scoped() -> None:
     owner_user_id = uuid4()
     thread_id = uuid4()
     session = RecordingSession()

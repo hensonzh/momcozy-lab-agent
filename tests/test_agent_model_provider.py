@@ -30,7 +30,7 @@ def test_openai_responses_provider_uses_stateless_ledger_input_and_streams_delta
     turn = asyncio.run(
         provider.respond(
             ModelRequest(
-                agent_name="main",
+                agent_name="main_agent",
                 run_id=uuid4(),
                 thread_id=uuid4(),
                 actor_user_id=uuid4(),
@@ -104,7 +104,7 @@ def test_openai_provider_emits_safe_low_cardinality_operation_metric(
         asyncio.run(
             provider.respond(
                 ModelRequest(
-                    agent_name="main",
+                    agent_name="main_agent",
                     run_id=run_id,
                     thread_id=thread_id,
                     actor_user_id=uuid4(),
@@ -131,7 +131,7 @@ def test_openai_provider_emits_safe_low_cardinality_operation_metric(
     assert fields["outcome"] == "success"
     assert fields["provider"] == "openai"
     assert fields["model"] == "gpt-5.6-terra"
-    assert fields["agent_name"] == "main"
+    assert fields["agent_name"] == "main_agent"
     assert fields["run_id"] == str(run_id)
     assert fields["thread_id"] == str(thread_id)
     assert fields["request_id"] == "request-model"
@@ -174,7 +174,7 @@ def test_provider_rejects_unpaired_stateless_function_context_before_api_call(
         asyncio.run(
             provider.respond(
                 ModelRequest(
-                    agent_name="main",
+                    agent_name="main_agent",
                     run_id=uuid4(),
                     thread_id=uuid4(),
                     actor_user_id=uuid4(),
@@ -200,7 +200,7 @@ def test_openai_responses_provider_normalizes_function_calls_for_ledger() -> Non
     turn = asyncio.run(
         provider.respond(
             ModelRequest(
-                agent_name="main",
+                agent_name="main_agent",
                 run_id=uuid4(),
                 thread_id=uuid4(),
                 actor_user_id=uuid4(),
@@ -239,7 +239,7 @@ def test_provider_resolves_internal_image_and_pdf_assets_before_openai_call() ->
     asyncio.run(
         provider.respond(
             ModelRequest(
-                agent_name="main",
+                agent_name="main_agent",
                 run_id=run_id,
                 thread_id=thread_id,
                 actor_user_id=actor_user_id,
@@ -297,7 +297,7 @@ def test_provider_fails_closed_instead_of_treating_asset_id_as_openai_file_id() 
         asyncio.run(
             provider.respond(
                 ModelRequest(
-                    agent_name="main",
+                    agent_name="main_agent",
                     run_id=uuid4(),
                     thread_id=uuid4(),
                     actor_user_id=uuid4(),

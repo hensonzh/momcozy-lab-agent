@@ -306,7 +306,7 @@ class FakeAgentService:
             status="queued",
             runtime_pattern="sdk_only",
             runtime_version="momcozy-agent-v2",
-            service_skill_id="",
+            skill_id="",
             request_id="request-id",
             trace_id="request-id",
             error_code="",

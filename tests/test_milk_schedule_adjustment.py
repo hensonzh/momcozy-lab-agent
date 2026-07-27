@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.agents.plans.schedule_adjustment import (
+from app.capabilities.plans.schedule_adjustment import (
     MilkScheduleAdjustmentError,
     ScheduleTask,
     build_milk_schedule_preview,

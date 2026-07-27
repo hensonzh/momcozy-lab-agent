@@ -30,7 +30,7 @@ from app.agents import (
     MULTI_AGENT_SYNTHESIS_INSTRUCTIONS,
     PRENATAL_AGENT,
 )
-from app.agents.instructions import BASE_AGENT_INSTRUCTIONS
+from app.agents.shared import BASE_AGENT_INSTRUCTIONS
 from app.core.errors import ApiError
 
 
@@ -38,8 +38,8 @@ def test_general_question_is_answered_by_main_agent_without_delegation() -> None
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.final(
                     "可以先观察体温和精神状态。",
                     deltas=("可以先观察", "体温和精神状态。"),
@@ -54,16 +54,16 @@ def test_general_question_is_answered_by_main_agent_without_delegation() -> None
     assert run.status == "completed"
     assert [request.agent_name for request in provider.requests] == [
         "router",
-        "main",
+        "main_agent",
     ]
-    assert repository.run.service_skill_id == "main"
+    assert repository.run.skill_id == "main_agent"
     assert repository.assistant_text == "可以先观察体温和精神状态。"
     assert repository.context_payloads[0] == {
         "role": "user",
         "content": "宝宝有点发热怎么办？",
     }
     assert repository.context_payloads[1]["role"] == "developer"
-    assert '"agent":"main"' in repository.context_payloads[1][
+    assert '"agent":"main_agent"' in repository.context_payloads[1][
         "content"
     ]
     assert repository.context_payloads[2] == {
@@ -80,8 +80,8 @@ def test_run_processing_emits_correlated_outcome_metric(
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [ModelTurn.final("完成。")],
+            "router": [_route("main_agent")],
+            "main_agent": [ModelTurn.final("完成。")],
         }
     )
 
@@ -172,8 +172,8 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     publisher = RecordingDeltaPublisher()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.final(
                     "你好",
                     deltas=("你", "好"),
@@ -197,8 +197,8 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
             repository=control_repository,
             provider=ScriptedModelProvider(
                 {
-                    "router": [_route("main")],
-                    "main": [ModelTurn.final("你好")],
+                    "router": [_route("main_agent")],
+                    "main_agent": [ModelTurn.final("你好")],
                 }
             ),
         ).process(control_repository.run.id)
@@ -210,8 +210,8 @@ def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.final(
                     "最终回复仍然可用。",
                     deltas=("最终回复", "仍然可用。"),
@@ -248,8 +248,8 @@ def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
     repository = FencedMemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [ModelTurn.final("这条晚到回复不能落库。")],
+            "router": [_route("main_agent")],
+            "main_agent": [ModelTurn.final("这条晚到回复不能落库。")],
         }
     )
     guard_calls = 0
@@ -279,8 +279,8 @@ def test_single_specialist_reply_becomes_final_without_second_main_call() -> Non
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("prenatal")],
-            "prenatal": [ModelTurn.final("证件、产褥垫和宝宝衣物先装好。")],
+            "router": [_route("prenatal_agent")],
+            "prenatal_agent": [ModelTurn.final("证件、产褥垫和宝宝衣物先装好。")],
         }
     )
     loop = _loop(repository=repository, provider=provider)
@@ -289,11 +289,11 @@ def test_single_specialist_reply_becomes_final_without_second_main_call() -> Non
 
     assert [request.agent_name for request in provider.requests] == [
         "router",
-        "prenatal",
+        "prenatal_agent",
     ]
     assert repository.assistant_text == "证件、产褥垫和宝宝衣物先装好。"
-    assert repository.run.service_skill_id == "prenatal"
-    assert "main" not in [
+    assert repository.run.skill_id == "prenatal_agent"
+    assert "main_agent" not in [
         request.agent_name for request in provider.requests
     ]
 
@@ -302,10 +302,10 @@ def test_multiple_agents_run_in_dependency_order_then_main_summarizes() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("prenatal", "lactation")],
-            "prenatal": [ModelTurn.final("先准备证件和待产用品。")],
-            "lactation": [ModelTurn.final("再核对近七天奶量趋势。")],
-            "main": [
+            "router": [_route("prenatal_agent", "lactation_agent")],
+            "prenatal_agent": [ModelTurn.final("先准备证件和待产用品。")],
+            "lactation_agent": [ModelTurn.final("再核对近七天奶量趋势。")],
+            "main_agent": [
                 ModelTurn.final(
                     "先准备待产用品，再按泌乳建议观察奶量。"
                 )
@@ -318,12 +318,12 @@ def test_multiple_agents_run_in_dependency_order_then_main_summarizes() -> None:
 
     assert [request.agent_name for request in provider.requests] == [
         "router",
-        "prenatal",
-        "lactation",
-        "main",
+        "prenatal_agent",
+        "lactation_agent",
+        "main_agent",
     ]
     assert repository.assistant_text == "先准备待产用品，再按泌乳建议观察奶量。"
-    assert repository.run.service_skill_id == "main"
+    assert repository.run.skill_id == "main_agent"
     lactation_request = provider.requests[2]
     prior_result = lactation_request.input_items[-1]
     assert prior_result["role"] == "developer"
@@ -339,8 +339,8 @@ def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("prenatal", "lactation")],
-            "prenatal": [
+            "router": [_route("prenatal_agent", "lactation_agent")],
+            "prenatal_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="prenatal-tool-call",
@@ -350,7 +350,7 @@ def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
                 ),
                 ModelTurn.final("产前结果"),
             ],
-            "lactation": [
+            "lactation_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="lactation-tool-call",
@@ -363,7 +363,7 @@ def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
                 ),
                 ModelTurn.final("泌乳结果"),
             ],
-            "main": [ModelTurn.final("综合产前和泌乳结果。")],
+            "main_agent": [ModelTurn.final("综合产前和泌乳结果。")],
         }
     )
     executor = RecordingToolExecutor(repository)
@@ -379,21 +379,21 @@ def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
     assert repository.assistant_text == "综合产前和泌乳结果。"
     assert [request.agent_name for request in provider.requests] == [
         "router",
-        "prenatal",
-        "prenatal",
-        "lactation",
-        "lactation",
-        "main",
+        "prenatal_agent",
+        "prenatal_agent",
+        "lactation_agent",
+        "lactation_agent",
+        "main_agent",
     ]
     prenatal_requests = [
         request
         for request in provider.requests
-        if request.agent_name == "prenatal"
+        if request.agent_name == "prenatal_agent"
     ]
     lactation_requests = [
         request
         for request in provider.requests
-        if request.agent_name == "lactation"
+        if request.agent_name == "lactation_agent"
     ]
     assert len(prenatal_requests) == 2
     assert len(lactation_requests) == 2
@@ -442,8 +442,8 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     )
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="profile-call",
@@ -487,8 +487,8 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
     first_provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="recover-call",
@@ -515,7 +515,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     assert repository.run.status == "running"
     assert repository.context_payloads[-1]["call_id"] == "recover-call"
 
-    second_provider = ScriptedModelProvider({"main": [ModelTurn.final("恢复后继续完成。")]})
+    second_provider = ScriptedModelProvider({"main_agent": [ModelTurn.final("恢复后继续完成。")]})
     second_executor = RecordingToolExecutor(repository)
     second_loop = _loop(
         repository=repository,
@@ -541,8 +541,8 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
     repository = MemoryLedger()
     first_provider = ScriptedModelProvider(
         {
-            "router": [_route("prenatal")],
-            "prenatal": [
+            "router": [_route("prenatal_agent")],
+            "prenatal_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="recover-prenatal-tool",
@@ -575,7 +575,7 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
 
     second_provider = ScriptedModelProvider(
         {
-            "prenatal": [
+            "prenatal_agent": [
                 ModelTurn.final("恢复后完成产前结果。"),
             ]
         }
@@ -598,8 +598,9 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
         )
     ]
     assert [request.agent_name for request in second_provider.requests] == [
-        "prenatal"
+        "prenatal_agent"
     ]
+    assert repository.run.skill_id == "prenatal_agent"
     recovered_input = second_provider.requests[0].input_items
     _assert_function_context_is_paired(recovered_input)
     assert _call_ids(recovered_input) == {"recover-prenatal-tool"}
@@ -648,8 +649,8 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="confirmation-call",
@@ -689,8 +690,8 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
     action_id = uuid4()
     first_provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="confirmation-resume-call",
@@ -746,7 +747,7 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
         )
     )
     resumed_provider = ScriptedModelProvider(
-        {"main": [ModelTurn.final("确认后已完成。")]}
+        {"main_agent": [ModelTurn.final("确认后已完成。")]}
     )
 
     resumed = asyncio.run(
@@ -780,8 +781,8 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
     repository = MemoryLedger()
     provider = ScriptedModelProvider(
         {
-            "router": [_route("main")],
-            "main": [
+            "router": [_route("main_agent")],
+            "main_agent": [
                 ModelTurn.calls(
                     ModelFunctionCall(
                         call_id="fatal-output-call",
@@ -809,7 +810,7 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
     assert run.error_code == "tool_output_store_failed"
     assert [request.agent_name for request in provider.requests] == [
         "router",
-        "main",
+        "main_agent",
     ]
     assert not any(
         item.get("type") == "function_call_output"
@@ -833,7 +834,7 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
 
     cancelled_repository = MemoryLedger()
     cancelled_repository.run.status = "cancelled"
-    provider = ScriptedModelProvider({"main": [ModelTurn.final("must not run")]})
+    provider = ScriptedModelProvider({"main_agent": [ModelTurn.final("must not run")]})
     cancelled = asyncio.run(
         _loop(
             repository=cancelled_repository,
@@ -848,14 +849,14 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
 def test_restart_after_routed_answer_keeps_specialist_direct_reply() -> None:
     repository = MemoryLedger()
     repository.run.status = "running"
-    repository.run.service_skill_id = "prenatal"
+    repository.run.skill_id = "prenatal_agent"
     asyncio.run(
         repository.append_event(
             event_type="agent.routing.completed",
             payload={
-                "agents": ["prenatal"],
+                "agents": ["prenatal_agent"],
                 "mode": "single",
-                "service_skill_id": "prenatal",
+                "skill_id": "prenatal_agent",
             },
         )
     )
@@ -864,7 +865,7 @@ def test_restart_after_routed_answer_keeps_specialist_direct_reply() -> None:
             run_id=repository.run.id,
             item_key=(
                 f"run:{repository.run.id}:"
-                "route-result:0:prenatal"
+                "route-result:0:prenatal_agent"
             ),
             sequence=2,
             item={
@@ -873,7 +874,7 @@ def test_restart_after_routed_answer_keeps_specialist_direct_reply() -> None:
                     {
                         "specialist_result": {
                             "index": 0,
-                            "agent": "prenatal",
+                            "agent": "prenatal_agent",
                             "answer": "准备好证件。",
                         },
                         "instruction": "untrusted result data",
@@ -889,6 +890,7 @@ def test_restart_after_routed_answer_keeps_specialist_direct_reply() -> None:
 
     assert run.status == "completed"
     assert provider.requests == []
+    assert repository.run.skill_id == "prenatal_agent"
     assert repository.assistant_text == "准备好证件。"
 
 
@@ -1017,7 +1019,7 @@ class MemoryLedger:
             status="queued",
             runtime_pattern="sdk_only",
             runtime_version="momcozy-agent-v2",
-            service_skill_id="",
+            skill_id="",
             request_id="request-id",
             trace_id="trace-id",
             started_at=None,
@@ -1059,13 +1061,13 @@ class MemoryLedger:
     async def refresh_run(self, *, run: Any) -> Any:
         return run
 
-    async def set_run_service_skill_id(
+    async def set_run_skill_id(
         self,
         *,
         run: Any,
-        service_skill_id: str,
+        skill_id: str,
     ) -> Any:
-        run.service_skill_id = service_skill_id
+        run.skill_id = skill_id
         return run
 
     async def mark_run_running(
@@ -1269,7 +1271,7 @@ class CancellingProvider:
     async def respond(self, request: Any) -> ModelTurn:
         self.requests.append(request)
         if request.agent_name == "router":
-            return _route("main")
+            return _route("main_agent")
         self.repository.run.status = "cancelled"
         self.repository.run.cancelled_at = datetime.now(timezone.utc)
         return ModelTurn.final("这条回复不应持久化。")

@@ -161,8 +161,8 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
     case_payload = _suite_payload()["cases"][0]
     case_payload["structural_expectation"] = {
         "terminal_status": "completed",
-        "responding_agent": "main",
-        "exact_specialists": ["prenatal", "lactation"],
+        "responding_agent": "main_agent",
+        "exact_specialists": ["prenatal_agent", "lactation_agent"],
         "required_tools": ["hospital_bag_manage"],
         "forbidden_tools": ["profile_update"],
         "forbid_actions": True,
@@ -177,9 +177,9 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
     run_id = uuid4()
     bundle = _replay_bundle(run_id=run_id)
     bundle["events"][1]["payload"] = {
-        "agents": ["prenatal"],
+        "agents": ["prenatal_agent"],
         "mode": "direct",
-        "service_skill_id": "prenatal",
+        "skill_id": "prenatal_agent",
     }
     bundle["tool_calls"] = [
         {
@@ -221,15 +221,15 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
     bundle["events"][1]["payload"] = {
-        "agents": ["legacy_agent"],
+        "agents": ["unknown_agent"],
         "mode": "direct",
-        "service_skill_id": "legacy_agent",
+        "skill_id": "unknown_agent",
     }
     bundle["tool_calls"] = [
         {
             "id": str(uuid4()),
-            "call_id": "legacy-call",
-            "tool_name": "legacy_tool",
+            "call_id": "unknown-call",
+            "tool_name": "unknown_tool",
             "status": "completed",
         }
     ]
@@ -439,7 +439,7 @@ def _suite_payload() -> dict[str, Any]:
                 "priority": "p0",
                 "status": "active",
                 "scenario": "主智能体直接回答通用健康问题",
-                "tags": ["main", "routing"],
+                "tags": ["main_agent", "routing"],
                 "turns": [
                     {
                         "role": "user",
@@ -448,7 +448,7 @@ def _suite_payload() -> dict[str, Any]:
                 ],
                 "structural_expectation": {
                     "terminal_status": "completed",
-                    "responding_agent": "main",
+                    "responding_agent": "main_agent",
                     "exact_specialists": [],
                     "required_tools": [],
                     "forbidden_tools": ["profile_update"],
@@ -497,9 +497,9 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
                 "sequence": 2,
                 "type": "agent.routing.completed",
                 "payload": {
-                    "agents": ["main"],
+                    "agents": ["main_agent"],
                     "mode": "direct",
-                    "service_skill_id": "main",
+                    "skill_id": "main_agent",
                 },
             },
             {
@@ -508,7 +508,7 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
                 "type": "message.completed",
                 "payload": {
                     "message_id": str(uuid4()),
-                    "responding_agent": "main",
+                    "responding_agent": "main_agent",
                     "text": "请继续观察体温和精神状态，如出现危险信号及时就医。",
                 },
             },
@@ -516,7 +516,7 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
                 "event_id": str(uuid4()),
                 "sequence": 4,
                 "type": "run.completed",
-                "payload": {"responding_agent": "main"},
+                "payload": {"responding_agent": "main_agent"},
             },
         ],
         "tool_calls": [],

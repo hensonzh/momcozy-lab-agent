@@ -4,6 +4,18 @@
 
 一个主智能体和产前、泌乳、设备三个专业子智能体，共享 Agent Runtime、追加式上下文账本和 Tool Executor，通过内部 API 调用 Product Backend。
 
+## 代码组织
+
+- `app/agents/<name>_agent/` 是智能体纵向切片，主智能体目录为 `app/agents/main_agent/`。每个智能体拥有自己的 `definition.py`、`toolset.py`、`system_prompt.md`；专业智能体还拥有版本化的 `skills/<version>/SKILL.md`。
+- `app/agents/shared/` 保存所有智能体共享的稳定安全与工具规则，`app/agents/router/` 保存无 Tool 路由器及多智能体汇总 Prompt。
+- `app/agents/registry.py` 是智能体定义的唯一聚合入口。Runtime 只按名称读取定义，不感知 Prompt 文件位置。
+- `app/capabilities/<capability>/` 保存可复用 Tool contract、handler、reference 和 registry。智能体只通过 `toolset.py` 声明 Tool 白名单，不复制 Tool 实现。
+- `app/agent_runtime/` 只负责运行、持久账本、Tool/Action 执行、权限、事件、恢复和 Provider 适配，不拥有专业业务 Prompt。
+
+模型指令按“共享基础规则 + 智能体角色 Prompt + 版本化专业 Skill”组合。共享 Tool 可以同时被多个智能体引用，但 contract 和 handler 始终只有一份实现。
+
+运行时智能体标识与包目录统一为 `main_agent`、`prenatal_agent`、`lactation_agent`、`device_agent`。路由、事件和恢复流程只接受这些名称。
+
 ## 回复
 
 - 通用问题：主智能体直接回复。

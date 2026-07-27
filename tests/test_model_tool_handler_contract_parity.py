@@ -11,15 +11,17 @@ from app.agent_runtime.actions import ActionProposal, ActionProposed
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.tools import ToolHandlerContext
 from app.agent_runtime.tools.trusted import TrustedToolArgumentsProvider
-from app.agents.plans import (
+from app.capabilities.plans import (
     PlanMutateToolHandler,
     ScheduleTimelineMutateToolHandler,
 )
-from app.agents.runtime_native.cart import (
+from app.capabilities.hospital_bag import (
     DEFAULT_HOSPITAL_BAG_CART_GROUPS,
     reduce_hospital_bag_cart,
 )
-from app.agents.runtime_native import DeviceGuidanceManageToolHandler
+from app.capabilities.device_guidance import (
+    DeviceGuidanceManageToolHandler,
+)
 from app.auth import RuntimePrincipal
 
 

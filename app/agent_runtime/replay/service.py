@@ -179,7 +179,7 @@ def _run(run: AgentRun) -> dict[str, Any]:
         "status": run.status,
         "runtime_pattern": run.runtime_pattern,
         "runtime_version": run.runtime_version,
-        "service_skill_id": run.service_skill_id,
+        "skill_id": run.skill_id,
         "request_id": run.request_id,
         "trace_id": run.trace_id,
         "error_code": run.error_code,

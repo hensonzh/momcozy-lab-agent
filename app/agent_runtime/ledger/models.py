@@ -80,7 +80,7 @@ class AgentRun(Base):
         ),
         Index("ix_agent_runs_request_id", "request_id"),
         Index("ix_agent_runs_trace_id", "trace_id"),
-        Index("ix_agent_runs_service_skill_id", "service_skill_id"),
+        Index("ix_agent_runs_skill_id", "skill_id"),
         Index(
             "uq_agent_runs_thread_active",
             "thread_id",
@@ -95,7 +95,7 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
     runtime_pattern: Mapped[str] = mapped_column(String(64), default="sdk_only", server_default="sdk_only", nullable=False)
     runtime_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
-    service_skill_id: Mapped[str] = mapped_column(
+    skill_id: Mapped[str] = mapped_column(
         String(64),
         default="",
         server_default="",

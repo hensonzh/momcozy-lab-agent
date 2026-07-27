@@ -344,9 +344,9 @@ async def _confirmation_expiry_scenario() -> None:
             action = await repository.create_action(
                 run_id=run.id,
                 actor_user_id=owner_user_id,
-                action_type="notifications.milk_reminder.create",
-                target_type="notification",
-                target_id="new",
+                action_type="profile.update",
+                target_type="profile",
+                target_id=str(owner_user_id),
                 status="confirmation_required",
                 side_effect_level="medium",
                 preview_payload={"time": "08:00"},

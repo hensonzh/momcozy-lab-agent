@@ -37,7 +37,7 @@ from app.infrastructure.redis import (
     close_redis_client,
     create_redis_client,
 )
-from app.agents.runtime_native import HOSPITAL_BAG_CART_UPDATE_ACTION
+from app.capabilities.hospital_bag import HOSPITAL_BAG_CART_UPDATE_ACTION
 
 from .agent_run import AgentRunWorker
 
