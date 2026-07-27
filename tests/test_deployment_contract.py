@@ -139,15 +139,15 @@ def test_ci_readiness_starts_both_required_workers() -> None:
     assert "api worker fact-worker" in smoke_step
 
 
-def test_runtime_docs_describe_completed_cutover_contract() -> None:
+def test_runtime_docs_describe_independent_deployment_contract() -> None:
     readme = (ROOT / "README.md").read_text()
-    migration = (ROOT / "docs" / "migration.md").read_text()
+    deployment = (ROOT / "docs" / "deployment.md").read_text()
     authentication = (ROOT / "docs" / "authentication.md").read_text()
 
     assert "Current Migration Slice" not in readme
-    assert "**Pending:**" not in migration
+    assert "**Pending:**" not in deployment
     assert "Product Backend remains the Agent traffic owner" not in (
-        readme + migration + authentication
+        readme + deployment + authentication
     )
     assert "RUNTIME_ADMIN_SERVICE_KEY" in readme + authentication
     assert "X-Service-Key" in authentication
@@ -162,7 +162,8 @@ def test_runtime_docs_describe_completed_cutover_contract() -> None:
         "Redis",
         "Product Backend",
         "MOMCOZY_AGENT_API_BASE_URL",
-        "cutover",
+        "empty PostgreSQL",
+        "deployment",
         "rollback",
     ):
-        assert expected in readme + migration
+        assert expected in readme + deployment

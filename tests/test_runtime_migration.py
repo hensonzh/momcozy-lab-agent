@@ -5,8 +5,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+from app.infrastructure.db.schema import RUNTIME_SCHEMA_REVISION
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_BASELINE_REVISION = "20260727_0001"
 
 
 def test_runtime_has_one_fresh_alembic_head() -> None:
@@ -19,7 +22,10 @@ def test_runtime_has_one_fresh_alembic_head() -> None:
         text=True,
     )
 
-    assert result.stdout.strip() == "20260727_0003 (head)"
+    assert result.stdout.strip() == (
+        f"{RUNTIME_BASELINE_REVISION} (head)"
+    )
+    assert RUNTIME_SCHEMA_REVISION == RUNTIME_BASELINE_REVISION
 
 
 def test_runtime_baseline_generates_empty_database_sql_without_product_tables() -> None:
@@ -54,8 +60,13 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "memory_type VARCHAR(80)" in sql
     assert "CREATE TABLE audit_logs" in sql
     assert "CREATE TABLE idempotency_keys" in sql
-    assert "ALTER TABLE agent_tool_outputs RENAME safe_output_json TO output_json" in sql
-    assert "ADD COLUMN result_payload_json JSONB" in sql
+    assert "output_json JSONB" in sql
+    assert "output_ref VARCHAR(512)" in sql
+    assert "result_payload_json JSONB" in sql
+    assert "ALTER TABLE" not in sql
+    assert "RENAME" not in sql
+    assert "safe_output_json" not in sql
+    assert "raw_output_ref" not in sql
     assert "agent_run_summaries" not in sql
     assert "REFERENCES users" not in sql
     assert "REFERENCES files" not in sql

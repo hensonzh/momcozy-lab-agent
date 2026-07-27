@@ -13,7 +13,6 @@ from app.agent_runtime.actions import (
     ActionProposed,
 )
 from app.agent_runtime.actions.plans import (
-    PLANS_ACTION_TYPES,
     PlansActionApplicator,
 )
 from app.agent_runtime.ledger import AgentAction
@@ -55,7 +54,6 @@ def test_plans_registry_exposes_four_canonical_tools() -> None:
         "plans.plan.update",
         "plans.plan.delete",
     )
-    assert "plans.milk_plan.create" not in PLANS_ACTION_TYPES
 
 
 def test_plan_read_selects_current_or_detail() -> None:
@@ -439,6 +437,18 @@ class RecordingMilkScheduleBackend:
         self.task_ids = [uuid4(), uuid4(), uuid4()]
         self.truncated = truncated
         self.timeline_query: Any | None = None
+
+    async def read_current_plans(
+        self,
+        *,
+        query: Any,
+        request_id: str,
+    ) -> PlansCurrentReadResponse:
+        return PlansCurrentReadResponse(
+            plans=[],
+            tasks=[],
+            counts={"plans": 0, "tasks": 0},
+        )
 
     async def read_plan_detail(
         self,

@@ -97,7 +97,9 @@ def test_tool_result_has_one_canonical_business_output() -> None:
     result = ToolResult.json(value)
 
     assert result.canonical_output == value
-    assert json.loads(result.to_function_call_output()) == value
+    function_output = result.to_function_call_output()
+    assert isinstance(function_output, str)
+    assert json.loads(function_output) == value
     assert result.to_observation() == value
     assert not hasattr(result, "audit_output")
 

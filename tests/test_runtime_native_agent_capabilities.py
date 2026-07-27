@@ -86,7 +86,7 @@ def test_history_image_contract_does_not_accept_asset_id_or_url() -> None:
 
 def test_pump_models_read_uses_versioned_runtime_reference() -> None:
     result = asyncio.run(PumpModelsReadToolHandler()(_context(args={})))
-    observation = cast(dict[str, Any], result.to_observation())
+    observation = result.to_observation()
 
     assert observation["schema_version"] == "pump-models.result.v1"
     assert observation["reference_version"].startswith("pump-models-")
@@ -116,7 +116,7 @@ def test_ibclc_card_is_persisted_as_owner_scoped_runtime_artifact() -> None:
             )
         )
     )
-    observation = cast(dict[str, Any], result.to_observation())
+    observation = result.to_observation()
 
     assert observation["status"] == "card_created"
     assert store.artifacts[-1].owner_user_id == OWNER_ID
@@ -200,22 +200,18 @@ def test_hospital_bag_flow_persists_and_resumes_the_same_form() -> None:
     store = FakeNativeRepository()
     handler = HospitalBagManageToolHandler(repository=cast(RuntimeLedgerRepository, store))
 
-    first = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={
-                        "generation_mode": "standard",
-                    }
-                )
+    first = asyncio.run(
+        handler(
+            _context(
+                args={
+                    "generation_mode": "standard",
+                }
             )
-        ).to_observation(),
-    )
-    resumed = cast(
-        dict[str, Any],
-        asyncio.run(handler(_context(args={}))).to_observation(),
-    )
+        )
+    ).to_observation()
+    resumed = asyncio.run(
+        handler(_context(args={}))
+    ).to_observation()
 
     assert first["status"] == "intake_required"
     assert resumed["status"] == "intake_required"
@@ -230,39 +226,33 @@ def test_hospital_bag_flow_persists_and_resumes_the_same_form() -> None:
 def test_hospital_bag_submission_creates_card_and_completes_workflow() -> None:
     store = FakeNativeRepository()
     handler = HospitalBagManageToolHandler(repository=cast(RuntimeLedgerRepository, store))
-    started = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={
-                        "generation_mode": "immediate",
-                    }
-                )
+    started = asyncio.run(
+        handler(
+            _context(
+                args={
+                    "generation_mode": "immediate",
+                }
             )
-        ).to_observation(),
-    )
+        )
+    ).to_observation()
 
-    completed = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={"generation_mode": "immediate"},
-                    trusted_args={
-                        "form_artifact_id": started["artifact_id"],
-                        "form_submission_id": "submission-1",
-                        "confirmed_form_data": {
-                            "due_date": "2026-08-18",
-                            "delivery_method": "unknown",
-                            "feeding_plan": "breastfeeding",
-                            "hospital_stay_days": 3,
-                        },
+    completed = asyncio.run(
+        handler(
+            _context(
+                args={"generation_mode": "immediate"},
+                trusted_args={
+                    "form_artifact_id": started["artifact_id"],
+                    "form_submission_id": "submission-1",
+                    "confirmed_form_data": {
+                        "due_date": "2026-08-18",
+                        "delivery_method": "unknown",
+                        "feeding_plan": "breastfeeding",
+                        "hospital_stay_days": 3,
                     },
-                )
+                },
             )
-        ).to_observation(),
-    )
+        )
+    ).to_observation()
 
     assert completed["status"] == "card_ready"
     assert store.artifacts[-1].artifact_type == "hospital_bag_card"
@@ -288,31 +278,25 @@ def test_device_walkthrough_is_durable_and_advances_one_step() -> None:
     store = FakeNativeRepository()
     handler = DeviceGuidanceManageToolHandler(repository=cast(RuntimeLedgerRepository, store))
 
-    started = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={
-                        "model": "Air1",
-                        "operation": "start_or_resume",
-                    }
-                )
+    started = asyncio.run(
+        handler(
+            _context(
+                args={
+                    "model": "Air1",
+                    "operation": "start_or_resume",
+                }
             )
-        ).to_observation(),
-    )
-    advanced = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={
-                        "operation": "complete_current",
-                    }
-                )
+        )
+    ).to_observation()
+    advanced = asyncio.run(
+        handler(
+            _context(
+                args={
+                    "operation": "complete_current",
+                }
             )
-        ).to_observation(),
-    )
+        )
+    ).to_observation()
 
     assert started["workflow"]["current_step"] == "guide.parts"
     assert advanced["workflow"]["current_step"] == "guide.controls"
@@ -390,40 +374,37 @@ def test_hospital_bag_cart_mutate_uses_runtime_action_and_applicator() -> None:
         action_proposer=proposer
     )
 
-    result = cast(
-        dict[str, Any],
-        asyncio.run(
-            handler(
-                _context(
-                    args={
-                        "operation": "update_quantity",
-                        "quantity_updates": [
-                            {"item_id": "mom-wipes", "qty": 2}
+    result = asyncio.run(
+        handler(
+            _context(
+                args={
+                    "operation": "update_quantity",
+                    "quantity_updates": [
+                        {"item_id": "mom-wipes", "qty": 2}
+                    ],
+                },
+                trusted_args={
+                    "runtime_cart": {
+                        "groups": [
+                            {
+                                "title": "妈妈护理",
+                                "tone": "rose",
+                                "items": [
+                                    {
+                                        "id": "mom-wipes",
+                                        "name": "产后护理湿巾",
+                                        "qty": 1,
+                                        "price": 29.9,
+                                    }
+                                ],
+                            }
                         ],
-                    },
-                    trusted_args={
-                        "runtime_cart": {
-                            "groups": [
-                                {
-                                    "title": "妈妈护理",
-                                    "tone": "rose",
-                                    "items": [
-                                        {
-                                            "id": "mom-wipes",
-                                            "name": "产后护理湿巾",
-                                            "qty": 1,
-                                            "price": 29.9,
-                                        }
-                                    ],
-                                }
-                            ],
-                            "totals": {},
-                        }
-                    },
-                )
+                        "totals": {},
+                    }
+                },
             )
-        ).to_observation(),
-    )
+        )
+    ).to_observation()
 
     assert proposer.proposal is not None
     assert proposer.proposal.actor_user_id == OWNER_ID

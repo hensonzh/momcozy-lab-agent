@@ -31,7 +31,7 @@ transient stream notifications; losing Redis must not erase the durable ledger.
 Flutter configures exactly one Agent origin through
 `MOMCOZY_AGENT_API_BASE_URL`; runs, streams, cancellation, client events, and
 actions all derive their `/v1/agent/*` URLs from it. See
-[migration.md](docs/migration.md) for production cutover and rollback.
+[deployment.md](docs/deployment.md) for deployment and rollback.
 
 ## Local Run
 

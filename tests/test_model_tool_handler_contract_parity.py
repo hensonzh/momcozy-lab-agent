@@ -110,10 +110,7 @@ def test_plan_mutate_success_output_is_json_serializable() -> None:
         result.canonical_output,
         ensure_ascii=False,
     )
-    action_id = cast(
-        dict[str, Any],
-        result.canonical_output,
-    )["action_id"]
+    action_id = result.canonical_output["action_id"]
     assert str(action_id) in encoded
 
 
@@ -223,6 +220,12 @@ class _TrustedCartRepository:
         return SimpleNamespace(
             payload={"cart_update": self.cart_update}
         )
+
+    async def get_latest_workflow_state_for_owner(
+        self,
+        **kwargs: Any,
+    ) -> Any | None:
+        return None
 
 
 def _cart_item_ids(cart_update: dict[str, Any]) -> set[str]:

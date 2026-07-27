@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .instructions import BASE_AGENT_INSTRUCTIONS
+from .skill_loader import load_specialist_skill
 
 
 AgentName = Literal["main", "prenatal", "lactation", "device"]
@@ -14,6 +15,19 @@ class AgentDefinition:
     name: AgentName
     instructions: str
     tool_names: tuple[str, ...]
+
+
+def _specialist_instructions(
+    *,
+    name: Literal["prenatal", "lactation", "device"],
+    role: str,
+) -> str:
+    return (
+        f"{BASE_AGENT_INSTRUCTIONS}\n\n"
+        f"{role}\n\n"
+        "# 当前专业服务指令\n\n"
+        f"{load_specialist_skill(name)}"
+    )
 
 
 MAIN_AGENT = AgentDefinition(
@@ -38,10 +52,12 @@ MAIN_AGENT = AgentDefinition(
 
 PRENATAL_AGENT = AgentDefinition(
     name="prenatal",
-    instructions=(
-        f"{BASE_AGENT_INSTRUCTIONS}\n\n"
-        "你是产前服务智能体，只处理产前计划、待产包及相关专业问题。"
-        "完成主智能体委派的目标，不处理其他专业域。"
+    instructions=_specialist_instructions(
+        name="prenatal",
+        role=(
+            "你是产前服务智能体，只处理产前计划、待产包及相关专业问题。"
+            "完成主智能体委派的目标，不处理其他专业域。"
+        ),
     ),
     tool_names=(
         "plan_read",
@@ -56,10 +72,12 @@ PRENATAL_AGENT = AgentDefinition(
 
 LACTATION_AGENT = AgentDefinition(
     name="lactation",
-    instructions=(
-        f"{BASE_AGENT_INSTRUCTIONS}\n\n"
-        "你是泌乳服务智能体，只处理喂养、泌乳、奶量和相关计划。"
-        "完成主智能体委派的目标，不处理其他专业域。"
+    instructions=_specialist_instructions(
+        name="lactation",
+        role=(
+            "你是泌乳服务智能体，只处理喂养、泌乳、奶量和相关计划。"
+            "完成主智能体委派的目标，不处理其他专业域。"
+        ),
     ),
     tool_names=(
         "profile_read",
@@ -75,10 +93,12 @@ LACTATION_AGENT = AgentDefinition(
 
 DEVICE_AGENT = AgentDefinition(
     name="device",
-    instructions=(
-        f"{BASE_AGENT_INSTRUCTIONS}\n\n"
-        "你是设备服务智能体，只处理设备使用、开箱、泵型和售后问题。"
-        "完成主智能体委派的目标，不处理其他专业域。"
+    instructions=_specialist_instructions(
+        name="device",
+        role=(
+            "你是设备服务智能体，只处理设备使用、开箱、泵型和售后问题。"
+            "完成主智能体委派的目标，不处理其他专业域。"
+        ),
     ),
     tool_names=(
         "devices_guidance_manage",

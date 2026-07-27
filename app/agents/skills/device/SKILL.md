@@ -1,5 +1,5 @@
 ---
-name: device-guidance
+name: device
 description: Momcozy Air1/BP334 设备使用、开箱、清洁、充电、法兰、蓝牙和售后指导。
 reference_version: v1
 ---
