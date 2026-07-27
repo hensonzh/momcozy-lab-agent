@@ -1,4 +1,4 @@
-name: agent-runtime-ci
+name: agent-ci
 
 permissions:
   contents: read
@@ -105,21 +105,21 @@ jobs:
 
       - name: Validate production Compose configuration
         env:
-          MOMCOZY_AGENT_RUNTIME_IMAGE: momcozy-agent-runtime:ci
-          MOMCOZY_AGENT_RUNTIME_ENV_FILE: env/compose.prod.env.example
+          MOMCOZY_AGENT_IMAGE: agent:ci
+          MOMCOZY_AGENT_ENV_FILE: env/compose.prod.env.example
         run: docker compose -f docker-compose.prod.yml config --quiet
 
       - name: Build Compose image
         run: docker compose -f docker-compose.local.yml build api
 
       - name: Verify non-root runtime user
-        run: test "$(docker image inspect --format '{{.Config.User}}' momcozy-agent-runtime:local)" = "app"
+        run: test "$(docker image inspect --format '{{.Config.User}}' agent:local)" = "app"
 
       - name: Verify release contracts inside the image
         run: |
-          docker run --rm momcozy-agent-runtime:local \
+          docker run --rm agent:local \
             python scripts/check_product_backend_contract.py
-          docker run --rm momcozy-agent-runtime:local \
+          docker run --rm agent:local \
             python scripts/run_behavior_eval.py \
               --validate-only \
               --output-json /tmp/behavior-eval.json \

@@ -1,7 +1,7 @@
 [project]
-name = "momcozy-agent-runtime"
+name = "agent"
 version = "0.1.0"
-description = "MomCozy Agent Runtime service"
+description = "Agent service"
 requires-python = ">=3.12,<3.14"
 
 [tool.ruff]

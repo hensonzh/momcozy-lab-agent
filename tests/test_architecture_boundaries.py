@@ -4,8 +4,8 @@ import re
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_IMPORT_ROOTS = ("MomCozyAgent", "app.modules")
-PRODUCT_REPOSITORY_PATH = re.compile(r"(?i)(?:^|[./\\])momcozyagent(?:[/\\]|$)")
+FORBIDDEN_IMPORT_ROOTS = ("backend", "app.modules")
+PRODUCT_REPOSITORY_PATH = re.compile(r"(?i)(?:^|[./\\])backend(?:[/\\]|$)")
 
 
 def test_runtime_source_never_imports_product_backend_implementation() -> None:

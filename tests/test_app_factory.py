@@ -20,7 +20,7 @@ def test_agent_runtime_service_exposes_independent_health_contract() -> None:
     assert client.get("/v1/health/live").json() == {"status": "ok"}
     assert client.get("/v1/health/ready").json() == {
         "status": "ok",
-        "service": "agent-runtime",
+        "service": "agent",
         "version": "0.1.0",
         "runtime": "ready",
     }
@@ -145,6 +145,57 @@ def test_product_backend_service_identity_rejects_placeholder() -> None:
         )
 
 
+def test_production_requires_runtime_admin_service_identity() -> None:
+    with pytest.raises(ValueError, match="RUNTIME_ADMIN_SERVICE_KEY"):
+        create_app(
+            Settings(
+                app_env="production",
+                database_url=(
+                    "postgresql+asyncpg://runtime:secret@"
+                    "agent-runtime-postgres.internal:5432/agent_runtime"
+                ),
+                redis_url="redis://agent-runtime-redis.internal:6379/0",
+                product_backend_base_url="https://product-backend.internal",
+                product_backend_service_key=(
+                    "agent-runtime-production-key-32-bytes"
+                ),
+                auth_jwks_url=(
+                    "https://identity.momcozy.internal/.well-known/jwks.json"
+                ),
+                auth_jwt_issuer="https://identity.momcozy.internal",
+            )
+        )
+
+
+def test_runtime_admin_service_identity_must_be_distinct_from_product_key() -> None:
+    shared_key = "shared-runtime-service-key-at-least-32-bytes"
+
+    with pytest.raises(ValueError, match="must be different"):
+        create_app(
+            Settings(
+                app_env="test",
+                product_backend_service_key=shared_key,
+                runtime_admin_service_key=shared_key,
+            )
+        )
+
+
+def test_runtime_admin_service_identity_rejects_placeholder() -> None:
+    with pytest.raises(
+        ValueError,
+        match="RUNTIME_ADMIN_SERVICE_KEY.*placeholder",
+    ):
+        create_app(
+            Settings(
+                app_env="test",
+                runtime_admin_service_key=(
+                    "replace-with-a-random-runtime-admin-service-key-"
+                    "of-at-least-32-bytes"
+                ),
+            )
+        )
+
+
 def test_worker_rejects_placeholder_model_provider_key() -> None:
     with pytest.raises(ValueError, match="OPENAI_API_KEY.*placeholder"):
         Settings(
@@ -199,6 +250,7 @@ def test_production_accepts_explicit_remote_https_product_backend() -> None:
             redis_url="redis://agent-runtime-redis.internal:6379/0",
             product_backend_base_url="https://product-backend.internal",
             product_backend_service_key="agent-runtime-production-key-32-bytes",
+            runtime_admin_service_key="runtime-admin-production-key-32-bytes",
             auth_jwks_url="https://identity.momcozy.internal/.well-known/jwks.json",
             auth_jwt_issuer="https://identity.momcozy.internal",
         )

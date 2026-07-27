@@ -33,6 +33,15 @@
 
 ## Replay and Eval Administration
 
-Replay export and eval management require the `admin` role or
-`agent:admin`/`agent.runtime.admin` permission. These operations are audited;
-message content is omitted unless explicitly requested.
+Replay export and eval management accept either:
+
+- the dedicated `RUNTIME_ADMIN_SERVICE_KEY` in `X-Service-Key`; or
+- a Product-issued token with the `admin` role or
+  `agent:admin`/`agent.runtime.admin` permission.
+
+The service key is the deployable operator identity while Product issues only
+normal user claims. It is required in production, must differ from
+`PRODUCT_BACKEND_SERVICE_KEY`, must never be sent by Flutter, and should be
+rotated as an independent secret. Service-key operations are audited as
+`agent-runtime-operator`; message content is omitted unless explicitly
+requested.

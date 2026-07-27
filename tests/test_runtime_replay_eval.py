@@ -42,6 +42,35 @@ def test_replay_bundle_includes_sanitized_content_only_when_requested() -> None:
     assert bundle["events"][0]["payload"]["token"] == "[redacted]"
 
 
+def test_replay_operator_service_identity_is_audited() -> None:
+    run_id = uuid4()
+    audit = FakeAuditService()
+    service = RuntimeReplayService(
+        repository=FakeReplayRepository(run_id=run_id),  # type: ignore[arg-type]
+        audit_service=audit,  # type: ignore[arg-type]
+    )
+
+    asyncio.run(
+        service.export_run_bundle(
+            run_id=run_id,
+            admin_actor_service="agent-runtime-operator",
+        )
+    )
+
+    assert audit.records == [
+        {
+            "actor_user_id": None,
+            "actor_type": "service",
+            "actor_service": "agent-runtime-operator",
+            "action": "agent.run.replay.export",
+            "resource_type": "agent_run",
+            "resource_id": str(run_id),
+            "request_id": "",
+            "details": {"include_message_content": False},
+        }
+    ]
+
+
 def test_eval_case_created_from_replay_passes_and_detects_regression() -> None:
     source_run_id = uuid4()
     eval_repository = FakeEvalRepository()
@@ -152,6 +181,16 @@ class FakeReplayRepository:
 
     async def list_workflow_events(self, *, run_id: UUID) -> list[Any]:
         return []
+
+
+class FakeAuditService:
+    def __init__(self) -> None:
+        self.records: list[dict[str, Any]] = []
+
+    async def record(self, **kwargs: Any) -> Any:
+        self.records.append(kwargs)
+        return SimpleNamespace()
+
 
 class FakeEvalReplayService:
     def __init__(self, *, run_id: UUID) -> None:

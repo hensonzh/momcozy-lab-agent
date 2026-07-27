@@ -1,4 +1,4 @@
-# MomCozy Agent Runtime
+# Agent
 
 Independent production Agent service owned by the Agent team.
 
@@ -45,12 +45,14 @@ the API and continuous workers. PostgreSQL defaults to `127.0.0.1:5433` and
 Redis to `127.0.0.1:6380`.
 
 The API binds to `127.0.0.1:8010` by default. For physical-device development,
-set `MOMCOZY_AGENT_RUNTIME_API_BIND=0.0.0.0:8010` for the Compose command and
+set `MOMCOZY_AGENT_API_BIND=0.0.0.0:8010` for the Compose command and
 use the development machine's LAN address in Flutter.
 
 The local `PRODUCT_BACKEND_SERVICE_KEY` must match Product Backend
 `AGENT_RUNTIME_SERVICE_API_KEY`. `AUTH_JWT_ISSUER` must match the Product
 Backend issuer; Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
+`RUNTIME_ADMIN_SERVICE_KEY` is a separate inbound operator credential for
+`/v1/agent/admin/*` and must not be reused as the Product service identity.
 
 Run daily memory consolidation:
 
@@ -101,7 +103,7 @@ Product release artifact, then validate the exact artifact as well:
 
 ```bash
 python scripts/check_product_backend_contract.py \
-  --openapi-path ../MomCozyAgent/docs/openapi.generated.json
+  --openapi-path ../backend/docs/openapi.generated.json
 ```
 
 Health endpoints are `GET /v1/health/live` and `GET /v1/health/ready`.

@@ -5,12 +5,13 @@ from .jwks import (
     UnknownSigningKeyError,
 )
 from .jwt import RuntimeTokenAuthenticator
-from .principal import RuntimePrincipal
+from .principal import RuntimeAdminPrincipal, RuntimePrincipal
 
 __all__ = [
     "HttpJwksFetcher",
     "JwksCache",
     "JwksUnavailableError",
+    "RuntimeAdminPrincipal",
     "RuntimePrincipal",
     "RuntimeTokenAuthenticator",
     "UnknownSigningKeyError",

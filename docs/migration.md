@@ -7,8 +7,10 @@ workers, Agent definitions, Tool/Action execution, fact/memory, replay/eval,
 operations scripts, deployment templates, and CI. Product Backend retains
 product data and exposes only typed `/v1/internal/agent/*` capabilities.
 
-The test environment is disposable. Legacy Runtime, database, Tool-name, and
-persisted-run compatibility are intentionally unsupported.
+Legacy Runtime data, Tool-name, and persisted-run compatibility are
+intentionally unsupported. Product Backend keeps its historical Alembic chain
+so existing Product databases can retain business data while the bridge
+migration removes only Runtime-owned tables.
 
 ## Production Topology
 
@@ -26,7 +28,8 @@ persisted-run compatibility are intentionally unsupported.
 ## Production Cutover
 
 1. Provision dedicated PostgreSQL and Redis, Product internal API/JWKS access,
-   the Runtime service key, and the model-provider secret.
+   the outbound Product service key, the independent inbound Runtime admin
+   service key, and the model-provider secret.
 2. Validate `docker-compose.prod.yml`, apply `alembic upgrade head`, then start
    the API, run worker, and fact worker. Schedule memory consolidation daily.
 3. Pass these independent release gates:

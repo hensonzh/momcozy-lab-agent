@@ -13,3 +13,9 @@ class RuntimePrincipal:
     token_version: int
     roles: frozenset[str]
     permissions: frozenset[str]
+
+
+@dataclass(frozen=True)
+class RuntimeAdminPrincipal:
+    actor_user_id: UUID | None
+    actor_service: str

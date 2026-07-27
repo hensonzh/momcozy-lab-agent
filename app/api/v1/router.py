@@ -51,7 +51,7 @@ async def ready(request: Request) -> dict[str, Any]:
         )
     return {
         "status": "ok",
-        "service": "agent-runtime",
+        "service": "agent",
         "version": settings.app_version,
         "runtime": "ready",
     }

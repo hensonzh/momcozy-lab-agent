@@ -163,7 +163,7 @@ def configure_logging(
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         JsonLogFormatter(
-            service="agent-runtime",
+            service="agent",
             environment=environment,
             version=version,
             process=process,

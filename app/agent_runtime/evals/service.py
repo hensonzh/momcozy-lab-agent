@@ -55,6 +55,7 @@ class RuntimeEvalService:
         domain: str,
         owner_team: str,
         admin_actor_user_id: UUID | None = None,
+        admin_actor_service: str = "",
         request_id: str = "",
     ) -> AgentEvalCase:
         normalized_suite = _required(suite, max_length=120)
@@ -85,6 +86,10 @@ class RuntimeEvalService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
+                actor_type=(
+                    "service" if admin_actor_service else None
+                ),
+                actor_service=admin_actor_service,
                 action="agent.eval_case.create",
                 resource_type="agent_eval_case",
                 resource_id=str(case.id),
@@ -122,6 +127,7 @@ class RuntimeEvalService:
         case_id: UUID,
         run_id: UUID | None,
         admin_actor_user_id: UUID | None = None,
+        admin_actor_service: str = "",
         request_id: str = "",
     ) -> EvalResult:
         case = await self.repository.get_case(case_id=case_id)
@@ -152,6 +158,10 @@ class RuntimeEvalService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
+                actor_type=(
+                    "service" if admin_actor_service else None
+                ),
+                actor_service=admin_actor_service,
                 action="agent.eval_case.evaluate",
                 resource_type="agent_eval_case",
                 resource_id=str(case.id),

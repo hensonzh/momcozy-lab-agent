@@ -61,6 +61,7 @@ class RuntimeReplayService:
         run_id: UUID,
         include_message_content: bool = False,
         admin_actor_user_id: UUID | None = None,
+        admin_actor_service: str = "",
         request_id: str = "",
     ) -> dict[str, Any]:
         run = await self.repository.get_run(run_id=run_id)
@@ -101,6 +102,10 @@ class RuntimeReplayService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
+                actor_type=(
+                    "service" if admin_actor_service else None
+                ),
+                actor_service=admin_actor_service,
                 action="agent.run.replay.export",
                 resource_type="agent_run",
                 resource_id=str(run.id),

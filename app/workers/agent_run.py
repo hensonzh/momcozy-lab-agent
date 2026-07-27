@@ -410,7 +410,7 @@ async def _serve() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the MomCozy Agent Runtime worker.")
+    parser = argparse.ArgumentParser(description="Run the Agent worker.")
     parser.parse_args()
     settings = get_settings()
     configure_logging(

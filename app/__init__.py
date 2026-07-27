@@ -1,1 +1,1 @@
-"""MomCozy Agent Runtime service."""
+"""Agent service."""

@@ -19,7 +19,7 @@ from scripts.check_product_backend_contract import (
 ROOT = Path(__file__).resolve().parents[1]
 PINNED_PRODUCT_OPENAPI = DEFAULT_OPENAPI_PATH
 SIBLING_PRODUCT_OPENAPI = (
-    ROOT.parent / "MomCozyAgent" / "docs" / "openapi.generated.json"
+    ROOT.parent / "backend" / "docs" / "openapi.generated.json"
 )
 
 

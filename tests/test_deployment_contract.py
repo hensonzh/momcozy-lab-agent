@@ -4,10 +4,31 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ENV = ROOT / "env" / "compose.local.env.example"
 PROD_ENV = ROOT / "env" / "compose.prod.env.example"
-CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-runtime-ci.yml"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-ci.yml"
 CI_COMPOSE = ROOT / "docker-compose.ci.yml"
 CI_JWKS = ROOT / "tests" / "fixtures" / "jwks" / ".well-known" / "jwks.json"
 LOCAL_COMPOSE = ROOT / "docker-compose.local.yml"
+PROD_COMPOSE = ROOT / "docker-compose.prod.yml"
+
+
+def test_project_metadata_uses_agent_name() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    local_compose = LOCAL_COMPOSE.read_text()
+    production_compose = PROD_COMPOSE.read_text()
+
+    assert 'name = "agent"' in pyproject
+    assert local_compose.startswith("name: agent\n")
+    assert production_compose.startswith("name: agent\n")
+    assert "image: agent:local" in local_compose
+    assert "MOMCOZY_AGENT_IMAGE" in production_compose
+    assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + production_compose
+    assert "MOMCOZY_AGENT_RUNTIME_" not in (
+        local_compose + production_compose
+    )
+    assert CI_WORKFLOW.exists()
+    assert not (
+        ROOT / ".github" / "workflows" / "agent-runtime-ci.yml"
+    ).exists()
 
 
 def test_local_environment_declares_runtime_public_key_contract() -> None:
@@ -28,7 +49,7 @@ def test_local_api_bind_is_loopback_safe_and_overridable_for_devices() -> None:
     compose = LOCAL_COMPOSE.read_text()
 
     assert (
-        "${MOMCOZY_AGENT_RUNTIME_API_BIND:-127.0.0.1:8010}:8000"
+        "${MOMCOZY_AGENT_API_BIND:-127.0.0.1:8010}:8000"
         in compose
     )
 
@@ -65,6 +86,7 @@ def test_production_environment_declares_runtime_dependencies() -> None:
         "REDIS_URL=",
         "PRODUCT_BACKEND_BASE_URL=https://",
         "PRODUCT_BACKEND_SERVICE_KEY=${PRODUCT_BACKEND_SERVICE_KEY}",
+        "RUNTIME_ADMIN_SERVICE_KEY=${RUNTIME_ADMIN_SERVICE_KEY}",
         "AUTH_JWKS_URL=https://",
         "AUTH_JWT_ISSUER=momcozy-production",
         "AUTH_JWT_AUDIENCE=momcozy-agent-runtime",
@@ -127,6 +149,9 @@ def test_runtime_docs_describe_completed_cutover_contract() -> None:
     assert "Product Backend remains the Agent traffic owner" not in (
         readme + migration + authentication
     )
+    assert "RUNTIME_ADMIN_SERVICE_KEY" in readme + authentication
+    assert "X-Service-Key" in authentication
+    assert "agent-runtime-operator" in authentication
 
     for expected in (
         "API",

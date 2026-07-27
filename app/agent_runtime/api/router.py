@@ -24,8 +24,11 @@ from app.agent_runtime.ledger.models import AgentEvent
 from app.agent_runtime.memory import MemoryService
 from app.agent_runtime.replay import RuntimeReplayRepository, RuntimeReplayService
 from app.agent_runtime.runs.service import AgentRuntimeService
-from app.api.dependencies import require_runtime_principal
-from app.auth import RuntimePrincipal
+from app.api.dependencies import (
+    require_runtime_admin,
+    require_runtime_principal,
+)
+from app.auth import RuntimeAdminPrincipal, RuntimePrincipal
 from app.core.errors import ApiError
 from app.infrastructure.db import get_session
 
@@ -211,22 +214,6 @@ def get_eval_service(
         repository=RuntimeEvalRepository(session),
         replay_service=replay_service,
         audit_service=audit_service,
-    )
-
-
-def require_runtime_admin(
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-) -> RuntimePrincipal:
-    if (
-        "admin" in principal.roles
-        or "agent:admin" in principal.permissions
-        or "agent.runtime.admin" in principal.permissions
-    ):
-        return principal
-    raise ApiError(
-        code="permission_denied",
-        message="Agent Runtime administrator permission is required.",
-        status=403,
     )
 
 
@@ -646,13 +633,14 @@ async def export_run_replay(
     run_id: UUID,
     request: Request,
     include_message_content: bool = Query(default=False),
-    principal: RuntimePrincipal = Depends(require_runtime_admin),
+    principal: RuntimeAdminPrincipal = Depends(require_runtime_admin),
     service: RuntimeReplayService = Depends(get_replay_service),
 ) -> dict[str, object]:
     return await service.export_run_bundle(
         run_id=run_id,
         include_message_content=include_message_content,
-        admin_actor_user_id=principal.user_id,
+        admin_actor_user_id=principal.actor_user_id,
+        admin_actor_service=principal.actor_service,
         request_id=str(getattr(request.state, "request_id", "") or ""),
     )
 
@@ -666,7 +654,7 @@ async def create_eval_case(
     run_id: UUID,
     payload: AgentEvalCaseCreate,
     request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_admin),
+    principal: RuntimeAdminPrincipal = Depends(require_runtime_admin),
     service: RuntimeEvalService = Depends(get_eval_service),
 ) -> AgentEvalCaseRead:
     case = await service.create_case_from_run(
@@ -675,7 +663,8 @@ async def create_eval_case(
         name=payload.name,
         domain=payload.domain,
         owner_team=payload.owner_team,
-        admin_actor_user_id=principal.user_id,
+        admin_actor_user_id=principal.actor_user_id,
+        admin_actor_service=principal.actor_service,
         request_id=str(getattr(request.state, "request_id", "") or ""),
     )
     return AgentEvalCaseRead.model_validate(case)
@@ -693,7 +682,7 @@ async def list_eval_cases(
         max_length=32,
     ),
     limit: int = Query(default=50, ge=1, le=200),
-    _principal: RuntimePrincipal = Depends(require_runtime_admin),
+    _principal: RuntimeAdminPrincipal = Depends(require_runtime_admin),
     service: RuntimeEvalService = Depends(get_eval_service),
 ) -> AgentEvalCaseListResponse:
     cases = await service.list_cases(
@@ -714,13 +703,14 @@ async def evaluate_eval_case(
     case_id: UUID,
     payload: AgentEvalRequest,
     request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_admin),
+    principal: RuntimeAdminPrincipal = Depends(require_runtime_admin),
     service: RuntimeEvalService = Depends(get_eval_service),
 ) -> AgentEvalResultRead:
     result = await service.evaluate_case(
         case_id=case_id,
         run_id=payload.run_id,
-        admin_actor_user_id=principal.user_id,
+        admin_actor_user_id=principal.actor_user_id,
+        admin_actor_service=principal.actor_service,
         request_id=str(getattr(request.state, "request_id", "") or ""),
     )
     return AgentEvalResultRead.model_validate(result)

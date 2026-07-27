@@ -13,7 +13,7 @@ from app.factory import create_app
 
 def test_json_formatter_emits_only_safe_operational_fields() -> None:
     formatter = JsonLogFormatter(
-        service="agent-runtime",
+        service="agent",
         environment="test",
         version="test-version",
         process="test",
@@ -44,7 +44,7 @@ def test_json_formatter_emits_only_safe_operational_fields() -> None:
         )
         payload = json.loads(formatter.format(record))
 
-    assert payload["service"] == "agent-runtime"
+    assert payload["service"] == "agent"
     assert payload["environment"] == "test"
     assert payload["version"] == "test-version"
     assert payload["process"] == "test"
@@ -59,7 +59,7 @@ def test_json_formatter_emits_only_safe_operational_fields() -> None:
 
 def test_json_formatter_keeps_safe_stack_location_but_not_exception_message() -> None:
     formatter = JsonLogFormatter(
-        service="agent-runtime",
+        service="agent",
         environment="test",
         version="test-version",
         process="test",

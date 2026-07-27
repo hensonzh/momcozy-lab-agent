@@ -22,6 +22,7 @@ OPENAI_REASONING_EFFORTS = {
 KNOWN_SECRET_PLACEHOLDERS = frozenset(
     {
         "replace-with-a-random-service-key-of-at-least-32-bytes",
+        "replace-with-a-random-runtime-admin-service-key-of-at-least-32-bytes",
         "replace-with-openai-api-key",
         "replace-me",
     }
@@ -32,7 +33,7 @@ LOCAL_REDIS_URL = "redis://localhost:6380/0"
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = "MomCozy Agent Runtime"
+    app_name: str = "Agent"
     app_version: str = "0.1.0"
     app_env: str = "local"
     log_level: str = "INFO"
@@ -51,6 +52,7 @@ class Settings:
     product_backend_base_url: str = "http://localhost:8000"
     product_backend_service_key: str = ""
     product_backend_timeout_seconds: float = 5.0
+    runtime_admin_service_key: str = ""
     auth_jwks_url: str = ""
     auth_jwt_issuer: str = ""
     auth_jwt_audience: str = "momcozy-agent-runtime"
@@ -138,6 +140,10 @@ class Settings:
             product_backend_timeout_seconds=_env_float(
                 "PRODUCT_BACKEND_TIMEOUT_SECONDS",
                 cls.product_backend_timeout_seconds,
+            ),
+            runtime_admin_service_key=_env(
+                "RUNTIME_ADMIN_SERVICE_KEY",
+                cls.runtime_admin_service_key,
             ),
             auth_jwks_url=_env("AUTH_JWKS_URL", cls.auth_jwks_url),
             auth_jwt_issuer=_env("AUTH_JWT_ISSUER", cls.auth_jwt_issuer),
@@ -327,6 +333,31 @@ class Settings:
             )
         if self.is_production and not self.product_backend_service_key:
             errors.append("PRODUCT_BACKEND_SERVICE_KEY is required in production")
+        if (
+            self.runtime_admin_service_key
+            and len(self.runtime_admin_service_key.encode("utf-8")) < 32
+        ):
+            errors.append(
+                "RUNTIME_ADMIN_SERVICE_KEY must be at least 32 bytes"
+            )
+        if _is_placeholder_secret(self.runtime_admin_service_key):
+            errors.append(
+                "RUNTIME_ADMIN_SERVICE_KEY must not use a placeholder value"
+            )
+        if self.is_production and not self.runtime_admin_service_key:
+            errors.append(
+                "RUNTIME_ADMIN_SERVICE_KEY is required in production"
+            )
+        if (
+            self.runtime_admin_service_key
+            and self.product_backend_service_key
+            and self.runtime_admin_service_key
+            == self.product_backend_service_key
+        ):
+            errors.append(
+                "RUNTIME_ADMIN_SERVICE_KEY must be different from "
+                "PRODUCT_BACKEND_SERVICE_KEY"
+            )
         if self.is_production and _is_loopback_host(parsed_database_url.hostname):
             errors.append("DATABASE_URL must use an explicit non-loopback host in production")
         if self.is_production and _is_loopback_host(parsed_redis_url.hostname):

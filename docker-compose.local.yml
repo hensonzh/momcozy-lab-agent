@@ -1,12 +1,12 @@
-name: momcozy-agent-runtime
+name: agent
 
 x-runtime-service: &runtime-service
-  image: momcozy-agent-runtime:local
+  image: agent:local
   build:
     context: .
     dockerfile: Dockerfile
   env_file:
-    - ${MOMCOZY_AGENT_RUNTIME_ENV_FILE:-env/compose.local.env}
+    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.local.env}
   init: true
 
 services:
@@ -17,7 +17,7 @@ services:
       POSTGRES_PASSWORD: momcozy_agent_runtime
       POSTGRES_USER: momcozy_agent_runtime
     ports:
-      - "127.0.0.1:${MOMCOZY_AGENT_RUNTIME_POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${MOMCOZY_AGENT_POSTGRES_PORT:-5433}:5432"
     volumes:
       - runtime-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -35,7 +35,7 @@ services:
     image: redis:7.4-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "127.0.0.1:${MOMCOZY_AGENT_RUNTIME_REDIS_PORT:-6380}:6379"
+      - "127.0.0.1:${MOMCOZY_AGENT_REDIS_PORT:-6380}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -61,7 +61,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${MOMCOZY_AGENT_RUNTIME_API_BIND:-127.0.0.1:8010}:8000"
+      - "${MOMCOZY_AGENT_API_BIND:-127.0.0.1:8010}:8000"
     healthcheck:
       test:
         [

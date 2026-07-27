@@ -91,10 +91,26 @@ def test_public_openapi_surface_authentication_and_idempotency_contracts() -> No
         "type": "http",
         "scheme": "bearer",
     }
+    assert document["components"]["securitySchemes"][
+        "RuntimeAdminServiceKey"
+    ] == {
+        "type": "apiKey",
+        "description": (
+            "Dedicated Agent Runtime operator credential for replay and "
+            "eval administration."
+        ),
+        "in": "header",
+        "name": "X-Service-Key",
+    }
 
     for method, path in operations:
         operation = _operation(document, path=path, method=method)
-        if path.startswith("/v1/agent/"):
+        if path.startswith("/v1/agent/admin/"):
+            assert operation["security"] == [
+                {"HTTPBearer": []},
+                {"RuntimeAdminServiceKey": []},
+            ]
+        elif path.startswith("/v1/agent/"):
             assert operation["security"] == [{"HTTPBearer": []}]
         else:
             assert "security" not in operation
