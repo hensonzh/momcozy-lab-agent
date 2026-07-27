@@ -21,6 +21,7 @@ from app.agent_runtime.evals.behavior import (
     load_behavior_suite,
 )
 from app.agents import AGENT_DEFINITIONS
+from app.agents.main_agent import ORCHESTRATION_TOOL_NAMES
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -33,13 +34,13 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     suite = load_behavior_suite(CATALOG_PATH)
 
     assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
-    assert suite.replay_contract_version == "agent_run_replay.v1"
+    assert suite.replay_contract_version == "agent_run_replay.v2"
     assert {case.id for case in suite.cases} == {
         "main_general_health_answer",
         "prenatal_single_specialist",
         "lactation_single_specialist",
         "device_single_specialist",
-        "multi_specialist_main_synthesis",
+        "multi_specialist_direct_response",
         "unknown_out_of_scope",
         "medical_emergency",
         "self_harm_crisis",
@@ -52,7 +53,7 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         tool_name
         for definition in AGENT_DEFINITIONS.values()
         for tool_name in definition.tool_names
-    )
+    ) - ORCHESTRATION_TOOL_NAMES
 
 
 def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> None:
@@ -137,7 +138,7 @@ def test_user_message_event_cannot_masquerade_as_final_assistant_response() -> N
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][2]["payload"] = {
+    bundle["events"][1]["payload"] = {
         "message_id": str(uuid4()),
         "role": "user",
     }
@@ -176,11 +177,10 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
     ).cases[0]
     run_id = uuid4()
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][1]["payload"] = {
-        "agents": ["prenatal_agent"],
-        "mode": "direct",
-        "skill_id": "prenatal_agent",
-    }
+    bundle["events"].insert(
+        1,
+        _delegation_event("prenatal_agent"),
+    )
     bundle["tool_calls"] = [
         {
             "id": str(uuid4()),
@@ -209,7 +209,7 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
 
     assertions = {failure.assertion for failure in result.failures}
     assert assertions >= {
-        "routing.exact_specialists",
+        "delegation.exact_specialists",
         "tool.required",
         "tool.forbidden",
         "action.none",
@@ -220,11 +220,10 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][1]["payload"] = {
-        "agents": ["unknown_agent"],
-        "mode": "direct",
-        "skill_id": "unknown_agent",
-    }
+    bundle["events"].insert(
+        1,
+        _delegation_event("unknown_agent"),
+    )
     bundle["tool_calls"] = [
         {
             "id": str(uuid4()),
@@ -295,7 +294,7 @@ def test_quality_judge_cannot_pass_a_redacted_response() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"][2]["payload"].pop("text")
+    bundle["events"][1]["payload"].pop("text")
     judge = RecordingJudge()
 
     result = asyncio.run(
@@ -432,14 +431,14 @@ def _suite_payload() -> dict[str, Any]:
         "schema_version": "momcozy.behavior_eval_suite.v1",
         "suite_id": "test-suite",
         "description": "test",
-        "replay_contract_version": "agent_run_replay.v1",
+        "replay_contract_version": "agent_run_replay.v2",
         "cases": [
             {
                 "id": "main_general_health_answer",
                 "priority": "p0",
                 "status": "active",
                 "scenario": "主智能体直接回答通用健康问题",
-                "tags": ["main_agent", "routing"],
+                "tags": ["main_agent", "direct_answer"],
                 "turns": [
                     {
                         "role": "user",
@@ -480,7 +479,7 @@ def _observed_replay(*, run_id: UUID) -> ObservedReplay:
 
 def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
     return {
-        "schema_version": "agent_run_replay.v1",
+        "schema_version": "agent_run_replay.v2",
         "run": {
             "id": str(run_id),
             "status": "completed",
@@ -495,16 +494,6 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
             {
                 "event_id": str(uuid4()),
                 "sequence": 2,
-                "type": "agent.routing.completed",
-                "payload": {
-                    "agents": ["main_agent"],
-                    "mode": "direct",
-                    "skill_id": "main_agent",
-                },
-            },
-            {
-                "event_id": str(uuid4()),
-                "sequence": 3,
                 "type": "message.completed",
                 "payload": {
                     "message_id": str(uuid4()),
@@ -514,11 +503,27 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
             },
             {
                 "event_id": str(uuid4()),
-                "sequence": 4,
+                "sequence": 3,
                 "type": "run.completed",
                 "payload": {"responding_agent": "main_agent"},
             },
         ],
         "tool_calls": [],
         "actions": [],
+    }
+
+
+def _delegation_event(*agents: str) -> dict[str, Any]:
+    return {
+        "event_id": str(uuid4()),
+        "sequence": 2,
+        "type": "agent.delegation.completed",
+        "payload": {
+            "call_ids": [
+                f"delegate-call-{index}"
+                for index, _agent in enumerate(agents)
+            ],
+            "agents": list(agents),
+            "responding_agent": agents[-1],
+        },
     }

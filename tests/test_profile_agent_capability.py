@@ -10,7 +10,6 @@ import pytest
 from app.agent_runtime.actions import (
     ActionProposal,
     ActionProposed,
-    ProfileUpdateActionApplicator,
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.tools import ToolHandlerContext, ToolResult
@@ -18,6 +17,7 @@ from app.capabilities.profile import (
     LACTATION_AGENT_PROFILE_TOOLS,
     MAIN_AGENT_PROFILE_TOOLS,
     ProfileReadToolHandler,
+    ProfileUpdateActionApplicator,
     ProfileUpdateToolHandler,
     profile_tool_registry,
 )

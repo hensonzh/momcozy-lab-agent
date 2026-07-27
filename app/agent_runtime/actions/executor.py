@@ -31,11 +31,11 @@ class ActionExecutor:
         *,
         repository: RuntimeLedgerRepository,
         applicators: Mapping[str, ActionApplicator],
-        policy: ActionPolicy | None = None,
+        policy: ActionPolicy,
     ) -> None:
         self.repository = repository
         self.applicators = dict(applicators)
-        self.policy = policy or ActionPolicy()
+        self.policy = policy
 
     async def apply(self, action: AgentAction) -> ActionExecutionOutcome:
         if action.status in {"applied", "failed"}:

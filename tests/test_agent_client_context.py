@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from app.agent_runtime.api.schemas import AgentRunCreate
+from app.api.agent_runtime.schemas import AgentRunCreate
 from app.agent_runtime.context.client import normalize_client_context
 from app.core.errors import ApiError
 

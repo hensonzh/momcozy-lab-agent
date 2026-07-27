@@ -82,10 +82,6 @@ class Settings:
     agent_worker_lock_ttl_seconds: int = 120
     agent_action_expiry_scan_interval_seconds: float = 30.0
     agent_action_expiry_batch_size: int = 64
-    fact_worker_batch_size: int = 8
-    fact_worker_concurrency: int = 4
-    fact_worker_poll_interval_seconds: float = 0.5
-    fact_worker_lease_seconds: float = 900.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -255,22 +251,6 @@ class Settings:
             agent_action_expiry_batch_size=_env_int(
                 "AGENT_ACTION_EXPIRY_BATCH_SIZE",
                 cls.agent_action_expiry_batch_size,
-            ),
-            fact_worker_batch_size=_env_int(
-                "FACT_WORKER_BATCH_SIZE",
-                cls.fact_worker_batch_size,
-            ),
-            fact_worker_concurrency=_env_int(
-                "FACT_WORKER_CONCURRENCY",
-                cls.fact_worker_concurrency,
-            ),
-            fact_worker_poll_interval_seconds=_env_float(
-                "FACT_WORKER_POLL_INTERVAL_SECONDS",
-                cls.fact_worker_poll_interval_seconds,
-            ),
-            fact_worker_lease_seconds=_env_float(
-                "FACT_WORKER_LEASE_SECONDS",
-                cls.fact_worker_lease_seconds,
             ),
         )
 
@@ -450,8 +430,6 @@ class Settings:
                 "AGENT_ACTION_EXPIRY_BATCH_SIZE",
                 self.agent_action_expiry_batch_size,
             ),
-            ("FACT_WORKER_BATCH_SIZE", self.fact_worker_batch_size),
-            ("FACT_WORKER_CONCURRENCY", self.fact_worker_concurrency),
         ):
             if timing_value <= 0:
                 errors.append(f"{name} must be positive")
@@ -475,14 +453,6 @@ class Settings:
             (
                 "AGENT_ACTION_EXPIRY_SCAN_INTERVAL_SECONDS",
                 self.agent_action_expiry_scan_interval_seconds,
-            ),
-            (
-                "FACT_WORKER_POLL_INTERVAL_SECONDS",
-                self.fact_worker_poll_interval_seconds,
-            ),
-            (
-                "FACT_WORKER_LEASE_SECONDS",
-                self.fact_worker_lease_seconds,
             ),
         ):
             if value <= 0:

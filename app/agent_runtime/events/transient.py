@@ -8,9 +8,6 @@ from uuid import UUID
 
 from redis.asyncio import Redis
 
-from app.agents import AgentName
-
-
 TRANSIENT_STREAM_MAX_LENGTH = 2_000
 TRANSIENT_STREAM_TTL_SECONDS = 600
 
@@ -38,7 +35,7 @@ class RuntimeTransientStream:
         run_id: UUID,
         thread_id: UUID,
         message_id: UUID,
-        agent_name: AgentName,
+        agent_name: str,
         delta: str,
     ) -> None:
         if not delta:

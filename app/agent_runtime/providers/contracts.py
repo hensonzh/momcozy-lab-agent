@@ -8,6 +8,10 @@ from uuid import UUID
 
 
 TextDeltaHandler = Callable[[str], Awaitable[None]]
+ExecutionManifestHandler = Callable[
+    [dict[str, Any]],
+    Awaitable[None],
+]
 
 
 @dataclass(frozen=True)
@@ -54,8 +58,10 @@ class ModelRequest:
     instructions: str
     input_items: tuple[dict[str, Any], ...]
     tools: tuple[ModelTool, ...]
+    branch_id: str = "main"
     response_format: dict[str, Any] | None = None
     on_text_delta: TextDeltaHandler | None = None
+    on_execution_manifest: ExecutionManifestHandler | None = None
 
 
 @dataclass(frozen=True)

@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from app.agent_runtime.composition import (
+from app.bootstrap import (
     build_runtime_tool_registry as default_tool_registry,
 )
 from app.agent_runtime.tools.validation import validate_tool_input

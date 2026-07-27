@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -23,7 +24,7 @@ from app.core.errors import ApiError
 from .repository import RuntimeReplayRepository
 
 
-REPLAY_SCHEMA_VERSION = "agent_run_replay.v1"
+REPLAY_SCHEMA_VERSION = "agent_run_replay.v2"
 SENSITIVE_KEYS = frozenset(
     {
         "authorization",
@@ -123,6 +124,7 @@ class RuntimeReplayService:
                 "status": thread.status,
             },
             "run": _run(run),
+            "execution_manifest": deepcopy(run.execution_manifest),
             "messages": [
                 _message(item, include_content=include_message_content)
                 for item in messages
@@ -306,7 +308,7 @@ def _action(
 
 
 def _event_metadata(event: AgentEvent) -> dict[str, Any]:
-    """Keep routing/state metadata while suppressing user-derived payloads."""
+    """Keep orchestration/state metadata while suppressing user-derived payloads."""
 
     payload = event.payload
     allowed_keys = {

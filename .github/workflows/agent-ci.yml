@@ -46,8 +46,6 @@ jobs:
           python scripts/check_product_backend_contract.py
           python scripts/check_product_backend_contract.py --help
           python scripts/run_behavior_eval.py --help
-          python scripts/run_fact_extraction_worker.py --help
-          python scripts/run_memory_consolidation.py --help
           python scripts/run_replay_eval.py --help
 
   postgres-migration:
@@ -134,7 +132,7 @@ jobs:
             --detach \
             --wait \
             --wait-timeout 90 \
-            api worker fact-worker
+            api worker
           curl --fail --silent http://127.0.0.1:8010/v1/health/ready >/dev/null
 
       - name: Show Compose logs on failure

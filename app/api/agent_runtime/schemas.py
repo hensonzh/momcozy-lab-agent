@@ -142,7 +142,7 @@ class AgentRunCreate(BaseModel):
     client_context: AgentClientContext = Field(
         default_factory=AgentClientContext
     )
-    runtime_pattern: Literal["sdk_only"] | None = None
+    runtime_pattern: Literal["legacy_adapter"] | None = None
     runtime_version: str | None = Field(default=None, max_length=80)
     idempotency_key: str | None = Field(default=None, max_length=255)
 
@@ -253,65 +253,6 @@ class AgentActionReject(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
     model_config = ConfigDict(extra="forbid")
-
-
-class AgentMemoryRead(BaseModel):
-    id: UUID
-    owner_user_id: UUID
-    memory_key: str
-    source_run_id: UUID | None = None
-    source_message_id: UUID | None = None
-    memory_type: str
-    status: str
-    schema_version: str
-    content: dict[str, Any]
-    confidence_score: int
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    archived_at: datetime | None = None
-    expires_at: datetime | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AgentMemoryListResponse(BaseModel):
-    items: list[AgentMemoryRead]
-
-
-class AgentMemorySettingsRead(BaseModel):
-    owner_user_id: UUID
-    memory_enabled: bool
-    consent_version: int
-    updated_at: datetime | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AgentMemorySettingsUpdate(BaseModel):
-    memory_enabled: bool
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class AgentFactRead(BaseModel):
-    id: UUID
-    fact_key: str
-    memory_type: str
-    fact_kind: str
-    status: str
-    value: Any
-    sensitivity: str
-    catalog_version: str
-    observed_at: datetime
-    expires_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AgentFactListResponse(BaseModel):
-    items: list[AgentFactRead]
 
 
 class AgentEvalCaseCreate(BaseModel):

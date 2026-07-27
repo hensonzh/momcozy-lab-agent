@@ -1,18 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol
 
 from pydantic import ValidationError
 
 from app.agent_runtime.ledger import AgentAction
+from app.agent_runtime.actions import ActionApplyResult, ActionPolicyRule
 from app.core.errors import ApiError
 from app.infrastructure.product_backend import (
     DiaryApplyRequest,
     DiaryApplyResponse,
 )
-
-from .contracts import ActionApplyResult
-
 
 DIARY_ACTION_TYPES = frozenset(
     {
@@ -20,6 +19,19 @@ DIARY_ACTION_TYPES = frozenset(
         "diary.entry.delete",
     }
 )
+DIARY_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+    "diary.entry.save": ActionPolicyRule(
+        "diary.entry.save",
+        "diary_entry",
+        "low",
+    ),
+    "diary.entry.delete": ActionPolicyRule(
+        "diary.entry.delete",
+        "diary_entry",
+        "medium",
+        requires_confirmation=True,
+    ),
+}
 
 
 class _DiaryApplyClient(Protocol):

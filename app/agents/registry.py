@@ -1,4 +1,8 @@
-from app.agents.contracts import AgentDefinition, AgentName
+from app.agents.contracts import (
+    SPECIALIST_AGENT_NAMES,
+    AgentDefinition,
+    AgentName,
+)
 from app.agents.device_agent import DEVICE_AGENT
 from app.agents.lactation_agent import LACTATION_AGENT
 from app.agents.main_agent import MAIN_AGENT
@@ -15,10 +19,6 @@ AGENT_DEFINITIONS: dict[AgentName, AgentDefinition] = {
     )
 }
 
-SPECIALIST_NAMES: tuple[AgentName, ...] = (
-    "prenatal_agent",
-    "lactation_agent",
-    "device_agent",
-)
+SPECIALIST_NAMES = SPECIALIST_AGENT_NAMES
 
 __all__ = ["AGENT_DEFINITIONS", "SPECIALIST_NAMES"]

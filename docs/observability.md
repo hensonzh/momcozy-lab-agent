@@ -1,7 +1,7 @@
 # Observability
 
-API, Agent worker, fact worker, memory consolidation, and replay/eval processes
-write one-line JSON logs to stderr using `LOG_LEVEL`.
+API, Agent worker, and replay/eval processes write one-line JSON logs to stderr
+using `LOG_LEVEL`.
 
 ## Operational events
 
@@ -22,11 +22,11 @@ workers run in separate processes, so an in-memory endpoint would be incomplete
 and easy to expose accidentally. Production log collection is the shared,
 service-controlled operations boundary.
 
-The Agent worker and fact worker refresh fixed role heartbeat keys in Redis
-every `WORKER_HEARTBEAT_INTERVAL_SECONDS`; keys expire after
+The Agent worker refreshes a fixed role heartbeat key in Redis every
+`WORKER_HEARTBEAT_INTERVAL_SECONDS`; the key expires after
 `WORKER_HEARTBEAT_TTL_SECONDS`. With `WORKER_HEARTBEATS_REQUIRED=true`,
-`GET /v1/health/ready` checks both roles in one Redis MGET and returns 503 when
-either role is missing or reports a version different from the API's
+`GET /v1/health/ready` checks that role and returns 503 when it is missing or
+reports a version different from the API's
 `APP_VERSION`. Heartbeat keys contain only the Runtime version and no user,
 request, or run data.
 

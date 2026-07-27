@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 import json
-from uuid import UUID, uuid4
-
 import pytest
 
-from app.agent_runtime.providers import ModelRequest
 from app.agent_runtime.tools import ToolResult
 from app.agents import AGENT_DEFINITIONS
-from app.agents.router import (
-    ROUTER_RESPONSE_FORMAT,
-    parse_route_decision,
+from app.agents.main_agent import (
+    ORCHESTRATION_TOOL_NAMES,
+    SPECIALIST_TOOL_INPUT_SCHEMA,
+    parse_specialist_tool_call,
 )
 from app.core.errors import ApiError
 
 
 def test_agent_tool_allowlists_match_runtime_contract() -> None:
     assert AGENT_DEFINITIONS["main_agent"].tool_names == (
+        "prenatal_agent",
+        "lactation_agent",
+        "device_agent",
         "profile_read",
         "profile_update",
         "plan_read",
@@ -53,44 +54,55 @@ def test_agent_tool_allowlists_match_runtime_contract() -> None:
     )
 
 
-def test_router_contract_is_structured_and_has_no_tool_escape_hatch() -> None:
-    schema = ROUTER_RESPONSE_FORMAT["schema"]
-    assert schema["required"] == ["agents"]
-    assert set(schema["properties"]["agents"]["items"]["enum"]) == {
-        "main_agent",
+def test_main_agent_exposes_one_tool_per_specialist() -> None:
+    assert ORCHESTRATION_TOOL_NAMES == {
         "prenatal_agent",
         "lactation_agent",
         "device_agent",
     }
+    assert SPECIALIST_TOOL_INPUT_SCHEMA["required"] == ["request"]
+    assert set(
+        SPECIALIST_TOOL_INPUT_SCHEMA["properties"]
+    ) == {"request"}
 
 
-def test_parse_route_decision_preserves_dependency_order() -> None:
-    decision = parse_route_decision(
-        json.dumps({"agents": ["device_agent", "prenatal_agent"]})
+def test_parse_specialist_tool_call_returns_target_and_request() -> None:
+    delegation = parse_specialist_tool_call(
+        tool_name="device_agent",
+        arguments={"request": "请说明首次使用步骤。"},
     )
 
-    assert decision.agents == ("device_agent", "prenatal_agent")
-    assert decision.mode == "multi"
+    assert delegation == (
+        "device_agent",
+        "请说明首次使用步骤。",
+    )
 
 
 @pytest.mark.parametrize(
-    "payload",
+    ("tool_name", "payload"),
     (
-        {},
-        {"agents": []},
-        {"agents": ["unknown"]},
-        {"agents": ["main"]},
-        {"agents": ["main_agent", "main_agent"]},
-        {"agents": ["main_agent"], "reason": "not part of the contract"},
+        ("unknown_agent", {"request": "test"}),
+        ("main_agent", {"request": "test"}),
+        ("prenatal_agent", {"request": ""}),
+        ("prenatal_agent", {"request": "   "}),
+        ("prenatal_agent", {"request": 123}),
+        (
+            "prenatal_agent",
+            {"request": "test", "reason": "not part of the contract"},
+        ),
     ),
 )
-def test_parse_route_decision_rejects_invalid_output(
+def test_parse_specialist_tool_call_rejects_invalid_arguments(
+    tool_name: str,
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(ApiError) as error:
-        parse_route_decision(json.dumps(payload))
+        parse_specialist_tool_call(
+            tool_name=tool_name,
+            arguments=payload,
+        )
 
-    assert error.value.code == "agent_routing_invalid"
+    assert error.value.code == "agent_delegation_invalid"
 
 
 def test_tool_result_has_one_canonical_business_output() -> None:
@@ -103,28 +115,3 @@ def test_tool_result_has_one_canonical_business_output() -> None:
     assert json.loads(function_output) == value
     assert result.to_observation() == value
     assert not hasattr(result, "audit_output")
-
-
-def test_model_request_accepts_structured_response_format(
-    runtime_ids: tuple[UUID, UUID, UUID],
-) -> None:
-    run_id, thread_id, actor_user_id = runtime_ids
-    request = ModelRequest(
-        agent_name="router",
-        run_id=run_id,
-        thread_id=thread_id,
-        actor_user_id=actor_user_id,
-        request_id="req-1",
-        instructions="route",
-        input_items=(),
-        tools=(),
-        response_format=ROUTER_RESPONSE_FORMAT,
-    )
-
-    assert request.tools == ()
-    assert request.response_format == ROUTER_RESPONSE_FORMAT
-
-
-@pytest.fixture
-def runtime_ids() -> tuple[UUID, UUID, UUID]:
-    return uuid4(), uuid4(), uuid4()

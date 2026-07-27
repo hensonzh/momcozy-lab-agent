@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from app.agent_runtime.api.router import (
+from app.api.agent_runtime.router import (
     get_eval_service,
     get_replay_service,
     require_runtime_admin,
@@ -141,7 +141,7 @@ class FakeReplayService:
         self.admin_actor_user_id = kwargs["admin_actor_user_id"]
         self.admin_actor_service = kwargs["admin_actor_service"]
         return {
-            "schema_version": "agent_run_replay.v1",
+            "schema_version": "agent_run_replay.v2",
             "run": {"id": str(self.run_id), "status": "completed"},
         }
 

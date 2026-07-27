@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from starlette.types import Message, Receive, Scope, Send
 
-from app.agent_runtime.api.schemas import (
+from app.api.agent_runtime.schemas import (
     AgentActionConfirm,
     AgentClientEventCreate,
     AgentFormSubmissionAttachmentCreate,

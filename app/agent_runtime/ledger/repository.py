@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -193,6 +196,64 @@ class RuntimeLedgerRepository:
         run.skill_id = skill_id
         await self.session.flush()
         return run
+
+    async def record_model_execution_manifest(
+        self,
+        *,
+        run: AgentRun,
+        manifest: dict[str, Any],
+    ) -> dict[str, Any]:
+        manifest_hash = str(manifest.get("manifest_sha256") or "")
+        if (
+            manifest.get("schema_version") != "agent_model_execution.v1"
+            or len(manifest_hash) != 64
+            or manifest_hash != _execution_manifest_sha256(manifest)
+        ):
+            raise ValueError("invalid model execution manifest")
+
+        envelope = deepcopy(run.execution_manifest or {})
+        if not envelope:
+            envelope = {
+                "schema_version": (
+                    "agent_run_execution_manifest.v1"
+                ),
+                "runtime_pattern": run.runtime_pattern,
+                "runtime_version": run.runtime_version,
+                "invocations": [],
+            }
+        if (
+            envelope.get("schema_version")
+            != "agent_run_execution_manifest.v1"
+            or envelope.get("runtime_pattern") != run.runtime_pattern
+            or envelope.get("runtime_version") != run.runtime_version
+        ):
+            raise ValueError(
+                "run execution manifest does not match the run contract"
+            )
+        invocations = envelope.get("invocations")
+        if not isinstance(invocations, list):
+            raise ValueError("run execution manifest is invalid")
+        for existing in invocations:
+            if (
+                isinstance(existing, dict)
+                and existing.get("manifest_sha256") == manifest_hash
+            ):
+                comparable = dict(existing)
+                comparable.pop("sequence", None)
+                if comparable != manifest:
+                    raise ValueError(
+                        "model execution manifest hash collision"
+                    )
+                return deepcopy(existing)
+
+        stored = {
+            "sequence": len(invocations) + 1,
+            **deepcopy(manifest),
+        }
+        invocations.append(stored)
+        run.execution_manifest = envelope
+        await self.session.flush()
+        return deepcopy(stored)
 
     async def lock_run_for_owner(
         self,
@@ -1670,3 +1731,18 @@ class RuntimeLedgerRepository:
 
 def _bounded_limit(limit: int) -> int:
     return max(1, min(limit, 500))
+
+
+def _execution_manifest_sha256(manifest: dict[str, Any]) -> str:
+    content = deepcopy(manifest)
+    content.pop("manifest_sha256", None)
+    try:
+        canonical = json.dumps(
+            content,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid model execution manifest") from exc
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

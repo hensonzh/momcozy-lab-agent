@@ -13,7 +13,7 @@ from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 from .contracts import ActionProposal, ActionProposed
 from .executor import ActionExecutor
-from .policy import ActionPolicy, action_presentation
+from .policy import action_presentation
 
 
 ACTION_CONFIRMATION_TTL = timedelta(
@@ -115,13 +115,12 @@ class RuntimeActionService:
         *,
         repository: RuntimeLedgerRepository,
         executor: ActionExecutor,
-        policy: ActionPolicy | None = None,
         run_notifier: RunNotifier | None = None,
         run_admission: RunAdmissionReleaser | None = None,
     ) -> None:
         self.repository = repository
         self.executor = executor
-        self.policy = policy or ActionPolicy()
+        self.policy = executor.policy
         self.run_notifier = run_notifier
         self.run_admission = run_admission
 

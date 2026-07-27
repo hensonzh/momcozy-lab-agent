@@ -6,7 +6,6 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.agent_runtime.actions import (
-    PROFILE_UPDATE_ACTION,
     ActionProposal,
     ActionProposer,
 )
@@ -19,6 +18,7 @@ from app.infrastructure.product_backend import (
 )
 
 from .contracts import ProfileReadArguments, ProfileUpdateArguments
+from .actions import PROFILE_UPDATE_ACTION
 
 
 ArgumentsT = TypeVar("ArgumentsT", bound=BaseModel)

@@ -1,12 +1,12 @@
+from copy import deepcopy
+from typing import Any
+
 from app.agent_runtime.tools import (
     ToolContract,
     ToolContractRegistry,
     internal_input_schema,
 )
-from app.capabilities._internal.schemas import (
-    action_output_schema,
-    object_output_schema,
-)
+from app.capabilities._internal.schemas import object_output_schema
 from app.capabilities.model_input_schemas import input_schema_for_tool
 
 from .contracts import (
@@ -19,6 +19,26 @@ HOSPITAL_BAG_TOOL_NAMES = (
     "hospital_bag_manage",
     "hospital_bag_cart_mutate",
 )
+_CART_ACTION_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": [
+        "action_id",
+        "action_type",
+        "action_status",
+        "requires_confirmation",
+        "write_succeeded",
+    ],
+    "properties": {
+        "action_id": {"type": "string", "format": "uuid"},
+        "action_type": {
+            "type": "string",
+            "enum": ["hospital_bag.cart.update"],
+        },
+        "action_status": {"type": "string"},
+        "requires_confirmation": {"type": "boolean"},
+        "write_succeeded": {"type": "boolean"},
+    },
+}
 
 
 def hospital_bag_tool_registry() -> ToolContractRegistry:
@@ -78,7 +98,7 @@ def hospital_bag_tool_registry() -> ToolContractRegistry:
                     },
                 },
             ),
-            output_schema=action_output_schema(),
+            output_schema=deepcopy(_CART_ACTION_OUTPUT_SCHEMA),
             effect_scope="user_resource",
             action_types=("hospital_bag.cart.update",),
             blocking_policy="must_wait",

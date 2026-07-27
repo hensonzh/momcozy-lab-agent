@@ -2,9 +2,9 @@
 
 ## Boundary
 
-Agent Runtime owns its API, run worker, fact worker, memory consolidation,
-PostgreSQL, Redis, tools, actions, replay, and eval. Product Backend owns user
-and business data and exposes only typed internal APIs.
+Agent Runtime owns its API, run worker, PostgreSQL, Redis, tools, actions,
+replay, and eval. Product Backend owns user and business data and exposes only
+typed internal APIs.
 
 The two services use independent databases and release pipelines. Flutter
 configures the Runtime origin with `MOMCOZY_AGENT_API_BASE_URL`.
@@ -23,7 +23,7 @@ recreating the Runtime database before this baseline is deployed.
    the model-provider secret.
 2. Validate `docker-compose.prod.yml`.
 3. Apply `alembic upgrade head` to the new empty Runtime database.
-4. Start the API, run worker, and fact worker; schedule memory consolidation.
+4. Start the API and run worker.
 5. Validate the pinned Product OpenAPI contract and the exact Product release
    artifact with `scripts/check_product_backend_contract.py`.
 6. Run `scripts/run_behavior_eval.py` against database-backed replay bundles.

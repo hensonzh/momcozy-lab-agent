@@ -16,16 +16,9 @@ HTTP_METHODS = frozenset({"delete", "get", "patch", "post", "put"})
 EXPECTED_PUBLIC_OPERATIONS = frozenset(
     {
         ("delete", "/v1/agent/artifacts/{artifact_id}"),
-        ("delete", "/v1/agent/facts"),
-        ("delete", "/v1/agent/facts/{fact_id}"),
-        ("delete", "/v1/agent/memories"),
-        ("delete", "/v1/agent/memories/{memory_id}"),
         ("get", "/v1/agent/actions/{action_id}"),
         ("get", "/v1/agent/admin/eval-cases"),
         ("get", "/v1/agent/admin/runs/{run_id}/replay"),
-        ("get", "/v1/agent/facts"),
-        ("get", "/v1/agent/memories"),
-        ("get", "/v1/agent/memories/settings"),
         ("get", "/v1/agent/runs/{run_id}"),
         ("get", "/v1/agent/runs/{run_id}/events"),
         ("get", "/v1/agent/runs/{run_id}/stream"),
@@ -39,7 +32,6 @@ EXPECTED_PUBLIC_OPERATIONS = frozenset(
         ("post", "/v1/agent/runs/{run_id}/cancel"),
         ("post", "/v1/agent/runs/{run_id}/client-events"),
         ("post", "/v1/agent/threads"),
-        ("put", "/v1/agent/memories/settings"),
         ("get", "/v1/health/live"),
         ("get", "/v1/health/ready"),
     }
@@ -86,6 +78,10 @@ def test_public_openapi_surface_authentication_and_idempotency_contracts() -> No
     assert operations == EXPECTED_PUBLIC_OPERATIONS
     assert not any(
         path.startswith("/v1/internal/agent/") for path in paths
+    )
+    assert not any(
+        path.startswith(("/v1/agent/facts", "/v1/agent/memories"))
+        for path in paths
     )
     assert document["components"]["securitySchemes"]["HTTPBearer"] == {
         "type": "http",

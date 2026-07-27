@@ -45,20 +45,3 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
-
-  fact-worker:
-    <<: *runtime-service
-    command: ["python", "scripts/run_fact_extraction_worker.py"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  memory-consolidation:
-    <<: *runtime-service
-    command: ["python", "scripts/run_memory_consolidation.py"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    profiles: ["ops"]
-    restart: "no"

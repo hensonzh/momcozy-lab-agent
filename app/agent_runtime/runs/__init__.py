@@ -3,7 +3,10 @@ from .admission import (
     RedisRunAdmission,
     RunAdmission,
 )
-from .registry import DEFAULT_RUNTIME_VERSION, SDK_ONLY_RUNTIME_PATTERN
+from .registry import (
+    DEFAULT_RUNTIME_VERSION,
+    LEGACY_ADAPTER_RUNTIME_PATTERN,
+)
 from .service import AgentRuntimeService
 
 __all__ = [
@@ -12,5 +15,5 @@ __all__ = [
     "DEFAULT_RUNTIME_VERSION",
     "RedisRunAdmission",
     "RunAdmission",
-    "SDK_ONLY_RUNTIME_PATTERN",
+    "LEGACY_ADAPTER_RUNTIME_PATTERN",
 ]

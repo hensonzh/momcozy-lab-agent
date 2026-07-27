@@ -1,23 +1,35 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol
 
 from pydantic import ValidationError
 
 from app.agent_runtime.ledger import AgentAction
+from app.agent_runtime.actions import ActionApplyResult, ActionPolicyRule
 from app.core.errors import ApiError
 from app.infrastructure.product_backend import (
     ProfileUpdateApplyRequest,
     ProfileUpdateApplyResponse,
 )
 
-from .contracts import ActionApplyResult
-
-
 PROFILE_UPDATE_ACTION = "profile.update"
 PROFILE_CURRENT_INFANTS_REPLACE_ACTION = (
     "profile.current_infants.replace"
 )
+PROFILE_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+    PROFILE_UPDATE_ACTION: ActionPolicyRule(
+        PROFILE_UPDATE_ACTION,
+        "profile",
+        "low",
+    ),
+    PROFILE_CURRENT_INFANTS_REPLACE_ACTION: ActionPolicyRule(
+        PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
+        "profile",
+        "medium",
+        requires_confirmation=True,
+    ),
+}
 
 
 class _ProfileUpdateClient(Protocol):

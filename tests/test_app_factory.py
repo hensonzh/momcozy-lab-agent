@@ -67,7 +67,7 @@ def test_readiness_fails_closed_when_required_workers_are_missing() -> None:
     app.state.database_readiness_probe = PassingReadinessProbe()
     app.state.redis_readiness_probe = PassingReadinessProbe()
     app.state.worker_heartbeat_probe = MissingWorkerProbe(
-        ("fact-worker",)
+        ("agent-worker",)
     )
 
     response = TestClient(app).get("/v1/health/ready")
@@ -77,7 +77,7 @@ def test_readiness_fails_closed_when_required_workers_are_missing() -> None:
         "code": "runtime_workers_not_ready",
         "message": "Required Agent Runtime workers are not ready.",
         "request_id": response.headers["X-Request-ID"],
-        "details": {"missing_roles": ["fact-worker"]},
+        "details": {"missing_roles": ["agent-worker"]},
     }
 
 

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
-    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -30,8 +28,6 @@ ACTIVE_RUN_STATUSES = ("queued", "running", "waiting_for_confirmation")
 ACTION_STATUSES = ("proposed", "confirmation_required", "confirmed", "applying", "applied", "rejected", "failed", "expired")
 TOOL_CALL_STATUSES = ("started", "completed", "failed", "skipped", "blocked", "timed_out")
 WORKFLOW_STATE_STATUSES = ("collecting", "ready", "waiting", "paused", "completed", "expired", "failed")
-MEMORY_TYPES = ("user_preference", "stable_care_preference", "communication_preference", "recurring_constraint")
-MEMORY_STATUSES = ("active", "archived", "deleted", "expired")
 
 
 class AgentThread(Base):
@@ -93,7 +89,12 @@ class AgentRun(Base):
     thread_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_threads.id"), nullable=False)
     actor_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
-    runtime_pattern: Mapped[str] = mapped_column(String(64), default="sdk_only", server_default="sdk_only", nullable=False)
+    runtime_pattern: Mapped[str] = mapped_column(
+        String(64),
+        default="legacy_adapter",
+        server_default="legacy_adapter",
+        nullable=False,
+    )
     runtime_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
     skill_id: Mapped[str] = mapped_column(
         String(64),
@@ -106,6 +107,13 @@ class AgentRun(Base):
     error_code: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
     error_details: Mapped[dict[str, Any]] = mapped_column(
         "error_details_json",
+        postgresql.JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
+    execution_manifest: Mapped[dict[str, Any]] = mapped_column(
+        "execution_manifest_json",
         postgresql.JSONB,
         default=dict,
         server_default=text("'{}'::jsonb"),
@@ -425,117 +433,6 @@ class AgentWorkflowEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
-class AgentMemory(Base):
-    __tablename__ = "agent_memories"
-    __table_args__ = (
-        UniqueConstraint("owner_user_id", "memory_key", name="uq_agent_memories_owner_memory_key"),
-        Index("ix_agent_memories_owner_type_status", "owner_user_id", "memory_type", "status"),
-        Index("ix_agent_memories_owner_updated", "owner_user_id", "updated_at"),
-        Index("ix_agent_memories_source_run", "source_run_id"),
-        Index("ix_agent_memories_expires_at", "expires_at"),
-    )
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    memory_key: Mapped[str] = mapped_column(String(120), nullable=False)
-    source_run_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=True)
-    source_message_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_messages.id"), nullable=True)
-    memory_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="active", server_default="active", nullable=False)
-    schema_version: Mapped[str] = mapped_column(String(80), default="v1", server_default="v1", nullable=False)
-    content: Mapped[dict[str, Any]] = mapped_column(
-        "content_json",
-        postgresql.JSONB,
-        default=dict,
-        server_default=text("'{}'::jsonb"),
-        nullable=False,
-    )
-    confidence_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-
-
-class AgentMemorySettings(Base):
-    __tablename__ = "agent_memory_settings"
-    __table_args__ = (Index("ix_agent_memory_settings_owner_updated", "owner_user_id", "updated_at"),)
-
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
-    memory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
-    consent_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-
-class AgentMemorySnapshot(Base):
-    __tablename__ = "agent_memory_snapshots"
-
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
-    schema_version: Mapped[str] = mapped_column(String(80), default="v1", server_default="v1", nullable=False)
-    items: Mapped[list[Any]] = mapped_column(
-        "items_json",
-        postgresql.JSONB,
-        default=list,
-        server_default=text("'[]'::jsonb"),
-        nullable=False,
-    )
-    source_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    extractor_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-
-class AgentMemoryConsolidationRun(Base):
-    __tablename__ = "agent_memory_consolidation_runs"
-    __table_args__ = (
-        UniqueConstraint(
-            "owner_user_id",
-            "source_date",
-            "source_hash",
-            "extractor_version",
-            name="uq_agent_memory_consolidation_source",
-        ),
-        Index("ix_agent_memory_consolidation_date_status", "source_date", "status"),
-        Index("ix_agent_memory_consolidation_owner_created", "owner_user_id", "created_at"),
-    )
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    consent_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_date: Mapped[date] = mapped_column(Date, nullable=False)
-    source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    extractor_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="extracting", server_default="extracting", nullable=False)
-    input_message_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    upserted_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    archived_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    rejected_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    error_code: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-
 class AgentEvalCase(Base):
     __tablename__ = "agent_eval_cases"
     __table_args__ = (
@@ -579,97 +476,3 @@ class AgentEvalCase(Base):
         nullable=False,
     )
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-
-
-class UserFact(Base):
-    __tablename__ = "user_facts"
-    __table_args__ = (
-        UniqueConstraint("owner_user_id", "fact_key", "fact_kind", name="uq_user_facts_owner_key_kind"),
-        CheckConstraint("fact_kind IN ('verified', 'conversation_candidate')", name="ck_user_facts_kind"),
-        CheckConstraint("status IN ('active', 'tombstoned')", name="ck_user_facts_status"),
-        Index("ix_user_facts_owner_status_kind_updated", "owner_user_id", "status", "fact_kind", "updated_at"),
-        Index("ix_user_facts_expires_at", "expires_at"),
-    )
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    fact_key: Mapped[str] = mapped_column(String(120), nullable=False)
-    memory_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    fact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="active", server_default="active", nullable=False)
-    value: Mapped[Any | None] = mapped_column("value_json", postgresql.JSONB, nullable=True)
-    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    sensitivity: Mapped[str] = mapped_column(String(32), default="personal", server_default="personal", nullable=False)
-    catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deletion_reason: Mapped[str] = mapped_column(String(32), default="", server_default="", nullable=False)
-    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-
-class UserFactExtractionRun(Base):
-    __tablename__ = "user_fact_extraction_runs"
-    __table_args__ = (
-        UniqueConstraint(
-            "owner_user_id",
-            "source_message_id",
-            "catalog_version",
-            "extractor_version",
-            name="uq_user_fact_extractions_source_version",
-        ),
-        Index("ix_user_fact_extractions_owner_created", "owner_user_id", "created_at"),
-        Index("ix_user_fact_extractions_status_next_attempt", "status", "next_attempt_at"),
-        Index("ix_user_fact_extractions_locked_until", "locked_until"),
-        CheckConstraint(
-            "status IN ('queued', 'locked', 'ready_to_apply', 'completed', 'dead_lettered', 'skipped_disabled', 'cancelled')",
-            name="ck_user_fact_extractions_status",
-        ),
-        CheckConstraint("stage IN ('extract', 'apply')", name="ck_user_fact_extractions_stage"),
-    )
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    consent_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_message_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_messages.id"), nullable=False)
-    source_run_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=False)
-    catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    extractor_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    model: Mapped[str] = mapped_column(String(120), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
-    stage: Mapped[str] = mapped_column(String(16), default="extract", server_default="extract", nullable=False)
-    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
-    max_attempts: Mapped[int] = mapped_column(Integer, default=3, server_default="3", nullable=False)
-    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    lease_token: Mapped[str] = mapped_column(String(64), default="", server_default="", nullable=False)
-    request_id: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
-    trace_id: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
-    candidates: Mapped[list[dict[str, Any]]] = mapped_column(
-        "candidates_json",
-        postgresql.JSONB,
-        default=list,
-        server_default=text("'[]'::jsonb"),
-        nullable=False,
-    )
-    extracted_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    applied_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    error_code: Mapped[str] = mapped_column(String(120), nullable=False, server_default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

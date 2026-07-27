@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.agent_runtime.api.router import (
+from app.api.agent_runtime.router import (
     _stream_run_event_chunks,
     get_action_service,
     get_agent_service,
@@ -304,8 +304,8 @@ class FakeAgentService:
             thread_id=self.thread_id,
             actor_user_id=owner_user_id,
             status="queued",
-            runtime_pattern="sdk_only",
-            runtime_version="momcozy-agent-v2",
+            runtime_pattern="legacy_adapter",
+            runtime_version="momcozy-agent-v3",
             skill_id="",
             request_id="request-id",
             trace_id="request-id",

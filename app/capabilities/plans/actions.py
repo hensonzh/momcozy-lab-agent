@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol
 
 from pydantic import ValidationError
 
 from app.agent_runtime.ledger import AgentAction
+from app.agent_runtime.actions import ActionApplyResult, ActionPolicyRule
 from app.core.errors import ApiError
 from app.infrastructure.product_backend.plans_contracts import (
     MilkScheduleReschedulePayload,
@@ -19,9 +21,6 @@ from app.infrastructure.product_backend.plans_contracts import (
     PregnancyPlanCreatePayload,
 )
 
-from .contracts import ActionApplyResult
-
-
 PLANS_ACTION_TYPES = frozenset(
     {
         "plans.task.create",
@@ -34,6 +33,38 @@ PLANS_ACTION_TYPES = frozenset(
         "plans.milk_schedule.reschedule",
     }
 )
+PLANS_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+    "plans.task.create": ActionPolicyRule(
+        "plans.task.create", "plan_task", "medium"
+    ),
+    "plans.task.update": ActionPolicyRule(
+        "plans.task.update", "plan_task", "medium"
+    ),
+    "plans.task.complete": ActionPolicyRule(
+        "plans.task.complete", "plan_task", "medium"
+    ),
+    "plans.task.delete": ActionPolicyRule(
+        "plans.task.delete", "plan_task", "medium"
+    ),
+    "plans.plan.delete": ActionPolicyRule(
+        "plans.plan.delete",
+        "plan",
+        "medium",
+        requires_confirmation=True,
+    ),
+    "plans.plan.update": ActionPolicyRule(
+        "plans.plan.update", "plan", "medium"
+    ),
+    "pregnancy.plan.create": ActionPolicyRule(
+        "pregnancy.plan.create", "plan", "medium"
+    ),
+    "plans.milk_schedule.reschedule": ActionPolicyRule(
+        "plans.milk_schedule.reschedule",
+        "plan",
+        "medium",
+        requires_confirmation=True,
+    ),
+}
 
 
 class _PlansApplyClient(Protocol):

@@ -4,8 +4,14 @@ Independent production Agent service owned by the Agent team.
 
 ## Boundary
 
-- Runtime owns `/v1/agent/*`, Agent definitions, threads, runs, append-only
-  messages/events, tools, actions, fact/memory, replay/eval, and its workers.
+- The Agent service owns `/v1/agent/*`, Agent definitions, threads, runs,
+  append-only messages/events, tools, actions, replay/eval, and
+  its workers.
+- `app/agent_runtime/` is the reusable execution core. It receives Agent
+  catalogs, Tool handlers, and Action policies through constructor injection;
+  it never imports `app/agents`, `app/capabilities`, or `app/bootstrap`.
+- `app/bootstrap/` is the composition root, while
+  `app/api/agent_runtime/` owns the public HTTP delivery layer.
 - Product Backend owns product data and JWT signing. Runtime reaches it only
   through typed `/v1/internal/agent/*` HTTPS APIs using its service identity.
 - Runtime has its own PostgreSQL database and never imports Product Backend
@@ -13,18 +19,15 @@ Independent production Agent service owned by the Agent team.
 - `app/agents/<name>_agent/` owns each Agent definition, system prompt,
   versioned skills, and tool allowlist, including
   `app/agents/main_agent/`. Reusable Tool implementations live under
-  `app/capabilities/`; the shared Runtime never duplicates them per Agent.
+  `app/capabilities/`; each Capability also owns its concrete Action
+  applicators and Action policy declarations.
 
 ## Processes
 
-- **API:** public Agent REST/SSE, memory/fact controls, admin replay/eval, and
-  live/ready health endpoints.
+- **API:** public Agent REST/SSE, admin replay/eval, and live/ready health
+  endpoints.
 - **Run worker:** executes durable queued runs, resumes confirmed actions, and
   reclaims abandoned confirmations with a low-frequency durable expiry sweep.
-- **Fact worker:** asynchronously extracts approved structured facts from
-  completed turns.
-- **Memory consolidation:** a daily one-shot job that consolidates approved
-  facts into owner-scoped memory.
 - **Replay/eval ops:** an audited one-shot CLI for exporting a persisted run and
   evaluating a stored case, plus a release behavior gate over real persisted
   replay bundles.
@@ -41,12 +44,12 @@ actions all derive their `/v1/agent/*` URLs from it. See
 
 ```bash
 cp env/compose.local.env.example env/compose.local.env
-docker compose -f docker-compose.local.yml up --build --wait api worker fact-worker
+docker compose -f docker-compose.local.yml up --build --wait api worker
 ```
 
 Compose starts PostgreSQL, Redis, and a local S3-compatible MinIO bucket,
 applies `alembic upgrade head`, then starts
-the API and continuous workers. PostgreSQL defaults to `127.0.0.1:5433` and
+the API and run worker. PostgreSQL defaults to `127.0.0.1:5433` and
 Redis to `127.0.0.1:6380`.
 MinIO defaults to `127.0.0.1:9002`; it stores tool outputs that exceed
 `AGENT_TOOL_OUTPUT_MAX_INLINE_BYTES`.
@@ -61,17 +64,16 @@ Backend issuer; Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
 `RUNTIME_ADMIN_SERVICE_KEY` is a separate inbound operator credential for
 `/v1/agent/admin/*` and must not be reused as the Product service identity.
 
-Run daily memory consolidation:
-
-```bash
-docker compose -f docker-compose.local.yml --profile ops run --rm memory-consolidation
-```
-
 Export a replay, optionally evaluating a stored case:
 
 ```bash
 python scripts/run_replay_eval.py --run-id <run-uuid> [--eval-case-id <case-uuid>]
 ```
+
+Replay v2 includes the run's ordered model-execution manifest: exact resolved
+Prompt and Tool schemas with hashes, model/provider settings, and ordered
+Context-item/request hashes. User-derived Context content remains governed by
+the replay export's explicit content-inclusion flag.
 
 Validate the versioned behavior catalog without calling a model:
 
@@ -114,7 +116,7 @@ python scripts/check_product_backend_contract.py \
 ```
 
 Health endpoints are `GET /v1/health/live` and `GET /v1/health/ready`.
-Ready health requires PostgreSQL, Redis, fresh Agent/fact worker heartbeats,
+Ready health requires PostgreSQL, Redis, a fresh Agent worker heartbeat,
 and a valid Product Backend JWKS when `WORKER_HEARTBEATS_REQUIRED=true`.
 
 Runtime processes emit privacy-safe structured operation logs for HTTP, run,

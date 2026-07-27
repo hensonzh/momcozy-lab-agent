@@ -10,7 +10,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 
-WORKER_ROLES = ("agent-worker", "fact-worker")
+WORKER_ROLES = ("agent-worker",)
 LOGGER = logging.getLogger("agent_runtime.worker_heartbeat")
 _KEY_PREFIX = "momcozy-agent-runtime:{worker-heartbeat}:"
 

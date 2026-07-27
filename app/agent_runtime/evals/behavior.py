@@ -14,13 +14,10 @@ from pydantic import (
     model_validator,
 )
 
-from app.agents.contracts import AgentName
-
-
 BEHAVIOR_SUITE_SCHEMA_VERSION = "momcozy.behavior_eval_suite.v1"
 BEHAVIOR_RUN_MAP_SCHEMA_VERSION = "momcozy.behavior_eval_run_map.v1"
 BEHAVIOR_REPORT_SCHEMA_VERSION = "momcozy.behavior_eval_report.v1"
-RUNTIME_REPLAY_SCHEMA_VERSION = "agent_run_replay.v1"
+RUNTIME_REPLAY_SCHEMA_VERSION = "agent_run_replay.v2"
 
 TerminalStatus = Literal["completed", "failed", "cancelled", "expired"]
 ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
@@ -63,8 +60,8 @@ class BehaviorTurn(_StrictModel):
 
 class StructuralExpectation(_StrictModel):
     terminal_status: TerminalStatus
-    responding_agent: AgentName
-    exact_specialists: tuple[AgentName, ...]
+    responding_agent: str
+    exact_specialists: tuple[str, ...]
     required_tools: tuple[str, ...]
     forbidden_tools: tuple[str, ...]
     forbid_actions: bool
@@ -161,7 +158,7 @@ class BehaviorEvalSuite(_StrictModel):
         max_length=120,
     )
     description: str = Field(min_length=1, max_length=2000)
-    replay_contract_version: Literal["agent_run_replay.v1"]
+    replay_contract_version: Literal["agent_run_replay.v2"]
     cases: tuple[BehaviorEvalCase, ...] = Field(min_length=1)
 
     @field_validator("cases")
@@ -415,45 +412,46 @@ def _evaluate_structure(
     if responding_agent != expected.responding_agent:
         _failure(
             failures,
-            category="routing_mismatch",
-            assertion="routing.responding_agent",
+            category="agent_mismatch",
+            assertion="response.responding_agent",
             expected=expected.responding_agent,
             observed=responding_agent,
         )
 
-    routing_events = [
+    delegation_events = [
         event
         for event in events
-        if event.get("type") == "agent.routing.completed"
+        if event.get("type") == "agent.delegation.completed"
     ]
-    if len(routing_events) != 1:
+    expected_delegation_events = 1 if expected.exact_specialists else 0
+    if len(delegation_events) != expected_delegation_events:
         _failure(
             failures,
             category="trace_contract_violation",
-            assertion="trace.routing_event",
-            expected="exactly one agent.routing.completed event",
-            observed=len(routing_events),
+            assertion="trace.delegation_event",
+            expected=expected_delegation_events,
+            observed=len(delegation_events),
         )
-    route_payload = (
-        routing_events[0].get("payload")
-        if len(routing_events) == 1
+    delegation_payload = (
+        delegation_events[0].get("payload")
+        if len(delegation_events) == 1
         else None
     )
-    raw_route_agents = (
-        route_payload.get("agents")
-        if isinstance(route_payload, dict)
+    raw_delegated_agents = (
+        delegation_payload.get("agents")
+        if isinstance(delegation_payload, dict)
         else None
     )
-    route_agents = (
-        [str(agent_name) for agent_name in raw_route_agents]
-        if isinstance(raw_route_agents, list)
+    delegated_agents = (
+        [str(agent_name) for agent_name in raw_delegated_agents]
+        if isinstance(raw_delegated_agents, list)
         else []
     )
     unknown_started = sorted(
         {
             str(agent_name)
-            for agent_name in route_agents
-            if agent_name not in {*SPECIALIST_NAMES, "main_agent"}
+            for agent_name in delegated_agents
+            if agent_name not in SPECIALIST_NAMES
         }
     )
     if unknown_started:
@@ -466,14 +464,33 @@ def _evaluate_structure(
         )
     specialists = tuple(
         agent_name
-        for agent_name in route_agents
+        for agent_name in delegated_agents
         if agent_name in SPECIALIST_NAMES
     )
+    delegated_responding_agent = (
+        str(delegation_payload.get("responding_agent") or "")
+        if isinstance(delegation_payload, dict)
+        else ""
+    )
+    if delegation_events and (
+        not specialists
+        or delegated_responding_agent != specialists[-1]
+        or delegated_responding_agent != responding_agent
+    ):
+        _failure(
+            failures,
+            category="event_contract_violation",
+            assertion="delegation.responding_agent",
+            expected=(
+                specialists[-1] if specialists else None
+            ),
+            observed=delegated_responding_agent,
+        )
     if specialists != expected.exact_specialists:
         _failure(
             failures,
-            category="routing_mismatch",
-            assertion="routing.exact_specialists",
+            category="delegation_mismatch",
+            assertion="delegation.exact_specialists",
             expected=list(expected.exact_specialists),
             observed=list(specialists),
         )

@@ -6,7 +6,8 @@ from typing import Any, AsyncIterator
 import httpx
 from openai import AsyncOpenAI
 
-from app.agent_runtime.composition import (
+from app.bootstrap import (
+    AGENT_CATALOG,
     build_action_service,
     build_product_action_applicators,
     build_runtime_tool_handlers,
@@ -151,6 +152,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                         provider=provider,
                         tool_registry=registry,
                         tool_executor=executor,
+                        agent_catalog=AGENT_CATALOG,
                         max_turns=settings.agent_max_turns,
                         transient_delta_publisher=transient_stream,
                         trusted_arguments_provider=(

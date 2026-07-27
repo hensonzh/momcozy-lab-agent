@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent_runtime.audit import IdempotencyService
-from app.agent_runtime.api.schemas import AgentRunCreate
+from app.api.agent_runtime.schemas import AgentRunCreate
 from app.agent_runtime.runs.service import AgentRuntimeService
 from app.core.errors import ApiError
 
@@ -47,6 +47,8 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     )
 
     assert run.status == "queued"
+    assert run.runtime_pattern == "legacy_adapter"
+    assert run.runtime_version == "momcozy-agent-v3"
     assert repository.message_content == {
         "text": "Review my pumping pattern",
         "attachments": [],
@@ -69,29 +71,17 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     assert repository.event_types == ["run.queued", "message.completed"]
 
 
-def test_create_run_enqueues_fact_extraction_in_same_runtime_flow() -> None:
-    owner_user_id = uuid4()
-    repository = FakeLedgerRepository(owner_user_id=owner_user_id)
-    enqueuer = FakeFactEnqueuer()
-    service = AgentRuntimeService(
-        repository=repository,  # type: ignore[arg-type]
-        fact_enqueuer=enqueuer,
-    )
+def test_run_create_contract_uses_legacy_adapter_not_sdk_only() -> None:
+    assert AgentRunCreate(
+        message="Hello",
+        runtime_pattern="legacy_adapter",
+    ).runtime_pattern == "legacy_adapter"
 
-    run = asyncio.run(
-        service.create_run(
-            actor_user_id=owner_user_id,
-            thread_id=None,
-            message="Please keep answers concise.",
-            request_id="request-id",
-            trace_id="trace-id",
+    with pytest.raises(ValidationError):
+        AgentRunCreate(
+            message="Hello",
+            runtime_pattern="sdk_only",  # type: ignore[arg-type]
         )
-    )
-
-    assert enqueuer.kwargs["owner_user_id"] == owner_user_id
-    assert enqueuer.kwargs["run_id"] == run.id
-    assert enqueuer.kwargs["request_id"] == "request-id"
-    assert enqueuer.kwargs["trace_id"] == "trace-id"
 
 
 def test_create_run_notifies_worker_only_after_transaction_commit() -> None:
@@ -650,18 +640,6 @@ class StaticAttachmentVerifier:
 
     async def verify_for_run(self, **_kwargs: Any) -> list[dict[str, Any]]:
         return [dict(item) for item in self.verified]
-
-
-class FakeFactEnqueuer:
-    def __init__(self) -> None:
-        self.kwargs: dict[str, Any] = {}
-
-    async def enqueue_conversation_extraction(
-        self,
-        **kwargs: Any,
-    ) -> object:
-        self.kwargs = kwargs
-        return object()
 
 
 class FakeRunNotifier:

@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
+from app.agent_runtime.actions import ActionApplyResult, ActionPolicyRule
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.artifacts import artifact_event_payload
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 
-from .contracts import ActionApplyResult
-
-
 HOSPITAL_BAG_CART_UPDATE_ACTION = "hospital_bag.cart.update"
 HOSPITAL_BAG_ACTION_TYPES = (HOSPITAL_BAG_CART_UPDATE_ACTION,)
+HOSPITAL_BAG_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+    HOSPITAL_BAG_CART_UPDATE_ACTION: ActionPolicyRule(
+        HOSPITAL_BAG_CART_UPDATE_ACTION,
+        "hospital_bag_cart",
+        "low",
+    ),
+}
 
 
 class HospitalBagCartActionApplicator:

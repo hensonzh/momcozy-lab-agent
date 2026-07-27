@@ -12,7 +12,7 @@ from app.agent_runtime.actions import (
     ActionProposal,
     ActionProposed,
 )
-from app.agent_runtime.actions.plans import (
+from app.capabilities.plans import (
     PlansActionApplicator,
 )
 from app.agent_runtime.ledger import AgentAction

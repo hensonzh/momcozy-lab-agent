@@ -30,7 +30,7 @@ def test_worker_heartbeat_uses_bounded_role_key_and_ttl() -> None:
     ]
 
 
-def test_worker_heartbeat_probe_checks_all_roles_in_one_round_trip() -> None:
+def test_worker_heartbeat_probe_checks_required_role_in_one_round_trip() -> None:
     client = FakeRedis(
         values={
             "momcozy-agent-runtime:{worker-heartbeat}:agent-worker": (
@@ -46,11 +46,10 @@ def test_worker_heartbeat_probe_checks_all_roles_in_one_round_trip() -> None:
 
     missing = asyncio.run(probe.missing_roles())
 
-    assert missing == ("fact-worker",)
+    assert missing == ()
     assert client.mget_calls == [
         (
             "momcozy-agent-runtime:{worker-heartbeat}:agent-worker",
-            "momcozy-agent-runtime:{worker-heartbeat}:fact-worker",
         )
     ]
 
@@ -60,9 +59,6 @@ def test_worker_heartbeat_probe_rejects_old_runtime_version() -> None:
         values={
             "momcozy-agent-runtime:{worker-heartbeat}:agent-worker": (
                 "runtime-v0"
-            ),
-            "momcozy-agent-runtime:{worker-heartbeat}:fact-worker": (
-                "runtime-v1"
             ),
         }
     )

@@ -14,14 +14,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent_runtime.actions import RuntimeActionService
-from app.agent_runtime.composition import build_action_service
+from app.bootstrap import build_action_service
 from app.agent_runtime.context import AgentAttachmentService
 from app.agent_runtime.evals import RuntimeEvalRepository, RuntimeEvalService
 from app.agent_runtime.events import RuntimeTransientEvent, RuntimeTransientStream
-from app.agent_runtime.facts import FactService
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.ledger.models import AgentEvent
-from app.agent_runtime.memory import MemoryService
 from app.agent_runtime.replay import RuntimeReplayRepository, RuntimeReplayService
 from app.agent_runtime.runs.service import AgentRuntimeService
 from app.api.dependencies import (
@@ -44,12 +42,6 @@ from .schemas import (
     AgentActionReject,
     AgentEventPage,
     AgentEventRead,
-    AgentFactListResponse,
-    AgentFactRead,
-    AgentMemoryListResponse,
-    AgentMemoryRead,
-    AgentMemorySettingsRead,
-    AgentMemorySettingsUpdate,
     AgentRunCancel,
     AgentRunCreate,
     AgentRunRead,
@@ -95,7 +87,6 @@ def _build_agent_service(
     # Kept here so the public API owns construction while persistence remains
     # replaceable in tests and workers.
     from app.agent_runtime.audit import (  # noqa: PLC0415
-        AuditService,
         IdempotencyService,
         RuntimeAuditRepository,
     )
@@ -111,10 +102,6 @@ def _build_agent_service(
         attachment_verifier=AgentAttachmentService(
             repository=repository,
             product_client=product_client,
-        ),
-        fact_enqueuer=FactService(
-            session=session,
-            audit_service=AuditService(repository=audit_repository),
         ),
         run_notifier=request.app.state.agent_run_controls,
         run_admission=request.app.state.agent_run_admission,
@@ -145,38 +132,6 @@ def get_action_service(
         client=request.app.state.product_backend_client,
         run_notifier=request.app.state.agent_run_controls,
         run_admission=request.app.state.agent_run_admission,
-    )
-
-
-def get_memory_service(
-    session: AsyncSession = Depends(get_session),
-) -> MemoryService:
-    from app.agent_runtime.audit import (  # noqa: PLC0415
-        AuditService,
-        RuntimeAuditRepository,
-    )
-
-    return MemoryService(
-        session=session,
-        audit_service=AuditService(
-            repository=RuntimeAuditRepository(session)
-        ),
-    )
-
-
-def get_fact_service(
-    session: AsyncSession = Depends(get_session),
-) -> FactService:
-    from app.agent_runtime.audit import (  # noqa: PLC0415
-        AuditService,
-        RuntimeAuditRepository,
-    )
-
-    return FactService(
-        session=session,
-        audit_service=AuditService(
-            repository=RuntimeAuditRepository(session)
-        ),
     )
 
 
@@ -495,137 +450,6 @@ async def reject_action(
         reason=payload.reason or "",
     )
     return AgentActionRead.model_validate(action)
-
-
-@router.get("/memories", response_model=AgentMemoryListResponse)
-async def list_memories(
-    memory_type: str | None = Query(default=None, max_length=80),
-    limit: int = Query(default=50, ge=1, le=100),
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: MemoryService = Depends(get_memory_service),
-) -> AgentMemoryListResponse:
-    memories = await service.list_active(
-        owner_user_id=principal.user_id,
-        memory_type=memory_type,
-        limit=limit,
-    )
-    return AgentMemoryListResponse(
-        items=[AgentMemoryRead.model_validate(item) for item in memories]
-    )
-
-
-@router.get(
-    "/memories/settings",
-    response_model=AgentMemorySettingsRead,
-)
-async def get_memory_settings(
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: MemoryService = Depends(get_memory_service),
-) -> AgentMemorySettingsRead:
-    settings = await service.get_settings(
-        owner_user_id=principal.user_id
-    )
-    return AgentMemorySettingsRead.model_validate(settings)
-
-
-@router.put(
-    "/memories/settings",
-    response_model=AgentMemorySettingsRead,
-)
-async def update_memory_settings(
-    payload: AgentMemorySettingsUpdate,
-    request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: MemoryService = Depends(get_memory_service),
-) -> AgentMemorySettingsRead:
-    settings = await service.update_settings(
-        owner_user_id=principal.user_id,
-        memory_enabled=payload.memory_enabled,
-        request_id=str(getattr(request.state, "request_id", "") or ""),
-    )
-    return AgentMemorySettingsRead.model_validate(settings)
-
-
-@router.delete(
-    "/memories",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def clear_memories(
-    request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: MemoryService = Depends(get_memory_service),
-) -> Response:
-    await service.clear(
-        owner_user_id=principal.user_id,
-        request_id=str(getattr(request.state, "request_id", "") or ""),
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete(
-    "/memories/{memory_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_memory(
-    memory_id: UUID,
-    request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: MemoryService = Depends(get_memory_service),
-) -> Response:
-    await service.archive(
-        owner_user_id=principal.user_id,
-        memory_id=memory_id,
-        request_id=str(getattr(request.state, "request_id", "") or ""),
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/facts", response_model=AgentFactListResponse)
-async def list_facts(
-    fact_kind: str | None = Query(default=None, max_length=32),
-    limit: int = Query(default=50, ge=1, le=100),
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: FactService = Depends(get_fact_service),
-) -> AgentFactListResponse:
-    facts = await service.list_facts(
-        owner_user_id=principal.user_id,
-        fact_kind=fact_kind,
-        limit=limit,
-    )
-    return AgentFactListResponse(
-        items=[AgentFactRead.model_validate(item) for item in facts]
-    )
-
-
-@router.delete("/facts", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_facts(
-    request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: FactService = Depends(get_fact_service),
-) -> Response:
-    await service.clear_facts(
-        owner_user_id=principal.user_id,
-        request_id=str(getattr(request.state, "request_id", "") or ""),
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete(
-    "/facts/{fact_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_fact(
-    fact_id: UUID,
-    request: Request,
-    principal: RuntimePrincipal = Depends(require_runtime_principal),
-    service: FactService = Depends(get_fact_service),
-) -> Response:
-    await service.delete_fact(
-        owner_user_id=principal.user_id,
-        fact_id=fact_id,
-        request_id=str(getattr(request.state, "request_id", "") or ""),
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/admin/runs/{run_id}/replay")

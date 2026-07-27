@@ -12,14 +12,17 @@ from app.agent_runtime.replay import RuntimeReplayService
 
 def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
     run_id = uuid4()
+    repository = FakeReplayRepository(run_id=run_id)
     service = RuntimeReplayService(
-        repository=FakeReplayRepository(run_id=run_id)  # type: ignore[arg-type]
+        repository=repository  # type: ignore[arg-type]
     )
 
     bundle = asyncio.run(service.export_run_bundle(run_id=run_id))
 
-    assert bundle["schema_version"] == "agent_run_replay.v1"
+    assert bundle["schema_version"] == "agent_run_replay.v2"
+    assert bundle["run"]["runtime_pattern"] == "legacy_adapter"
     assert bundle["run"]["skill_id"] == "main_agent"
+    assert bundle["execution_manifest"] == repository.run.execution_manifest
     assert bundle["messages"][0]["content"] == {"redacted": True}
     assert bundle["tool_outputs"][0]["output"] == {"redacted": True}
     assert bundle["events"][0]["payload"] == {"redacted": True}
@@ -113,13 +116,24 @@ class FakeReplayRepository:
             thread_id=uuid4(),
             actor_user_id=uuid4(),
             status="completed",
-            runtime_pattern="sdk_only",
-            runtime_version="v2",
+            runtime_pattern="legacy_adapter",
+            runtime_version="momcozy-agent-v3",
             skill_id="main_agent",
             request_id="request",
             trace_id="trace",
             error_code="",
             error_details={},
+            execution_manifest={
+                "schema_version": "agent_run_execution_manifest.v1",
+                "runtime_pattern": "legacy_adapter",
+                "runtime_version": "momcozy-agent-v3",
+                "invocations": [
+                    {
+                        "sequence": 1,
+                        "manifest_sha256": "a" * 64,
+                    }
+                ],
+            },
         )
         self.thread = SimpleNamespace(
             id=self.run.thread_id,

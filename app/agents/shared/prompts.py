@@ -2,16 +2,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
-from app.agents.contracts import AgentName
-
-
-type LiteralSpecialistName = Literal[
-    "prenatal_agent",
-    "lactation_agent",
-    "device_agent",
-]
+from app.agents.contracts import AgentName, SpecialistName
 
 
 _AGENTS_ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +34,7 @@ def load_agent_system_prompt(name: AgentName) -> str:
 
 @lru_cache(maxsize=3)
 def load_agent_skill(
-    name: LiteralSpecialistName,
+    name: SpecialistName,
     *,
     version: str = "v1",
 ) -> str:

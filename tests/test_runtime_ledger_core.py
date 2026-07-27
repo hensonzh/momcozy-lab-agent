@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import hashlib
+import json
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -57,7 +59,7 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
     active_run = AgentRun(
         thread_id=thread.id,
         actor_user_id=owner_user_id,
-        runtime_pattern="sdk_only",
+        runtime_pattern="legacy_adapter",
         runtime_version="test",
         request_id="existing",
         trace_id="existing",
@@ -70,7 +72,7 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
             repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="sdk_only",
+                runtime_pattern="legacy_adapter",
                 runtime_version="test",
                 request_id="new",
                 trace_id="new",
@@ -79,6 +81,80 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
 
     assert conflict.value.active_run is active_run
     assert session.added == []
+
+
+def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> None:
+    run = AgentRun(
+        id=uuid4(),
+        thread_id=uuid4(),
+        actor_user_id=uuid4(),
+        runtime_pattern="legacy_adapter",
+        runtime_version="momcozy-agent-v3",
+        request_id="request",
+        trace_id="trace",
+    )
+    manifest = {
+        "schema_version": "agent_model_execution.v1",
+        "agent_name": "main_agent",
+        "branch_id": "main",
+    }
+    manifest["manifest_sha256"] = _manifest_sha256(manifest)
+    session = RecordingSession()
+    repository = RuntimeLedgerRepository(session)  # type: ignore[arg-type]
+
+    first = asyncio.run(
+        repository.record_model_execution_manifest(
+            run=run,
+            manifest=manifest,
+        )
+    )
+    replayed = asyncio.run(
+        repository.record_model_execution_manifest(
+            run=run,
+            manifest=manifest,
+        )
+    )
+
+    assert first == replayed
+    assert run.execution_manifest == {
+        "schema_version": "agent_run_execution_manifest.v1",
+        "runtime_pattern": "legacy_adapter",
+        "runtime_version": "momcozy-agent-v3",
+        "invocations": [
+            {
+                "sequence": 1,
+                **manifest,
+            }
+        ],
+    }
+    assert session.flush_count == 1
+
+
+def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
+    run = AgentRun(
+        id=uuid4(),
+        thread_id=uuid4(),
+        actor_user_id=uuid4(),
+        runtime_pattern="legacy_adapter",
+        runtime_version="momcozy-agent-v3",
+        request_id="request",
+        trace_id="trace",
+    )
+    repository = RuntimeLedgerRepository(RecordingSession())  # type: ignore[arg-type]
+
+    with pytest.raises(
+        ValueError,
+        match="invalid model execution manifest",
+    ):
+        asyncio.run(
+            repository.record_model_execution_manifest(
+                run=run,
+                manifest={
+                    "schema_version": "agent_model_execution.v1",
+                    "manifest_sha256": "a" * 64,
+                },
+            )
+        )
 
 
 def test_message_and_context_reads_can_be_owner_scoped() -> None:
@@ -181,7 +257,7 @@ def test_run_terminal_transitions_clear_or_record_error_state() -> None:
     run = AgentRun(
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="sdk_only",
+        runtime_pattern="legacy_adapter",
         runtime_version="test",
         request_id="request",
         trace_id="trace",
@@ -223,7 +299,7 @@ def test_late_worker_failure_cannot_overwrite_run_after_fence_changed() -> None:
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="sdk_only",
+        runtime_pattern="legacy_adapter",
         runtime_version="test",
         request_id="request",
         trace_id="trace",
@@ -279,7 +355,7 @@ def test_start_tool_call_reuses_committed_started_call_during_recovery() -> None
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="sdk_only",
+        runtime_pattern="legacy_adapter",
         runtime_version="test",
         request_id="request",
         trace_id="trace",
@@ -364,3 +440,15 @@ def _compiled_sql(statement: Any) -> str:
             compile_kwargs={"literal_binds": True},
         )
     )
+
+
+def _manifest_sha256(manifest: dict[str, Any]) -> str:
+    content = dict(manifest)
+    content.pop("manifest_sha256", None)
+    canonical = json.dumps(
+        content,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

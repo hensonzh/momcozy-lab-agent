@@ -107,12 +107,7 @@ def test_ci_validates_production_compose_and_offline_ops_entrypoints() -> None:
     assert "-f docker-compose.ci.yml" in workflow
     assert "python scripts/check_product_backend_contract.py" in workflow
     assert "Verify release contracts inside the image" in workflow
-    for command in (
-        "python scripts/run_fact_extraction_worker.py --help",
-        "python scripts/run_memory_consolidation.py --help",
-        "python scripts/run_replay_eval.py --help",
-    ):
-        assert command in workflow
+    assert "python scripts/run_replay_eval.py --help" in workflow
 
 
 def test_ci_readiness_uses_an_isolated_public_jwks_fixture() -> None:
@@ -122,13 +117,13 @@ def test_ci_readiness_uses_an_isolated_public_jwks_fixture() -> None:
     assert "AUTH_JWKS_URL: http://jwks/.well-known/jwks.json" in compose
     assert compose.count(
         "OPENAI_API_KEY: ci-agent-runtime-openai-key"
-    ) == 2
+    ) == 1
     assert '"kty": "RSA"' in jwks
     assert '"alg": "RS256"' in jwks
     assert "PRIVATE" not in jwks
 
 
-def test_ci_readiness_starts_both_required_workers() -> None:
+def test_ci_readiness_starts_required_runtime_processes() -> None:
     workflow = CI_WORKFLOW.read_text()
 
     smoke_step = workflow.split(
@@ -136,7 +131,8 @@ def test_ci_readiness_starts_both_required_workers() -> None:
         maxsplit=1,
     )[1]
     assert "--wait" in smoke_step
-    assert "api worker fact-worker" in smoke_step
+    assert "api worker" in smoke_step
+    assert "fact-worker" not in smoke_step
 
 
 def test_runtime_docs_describe_independent_deployment_contract() -> None:
@@ -156,8 +152,6 @@ def test_runtime_docs_describe_independent_deployment_contract() -> None:
     for expected in (
         "API",
         "run worker",
-        "fact worker",
-        "memory consolidation",
         "PostgreSQL",
         "Redis",
         "Product Backend",

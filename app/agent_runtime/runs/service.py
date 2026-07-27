@@ -30,7 +30,7 @@ from app.core.errors import ApiError
 from .admission import RunAdmission
 from .registry import (
     DEFAULT_RUNTIME_VERSION,
-    SDK_ONLY_RUNTIME_PATTERN,
+    LEGACY_ADAPTER_RUNTIME_PATTERN,
     validate_runtime,
 )
 
@@ -53,18 +53,6 @@ class AttachmentVerifier(Protocol):
     ) -> list[dict[str, Any]]: ...
 
 
-class ConversationFactEnqueuer(Protocol):
-    async def enqueue_conversation_extraction(
-        self,
-        *,
-        owner_user_id: UUID,
-        run_id: UUID,
-        message_id: UUID,
-        request_id: str,
-        trace_id: str,
-    ) -> object | None: ...
-
-
 class RunNotifier(Protocol):
     async def notify_queued(
         self,
@@ -80,7 +68,6 @@ class AgentRuntimeService:
         repository: RuntimeLedgerRepository,
         idempotency_service: IdempotencyService | None = None,
         attachment_verifier: AttachmentVerifier | None = None,
-        fact_enqueuer: ConversationFactEnqueuer | None = None,
         run_notifier: RunNotifier | None = None,
         run_admission: RunAdmission | None = None,
         clock: Callable[[], datetime] | None = None,
@@ -88,7 +75,6 @@ class AgentRuntimeService:
         self.repository = repository
         self.idempotency_service = idempotency_service
         self.attachment_verifier = attachment_verifier
-        self.fact_enqueuer = fact_enqueuer
         self.run_notifier = run_notifier
         self.run_admission = run_admission
         self.clock = clock or _utcnow
@@ -150,7 +136,9 @@ class AgentRuntimeService:
         trace_id: str = "",
         idempotency_key: str | None = None,
     ) -> AgentRun:
-        pattern = str(runtime_pattern or SDK_ONLY_RUNTIME_PATTERN).strip()
+        pattern = str(
+            runtime_pattern or LEGACY_ADAPTER_RUNTIME_PATTERN
+        ).strip()
         version = str(runtime_version or DEFAULT_RUNTIME_VERSION).strip()
         validate_runtime(version=version, pattern=pattern)
         normalized_message = _normalize_text(
@@ -326,14 +314,6 @@ class AgentRuntimeService:
                     "role": "user",
                 },
             )
-            if self.fact_enqueuer is not None:
-                await self.fact_enqueuer.enqueue_conversation_extraction(
-                    owner_user_id=actor_user_id,
-                    run_id=run.id,
-                    message_id=message_record.id,
-                    request_id=run.request_id,
-                    trace_id=run.trace_id,
-                )
             if idempotency_record is not None:
                 assert self.idempotency_service is not None
                 await self.idempotency_service.mark_completed(

@@ -16,10 +16,10 @@ from app.agents.shared import BASE_AGENT_INSTRUCTIONS
 
 
 EXPECTED_INSTRUCTION_HASHES = {
-    "main_agent": "81420ef5bd3f1b40dc4dd17e5f3fe3dcafee826fa8e6d3772bf3f3c83b69bff2",
-    "prenatal_agent": "950c05ddbae10a0034c451fcdfbc42a83e914cec27fdaf42b5698e7fb9e5f71b",
-    "lactation_agent": "58e1272016b4c06775f9820c6b86bd4bba52cd06545ba8da146a6e6cabbaa682",
-    "device_agent": "68e77736d0b5789ad0c218b4ec217677878c248b5795f5de994eda62d505ceb4",
+    "main_agent": "5c8c6ddb73fca9221339f2e14d37f5c5baee5a6c1883160f5d415aef859fb29a",
+    "prenatal_agent": "c0aabba94e8d049913787284ba4341e6fe151899c960ab9cdf0d16373159ee58",
+    "lactation_agent": "2cd3ce825a2beae7aec0300d18e9966e55bb6fd3297461bd717738eb024982de",
+    "device_agent": "bacba2ea25ffd9b62071a7ebb7eaa1cf5a40578f31b5d41f4e76caf7b757d654",
 }
 
 
@@ -70,8 +70,24 @@ def test_legacy_centralized_agent_definition_files_are_removed() -> None:
         "skill_loader.py",
         "skills",
         "runtime_native",
+        "router",
     ):
         assert not (agents_root / relative_path).exists()
+
+
+def test_main_agent_package_has_only_canonical_files() -> None:
+    main_agent_root = (
+        Path(__file__).parents[1] / "app" / "agents" / "main_agent"
+    )
+
+    assert {
+        path.name for path in main_agent_root.iterdir() if path.is_file()
+    } == {
+        "__init__.py",
+        "definition.py",
+        "system_prompt.md",
+        "toolset.py",
+    }
 
 
 def test_all_agent_packages_and_runtime_names_use_agent_suffix() -> None:

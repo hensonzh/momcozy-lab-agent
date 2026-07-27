@@ -15,95 +15,13 @@ class ActionPolicyRule:
     allows_payload_edit: bool = False
 
 
-ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
-    "profile.update": ActionPolicyRule(
-        "profile.update", "profile", "low"
-    ),
-    "profile.current_infants.replace": ActionPolicyRule(
-        "profile.current_infants.replace",
-        "profile",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "diary.entry.save": ActionPolicyRule(
-        "diary.entry.save", "diary_entry", "low"
-    ),
-    "diary.entry.delete": ActionPolicyRule(
-        "diary.entry.delete",
-        "diary_entry",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "plans.task.create": ActionPolicyRule(
-        "plans.task.create", "plan_task", "medium"
-    ),
-    "plans.task.update": ActionPolicyRule(
-        "plans.task.update", "plan_task", "medium"
-    ),
-    "plans.task.complete": ActionPolicyRule(
-        "plans.task.complete", "plan_task", "medium"
-    ),
-    "plans.task.delete": ActionPolicyRule(
-        "plans.task.delete", "plan_task", "medium"
-    ),
-    "plans.plan.delete": ActionPolicyRule(
-        "plans.plan.delete",
-        "plan",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "plans.plan.update": ActionPolicyRule(
-        "plans.plan.update", "plan", "medium"
-    ),
-    "pregnancy.plan.create": ActionPolicyRule(
-        "pregnancy.plan.create", "plan", "medium"
-    ),
-    "plans.milk_schedule.reschedule": ActionPolicyRule(
-        "plans.milk_schedule.reschedule",
-        "plan",
-        "medium",
-        requires_confirmation=True,
-    ),
-    "records.feeding_record.create": ActionPolicyRule(
-        "records.feeding_record.create", "feeding_record", "low"
-    ),
-    "records.feeding_record.update": ActionPolicyRule(
-        "records.feeding_record.update", "feeding_record", "medium"
-    ),
-    "records.feeding_record.delete": ActionPolicyRule(
-        "records.feeding_record.delete", "feeding_record", "medium"
-    ),
-    "records.pumping_record.create": ActionPolicyRule(
-        "records.pumping_record.create", "pumping_record", "low"
-    ),
-    "records.pumping_record.update": ActionPolicyRule(
-        "records.pumping_record.update", "pumping_record", "medium"
-    ),
-    "records.pumping_record.delete": ActionPolicyRule(
-        "records.pumping_record.delete", "pumping_record", "medium"
-    ),
-    "records.growth_record.create": ActionPolicyRule(
-        "records.growth_record.create", "growth_record", "low"
-    ),
-    "records.growth_record.update": ActionPolicyRule(
-        "records.growth_record.update", "growth_record", "medium"
-    ),
-    "records.growth_record.delete": ActionPolicyRule(
-        "records.growth_record.delete", "growth_record", "medium"
-    ),
-    "hospital_bag.cart.update": ActionPolicyRule(
-        "hospital_bag.cart.update", "hospital_bag_cart", "low"
-    ),
-}
-
-
 class ActionPolicy:
     def __init__(
         self,
         *,
-        rules: Mapping[str, ActionPolicyRule] | None = None,
+        rules: Mapping[str, ActionPolicyRule],
     ) -> None:
-        self.rules = dict(rules or ACTION_POLICY_RULES)
+        self.rules = dict(rules)
 
     def validate(
         self,

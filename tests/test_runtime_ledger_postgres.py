@@ -67,7 +67,7 @@ async def _postgres_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="sdk_only",
+                runtime_pattern="legacy_adapter",
                 runtime_version="test",
                 request_id="req-runtime-ledger",
                 trace_id="trace-runtime-ledger",
@@ -90,7 +90,7 @@ async def _postgres_scenario() -> None:
                 await repository.create_run(
                     thread_id=thread.id,
                     actor_user_id=other_user_id,
-                    runtime_pattern="sdk_only",
+                    runtime_pattern="legacy_adapter",
                     runtime_version="test",
                     request_id="req-cross-owner",
                     trace_id="trace-cross-owner",
@@ -121,7 +121,7 @@ async def _run_lease_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="sdk_only",
+                    runtime_pattern="legacy_adapter",
                 runtime_version="test",
                 request_id="req-lease-fencing",
                 trace_id="trace-lease-fencing",
@@ -246,7 +246,7 @@ async def _row_lock_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="sdk_only",
+                runtime_pattern="legacy_adapter",
                 runtime_version="test",
                 request_id="req-row-lock-expiry",
                 trace_id="trace-row-lock-expiry",
@@ -333,7 +333,7 @@ async def _confirmation_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="sdk_only",
+                runtime_pattern="legacy_adapter",
                 runtime_version="test",
                 request_id="req-confirmation-expiry",
                 trace_id="trace-confirmation-expiry",

@@ -1,24 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol
 
 from pydantic import ValidationError
 
 from app.agent_runtime.ledger import AgentAction
+from app.agent_runtime.actions import ActionApplyResult, ActionPolicyRule
 from app.core.errors import ApiError
 from app.infrastructure.product_backend import (
     LactationRecordApplyRequest,
     LactationRecordApplyResponse,
 )
 
-from .contracts import ActionApplyResult
-
-
 LACTATION_RECORD_ACTION_TYPES = frozenset(
     f"records.{item_type}_record.{operation}"
     for item_type in ("feeding", "pumping", "growth")
     for operation in ("create", "update", "delete")
 )
+LACTATION_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+    action_type: ActionPolicyRule(
+        action_type,
+        action_type.removeprefix("records.").rsplit(".", 1)[0],
+        "low" if action_type.endswith(".create") else "medium",
+    )
+    for action_type in LACTATION_RECORD_ACTION_TYPES
+}
 
 
 class _LactationRecordApplyClient(Protocol):

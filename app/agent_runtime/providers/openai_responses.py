@@ -16,6 +16,7 @@ from .contracts import (
     ModelRequest,
     ModelTurn,
 )
+from .manifest import build_openai_responses_execution_manifest
 
 
 LOGGER = logging.getLogger("agent_runtime.model")
@@ -145,12 +146,25 @@ class OpenAIResponsesProvider:
                 message="OpenAI Responses streaming client is unavailable.",
                 status=503,
             )
-        stream = stream_method(
-            **self._request_kwargs(
-                request=request,
-                input_items=input_items,
-            )
+        request_kwargs = self._request_kwargs(
+            request=request,
+            input_items=input_items,
         )
+        if request.on_execution_manifest is not None:
+            await request.on_execution_manifest(
+                build_openai_responses_execution_manifest(
+                    request=request,
+                    resolved_input_items=input_items,
+                    request_payload=request_kwargs,
+                    model=self.model,
+                    reasoning_effort=self.reasoning_effort,
+                    text_verbosity=self.text_verbosity,
+                    store=self.store,
+                    base_url=self.base_url,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            )
+        stream = stream_method(**request_kwargs)
         response: Any | None = None
         streamed_text = ""
         if hasattr(stream, "__aenter__"):

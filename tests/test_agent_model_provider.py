@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from types import SimpleNamespace
 from typing import Any
@@ -88,6 +89,93 @@ def test_openai_responses_provider_uses_stateless_ledger_input_and_streams_delta
     assert client.kwargs["parallel_tool_calls"] is False
     assert client.kwargs["tools"][0]["name"] == "profile_read"
     assert "strict" not in client.kwargs["tools"][0]
+
+
+def test_openai_provider_emits_exact_execution_manifest_before_model_call() -> None:
+    client = FakeOpenAIClient()
+    provider = OpenAIResponsesProvider(
+        client=client,
+        model="gpt-5.6-terra",
+        base_url="https://model-gateway.example/v1",
+        reasoning_effort="medium",
+        text_verbosity="high",
+        store=False,
+        timeout_seconds=45,
+    )
+    manifests: list[dict[str, Any]] = []
+
+    async def capture(manifest: dict[str, Any]) -> None:
+        assert client.kwargs == {}
+        manifests.append(manifest)
+
+    asyncio.run(
+        provider.respond(
+            ModelRequest(
+                agent_name="main_agent",
+                branch_id="main",
+                run_id=uuid4(),
+                thread_id=uuid4(),
+                actor_user_id=uuid4(),
+                request_id="manifest-request",
+                instructions="exact prompt",
+                input_items=(
+                    {"role": "user", "content": "private input"},
+                ),
+                tools=(
+                    ModelTool(
+                        name="profile_read",
+                        description="read profile",
+                        input_schema={
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {},
+                        },
+                    ),
+                ),
+                on_execution_manifest=capture,
+            )
+        )
+    )
+
+    assert len(manifests) == 1
+    manifest = manifests[0]
+    assert manifest["schema_version"] == "agent_model_execution.v1"
+    assert manifest["agent_name"] == "main_agent"
+    assert manifest["branch_id"] == "main"
+    assert manifest["prompt"]["content"] == "exact prompt"
+    assert len(manifest["prompt"]["sha256"]) == 64
+    assert manifest["tools"]["items"][0]["name"] == "profile_read"
+    assert manifest["tools"]["items"][0]["input_schema"] == {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {},
+    }
+    assert manifest["model"] == {
+        "provider": "openai",
+        "api": "responses",
+        "base_url": "https://model-gateway.example/v1",
+        "sdk_package": "openai",
+        "sdk_version": "2.46.0",
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "medium",
+        "text_verbosity": "high",
+        "parallel_tool_calls": False,
+        "store": False,
+        "include": ["reasoning.encrypted_content"],
+        "response_format": None,
+        "timeout_seconds": 45,
+    }
+    assert manifest["context"]["schema_version"] == (
+        "openai.responses.input_items.v1"
+    )
+    assert manifest["context"]["requested"]["item_count"] == 1
+    assert manifest["context"]["resolved"]["item_count"] == 1
+    assert "private input" not in json.dumps(
+        manifest["context"],
+        ensure_ascii=False,
+    )
+    assert len(manifest["request_payload_sha256"]) == 64
+    assert len(manifest["manifest_sha256"]) == 64
 
 
 def test_openai_provider_emits_safe_low_cardinality_operation_metric(

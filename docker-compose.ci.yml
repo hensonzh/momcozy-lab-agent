@@ -23,7 +23,3 @@ services:
   worker:
     environment:
       OPENAI_API_KEY: ci-agent-runtime-openai-key
-
-  fact-worker:
-    environment:
-      OPENAI_API_KEY: ci-agent-runtime-openai-key

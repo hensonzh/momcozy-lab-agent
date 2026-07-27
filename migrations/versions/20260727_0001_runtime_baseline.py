@@ -16,45 +16,6 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table('agent_memory_consolidation_runs',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('consent_version', sa.Integer(), nullable=False),
-    sa.Column('source_date', sa.Date(), nullable=False),
-    sa.Column('source_hash', sa.String(length=64), nullable=False),
-    sa.Column('extractor_version', sa.String(length=80), nullable=False),
-    sa.Column('status', sa.String(length=32), server_default='extracting', nullable=False),
-    sa.Column('input_message_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('upserted_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('archived_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('rejected_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
-    sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_agent_memory_consolidation_runs')),
-    sa.UniqueConstraint('owner_user_id', 'source_date', 'source_hash', 'extractor_version', name='uq_agent_memory_consolidation_source')
-    )
-    op.create_index('ix_agent_memory_consolidation_date_status', 'agent_memory_consolidation_runs', ['source_date', 'status'], unique=False)
-    op.create_index('ix_agent_memory_consolidation_owner_created', 'agent_memory_consolidation_runs', ['owner_user_id', 'created_at'], unique=False)
-    op.create_table('agent_memory_settings',
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('memory_enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
-    sa.Column('consent_version', sa.Integer(), server_default='1', nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('owner_user_id', name=op.f('pk_agent_memory_settings'))
-    )
-    op.create_index('ix_agent_memory_settings_owner_updated', 'agent_memory_settings', ['owner_user_id', 'updated_at'], unique=False)
-    op.create_table('agent_memory_snapshots',
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('schema_version', sa.String(length=80), server_default='v1', nullable=False),
-    sa.Column('items_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"), nullable=False),
-    sa.Column('source_date', sa.Date(), nullable=True),
-    sa.Column('extractor_version', sa.String(length=80), server_default='', nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('owner_user_id', name=op.f('pk_agent_memory_snapshots'))
-    )
     op.create_table('agent_threads',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('owner_user_id', sa.UUID(), nullable=False),
@@ -101,32 +62,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('actor_user_id', 'scope', 'key', name='uq_idempotency_actor_scope_key')
     )
     op.create_index('ix_idempotency_keys_expires_at', 'idempotency_keys', ['expires_at'], unique=False)
-    op.create_table('user_facts',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('fact_key', sa.String(length=120), nullable=False),
-    sa.Column('memory_type', sa.String(length=80), nullable=False),
-    sa.Column('fact_kind', sa.String(length=32), nullable=False),
-    sa.Column('status', sa.String(length=32), server_default='active', nullable=False),
-    sa.Column('value_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('source_type', sa.String(length=32), nullable=False),
-    sa.Column('source_id', sa.String(length=255), nullable=False),
-    sa.Column('sensitivity', sa.String(length=32), server_default='personal', nullable=False),
-    sa.Column('catalog_version', sa.String(length=80), nullable=False),
-    sa.Column('observed_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deletion_reason', sa.String(length=32), server_default='', nullable=False),
-    sa.Column('version', sa.Integer(), server_default='1', nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint("fact_kind IN ('verified', 'conversation_candidate')", name=op.f('ck_user_facts_ck_user_facts_kind')),
-    sa.CheckConstraint("status IN ('active', 'tombstoned')", name=op.f('ck_user_facts_ck_user_facts_status')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_user_facts')),
-    sa.UniqueConstraint('owner_user_id', 'fact_key', 'fact_kind', name='uq_user_facts_owner_key_kind')
-    )
-    op.create_index('ix_user_facts_expires_at', 'user_facts', ['expires_at'], unique=False)
-    op.create_index('ix_user_facts_owner_status_kind_updated', 'user_facts', ['owner_user_id', 'status', 'fact_kind', 'updated_at'], unique=False)
     op.create_table('agent_image_accesses',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('thread_id', sa.UUID(), nullable=False),
@@ -145,13 +80,14 @@ def upgrade() -> None:
     sa.Column('thread_id', sa.UUID(), nullable=False),
     sa.Column('actor_user_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.String(length=32), server_default='queued', nullable=False),
-    sa.Column('runtime_pattern', sa.String(length=64), server_default='sdk_only', nullable=False),
+    sa.Column('runtime_pattern', sa.String(length=64), server_default='legacy_adapter', nullable=False),
     sa.Column('runtime_version', sa.String(length=80), server_default='', nullable=False),
     sa.Column('skill_id', sa.String(length=64), server_default='', nullable=False),
     sa.Column('request_id', sa.String(length=80), server_default='', nullable=False),
     sa.Column('trace_id', sa.String(length=120), server_default='', nullable=False),
     sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
     sa.Column('error_details_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
+    sa.Column('execution_manifest_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
     sa.Column('lease_token', sa.UUID(), nullable=True),
     sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -324,30 +260,6 @@ def upgrade() -> None:
     op.create_index('ix_agent_workflow_states_run_created', 'agent_workflow_states', ['run_id', 'created_at'], unique=False)
     op.create_index('ix_agent_workflow_states_thread_status', 'agent_workflow_states', ['thread_id', 'status'], unique=False)
     op.create_index('uq_agent_workflow_states_owner_type_active', 'agent_workflow_states', ['owner_user_id', 'workflow_type'], unique=True, postgresql_where=sa.text("workflow_type = 'pregnancy_plan' AND status IN ('collecting', 'ready', 'waiting', 'paused')"))
-    op.create_table('agent_memories',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('memory_key', sa.String(length=120), nullable=False),
-    sa.Column('source_run_id', sa.UUID(), nullable=True),
-    sa.Column('source_message_id', sa.UUID(), nullable=True),
-    sa.Column('memory_type', sa.String(length=80), nullable=False),
-    sa.Column('status', sa.String(length=32), server_default='active', nullable=False),
-    sa.Column('schema_version', sa.String(length=80), server_default='v1', nullable=False),
-    sa.Column('content_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
-    sa.Column('confidence_score', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('archived_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['source_message_id'], ['agent_messages.id'], name=op.f('fk_agent_memories_source_message_id_agent_messages')),
-    sa.ForeignKeyConstraint(['source_run_id'], ['agent_runs.id'], name=op.f('fk_agent_memories_source_run_id_agent_runs')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_agent_memories')),
-    sa.UniqueConstraint('owner_user_id', 'memory_key', name='uq_agent_memories_owner_memory_key')
-    )
-    op.create_index('ix_agent_memories_expires_at', 'agent_memories', ['expires_at'], unique=False)
-    op.create_index('ix_agent_memories_owner_type_status', 'agent_memories', ['owner_user_id', 'memory_type', 'status'], unique=False)
-    op.create_index('ix_agent_memories_owner_updated', 'agent_memories', ['owner_user_id', 'updated_at'], unique=False)
-    op.create_index('ix_agent_memories_source_run', 'agent_memories', ['source_run_id'], unique=False)
     op.create_table('agent_tool_outputs',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('tool_call_id', sa.UUID(), nullable=False),
@@ -380,61 +292,15 @@ def upgrade() -> None:
     op.create_index('ix_agent_workflow_events_owner_type_created', 'agent_workflow_events', ['owner_user_id', 'workflow_type', 'created_at'], unique=False)
     op.create_index('ix_agent_workflow_events_run_created', 'agent_workflow_events', ['run_id', 'created_at'], unique=False)
     op.create_index('ix_agent_workflow_events_state_sequence', 'agent_workflow_events', ['workflow_state_id', 'sequence'], unique=False)
-    op.create_table('user_fact_extraction_runs',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('owner_user_id', sa.UUID(), nullable=False),
-    sa.Column('consent_version', sa.Integer(), nullable=False),
-    sa.Column('source_message_id', sa.UUID(), nullable=False),
-    sa.Column('source_run_id', sa.UUID(), nullable=False),
-    sa.Column('catalog_version', sa.String(length=80), nullable=False),
-    sa.Column('extractor_version', sa.String(length=80), nullable=False),
-    sa.Column('model', sa.String(length=120), nullable=False),
-    sa.Column('status', sa.String(length=32), server_default='queued', nullable=False),
-    sa.Column('stage', sa.String(length=16), server_default='extract', nullable=False),
-    sa.Column('attempts', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('max_attempts', sa.Integer(), server_default='3', nullable=False),
-    sa.Column('next_attempt_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('lease_token', sa.String(length=64), server_default='', nullable=False),
-    sa.Column('request_id', sa.String(length=80), server_default='', nullable=False),
-    sa.Column('trace_id', sa.String(length=120), server_default='', nullable=False),
-    sa.Column('candidates_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"), nullable=False),
-    sa.Column('extracted_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('applied_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('rejected_count', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.CheckConstraint("stage IN ('extract', 'apply')", name=op.f('ck_user_fact_extraction_runs_ck_user_fact_extractions_stage')),
-    sa.CheckConstraint("status IN ('queued', 'locked', 'ready_to_apply', 'completed', 'dead_lettered', 'skipped_disabled', 'cancelled')", name=op.f('ck_user_fact_extraction_runs_ck_user_fact_extractions_status')),
-    sa.ForeignKeyConstraint(['source_message_id'], ['agent_messages.id'], name=op.f('fk_user_fact_extraction_runs_source_message_id_agent_messages')),
-    sa.ForeignKeyConstraint(['source_run_id'], ['agent_runs.id'], name=op.f('fk_user_fact_extraction_runs_source_run_id_agent_runs')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_user_fact_extraction_runs')),
-    sa.UniqueConstraint('owner_user_id', 'source_message_id', 'catalog_version', 'extractor_version', name='uq_user_fact_extractions_source_version')
-    )
-    op.create_index('ix_user_fact_extractions_locked_until', 'user_fact_extraction_runs', ['locked_until'], unique=False)
-    op.create_index('ix_user_fact_extractions_owner_created', 'user_fact_extraction_runs', ['owner_user_id', 'created_at'], unique=False)
-    op.create_index('ix_user_fact_extractions_status_next_attempt', 'user_fact_extraction_runs', ['status', 'next_attempt_at'], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index('ix_user_fact_extractions_status_next_attempt', table_name='user_fact_extraction_runs')
-    op.drop_index('ix_user_fact_extractions_owner_created', table_name='user_fact_extraction_runs')
-    op.drop_index('ix_user_fact_extractions_locked_until', table_name='user_fact_extraction_runs')
-    op.drop_table('user_fact_extraction_runs')
     op.drop_index('ix_agent_workflow_events_state_sequence', table_name='agent_workflow_events')
     op.drop_index('ix_agent_workflow_events_run_created', table_name='agent_workflow_events')
     op.drop_index('ix_agent_workflow_events_owner_type_created', table_name='agent_workflow_events')
     op.drop_table('agent_workflow_events')
     op.drop_index('ix_agent_tool_outputs_tool_call', table_name='agent_tool_outputs')
     op.drop_table('agent_tool_outputs')
-    op.drop_index('ix_agent_memories_source_run', table_name='agent_memories')
-    op.drop_index('ix_agent_memories_owner_updated', table_name='agent_memories')
-    op.drop_index('ix_agent_memories_owner_type_status', table_name='agent_memories')
-    op.drop_index('ix_agent_memories_expires_at', table_name='agent_memories')
-    op.drop_table('agent_memories')
     op.drop_index('uq_agent_workflow_states_owner_type_active', table_name='agent_workflow_states', postgresql_where=sa.text("workflow_type = 'pregnancy_plan' AND status IN ('collecting', 'ready', 'waiting', 'paused')"))
     op.drop_index('ix_agent_workflow_states_thread_status', table_name='agent_workflow_states')
     op.drop_index('ix_agent_workflow_states_run_created', table_name='agent_workflow_states')
@@ -475,9 +341,6 @@ def downgrade() -> None:
     op.drop_table('agent_runs')
     op.drop_index('ix_agent_image_accesses_thread_asset', table_name='agent_image_accesses')
     op.drop_table('agent_image_accesses')
-    op.drop_index('ix_user_facts_owner_status_kind_updated', table_name='user_facts')
-    op.drop_index('ix_user_facts_expires_at', table_name='user_facts')
-    op.drop_table('user_facts')
     op.drop_index('ix_idempotency_keys_expires_at', table_name='idempotency_keys')
     op.drop_table('idempotency_keys')
     op.drop_index('ix_audit_logs_resource', table_name='audit_logs')
@@ -488,9 +351,3 @@ def downgrade() -> None:
     op.drop_index('ix_agent_threads_owner_updated', table_name='agent_threads')
     op.drop_index('ix_agent_threads_owner_status_updated', table_name='agent_threads')
     op.drop_table('agent_threads')
-    op.drop_table('agent_memory_snapshots')
-    op.drop_index('ix_agent_memory_settings_owner_updated', table_name='agent_memory_settings')
-    op.drop_table('agent_memory_settings')
-    op.drop_index('ix_agent_memory_consolidation_owner_created', table_name='agent_memory_consolidation_runs')
-    op.drop_index('ix_agent_memory_consolidation_date_status', table_name='agent_memory_consolidation_runs')
-    op.drop_table('agent_memory_consolidation_runs')

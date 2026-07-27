@@ -10,9 +10,19 @@ AgentName = Literal[
     "lactation_agent",
     "device_agent",
 ]
+SpecialistName = Literal[
+    "prenatal_agent",
+    "lactation_agent",
+    "device_agent",
+]
 
 AGENT_NAMES: tuple[AgentName, ...] = (
     "main_agent",
+    "prenatal_agent",
+    "lactation_agent",
+    "device_agent",
+)
+SPECIALIST_AGENT_NAMES: tuple[SpecialistName, ...] = (
     "prenatal_agent",
     "lactation_agent",
     "device_agent",
@@ -30,4 +40,6 @@ __all__ = [
     "AGENT_NAMES",
     "AgentDefinition",
     "AgentName",
+    "SPECIALIST_AGENT_NAMES",
+    "SpecialistName",
 ]

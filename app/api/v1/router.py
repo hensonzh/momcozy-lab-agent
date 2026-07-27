@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from app.agent_runtime.api.router import router as agent_router
+from app.api.agent_runtime.router import router as agent_router
 from app.core.errors import ApiError
 
 

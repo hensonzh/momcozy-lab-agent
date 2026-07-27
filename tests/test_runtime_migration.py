@@ -55,9 +55,6 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "CREATE INDEX ix_agent_runs_runnable_lease" in sql
     assert "CREATE INDEX ix_agent_runs_skill_id" in sql
     assert "CREATE INDEX ix_agent_actions_confirmation_expiry" in sql
-    assert "CREATE TABLE user_fact_extraction_runs" in sql
-    assert "consent_version INTEGER" in sql
-    assert "memory_type VARCHAR(80)" in sql
     assert "CREATE TABLE audit_logs" in sql
     assert "CREATE TABLE idempotency_keys" in sql
     assert "output_json JSONB" in sql
@@ -68,6 +65,10 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "safe_output_json" not in sql
     assert "raw_output_ref" not in sql
     assert "agent_run_summaries" not in sql
+    assert "CREATE TABLE user_fact_extraction_runs" not in sql
+    assert "CREATE TABLE user_facts" not in sql
+    assert "CREATE TABLE agent_memories" not in sql
+    assert "CREATE TABLE agent_memory_" not in sql
     assert "REFERENCES users" not in sql
     assert "REFERENCES files" not in sql
 

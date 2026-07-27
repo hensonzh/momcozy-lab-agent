@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.agent_runtime.actions import LactationRecordActionApplicator
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import (
     RuntimeLedgerRepository,
@@ -16,6 +15,7 @@ from app.agent_runtime.ledger.repository import (
 from app.agent_runtime.tools import ToolHandlerContext
 from app.capabilities.lactation_analysis import (
     LACTATION_ANALYSIS_TOOL_NAMES,
+    LactationRecordActionApplicator,
     MilkAnalysisToolHandler,
     lactation_analysis_tool_registry,
 )

@@ -9,10 +9,6 @@ RUNTIME_TABLES = {
     "agent_eval_cases",
     "agent_events",
     "agent_image_accesses",
-    "agent_memories",
-    "agent_memory_consolidation_runs",
-    "agent_memory_settings",
-    "agent_memory_snapshots",
     "agent_messages",
     "agent_runs",
     "agent_threads",
@@ -22,8 +18,6 @@ RUNTIME_TABLES = {
     "agent_workflow_states",
     "audit_logs",
     "idempotency_keys",
-    "user_fact_extraction_runs",
-    "user_facts",
 }
 
 
@@ -44,18 +38,12 @@ def test_external_identity_and_asset_references_remain_plain_uuid_columns() -> N
         ("agent_actions", "actor_user_id"),
         ("agent_artifacts", "owner_user_id"),
         ("agent_image_accesses", "asset_id"),
-        ("agent_memories", "owner_user_id"),
-        ("agent_memory_consolidation_runs", "owner_user_id"),
-        ("agent_memory_settings", "owner_user_id"),
-        ("agent_memory_snapshots", "owner_user_id"),
         ("agent_runs", "actor_user_id"),
         ("agent_threads", "owner_user_id"),
         ("agent_workflow_events", "owner_user_id"),
         ("agent_workflow_states", "owner_user_id"),
         ("audit_logs", "actor_user_id"),
         ("idempotency_keys", "actor_user_id"),
-        ("user_fact_extraction_runs", "owner_user_id"),
-        ("user_facts", "owner_user_id"),
     }
 
     for table_name, column_name in external_references:

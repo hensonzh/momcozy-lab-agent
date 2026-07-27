@@ -18,10 +18,15 @@ from app.agent_runtime.actions import (
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
+from app.bootstrap import build_action_policy_rules
 from app.core.errors import ApiError, DependencyError
 
 
 CONFIRMATION_ACTION_TYPE = "plans.plan.delete"
+
+
+def _policy() -> ActionPolicy:
+    return ActionPolicy(rules=build_action_policy_rules())
 
 
 def _plan_delete_proposal(
@@ -61,7 +66,7 @@ def test_destructive_document_delete_requires_runtime_confirmation(
     action_type: str,
     target_type: str,
 ) -> None:
-    rule = ActionPolicy().validate(
+    rule = _policy().validate(
         action_type=action_type,
         target_type=target_type,
         side_effect_level="medium",
@@ -78,6 +83,7 @@ def test_low_risk_action_applies_immediately_and_replays_by_key() -> None:
     executor = ActionExecutor(
         repository=cast(RuntimeLedgerRepository, repository),
         applicators={"profile.update": applicator},
+        policy=_policy(),
     )
     service = RuntimeActionService(
         repository=cast(RuntimeLedgerRepository, repository),
@@ -125,6 +131,7 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
                 application_event_type=None,
             ),
         },
+        policy=_policy(),
     )
     notifier = FakeRunNotifier()
     service = RuntimeActionService(
@@ -182,6 +189,7 @@ def test_retryable_product_failure_reuses_action_id_and_retries_safely() -> None
         executor=ActionExecutor(
             repository=cast(RuntimeLedgerRepository, repository),
             applicators={"profile.update": applicator},
+            policy=_policy(),
         ),
     )
     proposal = ActionProposal(
@@ -216,6 +224,7 @@ def test_auto_action_identity_is_committed_before_product_side_effect() -> None:
         executor=ActionExecutor(
             repository=cast(RuntimeLedgerRepository, repository),
             applicators={"profile.update": applicator},
+            policy=_policy(),
         ),
     )
     proposal = ActionProposal(
@@ -264,6 +273,7 @@ def test_expired_confirmation_expires_run_and_releases_admission() -> None:
                     application_event_type=None,
                 ),
             },
+            policy=_policy(),
         ),
         run_admission=admission,
     )
@@ -320,6 +330,7 @@ def test_confirmation_expiry_sweep_persists_terminal_events_and_releases_slot() 
                     application_event_type=None,
                 ),
             },
+            policy=_policy(),
         ),
     )
     proposed = asyncio.run(
@@ -376,6 +387,7 @@ def test_rejected_confirmation_cancels_run_and_releases_after_commit() -> None:
                     application_event_type=None,
                 ),
             },
+            policy=_policy(),
         ),
         run_admission=admission,
     )

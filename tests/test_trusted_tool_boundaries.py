@@ -3,13 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.agent_runtime.tools.trusted import _visible_image_urls
-from app.capabilities._internal.handlers import (
-    _ibclc_consult_allowed,
-    _support_ticket_creation_confirmed,
-)
 from app.capabilities.diary.registry import diary_tool_registry
+from app.capabilities.ibclc.handlers import _ibclc_consult_allowed
 from app.capabilities.plans.registry import plans_tool_registry
 from app.capabilities.runtime import runtime_capability_tool_registry
+from app.capabilities.support_ticket.handlers import (
+    _support_ticket_creation_confirmed,
+)
 
 
 def test_ibclc_consent_binds_current_request_or_previous_offer() -> None:
