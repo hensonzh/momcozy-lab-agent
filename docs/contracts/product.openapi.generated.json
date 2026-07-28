@@ -9860,6 +9860,89 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/model-assets/{token}": {
+      "get": {
+        "operationId": "get_agent_model_asset_v1_model_assets__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Authorized model asset bytes. Content-Type matches the validated image or PDF."
+          },
+          "404": {
+            "description": "Capability is unknown, expired, revoked, or no longer matches authoritative file state."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded."
+          },
+          "503": {
+            "description": "Capability storage or object storage is unavailable."
+          }
+        },
+        "summary": "Get Agent Model Asset",
+        "tags": [
+          "model-assets"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "openai-responses"
+        ],
+        "x-momcozy-notes": "Opaque bearer capability used only for model input fetches.",
+        "x-momcozy-owner": "files",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/notifications": {
       "get": {
         "operationId": "list_notifications_v1_notifications_get",

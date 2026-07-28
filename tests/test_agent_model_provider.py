@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import json
 import logging
 from types import SimpleNamespace
@@ -70,6 +71,17 @@ def test_openai_responses_provider_uses_stateless_ledger_input_and_streams_delta
     assert deltas == ["你", "好"]
     assert turn.final_text == "你好"
     assert client.kwargs["input"] == [
+        {
+            "type": "message",
+            "role": "developer",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "answer",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        },
         {"role": "user", "content": "hello"},
         {
             "type": "function_call",
@@ -88,6 +100,11 @@ def test_openai_responses_provider_uses_stateless_ledger_input_and_streams_delta
     assert client.kwargs["include"] == ["reasoning.encrypted_content"]
     assert client.kwargs["parallel_tool_calls"] is False
     assert client.kwargs["truncation"] == "disabled"
+    assert client.kwargs["prompt_cache_options"] == {
+        "mode": "explicit",
+        "ttl": "30m",
+    }
+    assert "instructions" not in client.kwargs
     assert client.kwargs["tools"][0]["name"] == "profile_read"
     assert "strict" not in client.kwargs["tools"][0]
 
@@ -165,6 +182,11 @@ def test_openai_provider_emits_exact_execution_manifest_before_model_call() -> N
         "truncation": "disabled",
         "include": ["reasoning.encrypted_content"],
         "response_format": None,
+        "prompt_cache": {
+            "mode": "explicit",
+            "ttl": "30m",
+            "breakpoint": "stable_tools_and_developer_instructions",
+        },
         "timeout_seconds": 45,
     }
     assert manifest["context"]["schema_version"] == (
@@ -178,6 +200,67 @@ def test_openai_provider_emits_exact_execution_manifest_before_model_call() -> N
     )
     assert len(manifest["request_payload_sha256"]) == 64
     assert len(manifest["manifest_sha256"]) == 64
+
+
+def test_multi_turn_attachment_changes_preserve_exact_stable_prefix_breakpoint() -> None:
+    client = FakeOpenAIClient()
+    provider = OpenAIResponsesProvider(
+        client=client,
+        model="gpt-5.6-terra",
+    )
+    payloads: list[dict[str, Any]] = []
+
+    for image_url in (
+        "https://api.example.test/v1/model-assets/first",
+        "https://api.example.test/v1/model-assets/second",
+    ):
+        asyncio.run(
+            provider.respond(
+                ModelRequest(
+                    agent_name="main_agent",
+                    run_id=uuid4(),
+                    thread_id=uuid4(),
+                    actor_user_id=uuid4(),
+                    request_id="multi-turn-cache",
+                    instructions="stable instructions",
+                    input_items=(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_image",
+                                    "image_url": image_url,
+                                }
+                            ],
+                        },
+                    ),
+                    tools=(
+                        ModelTool(
+                            name="profile_read",
+                            description="read profile",
+                            input_schema={
+                                "type": "object",
+                                "properties": {},
+                            },
+                        ),
+                    ),
+                )
+            )
+        )
+        payloads.append(deepcopy(client.kwargs))
+
+    assert payloads[0]["tools"] == payloads[1]["tools"]
+    assert payloads[0]["prompt_cache_options"] == (
+        payloads[1]["prompt_cache_options"]
+    )
+    assert payloads[0]["input"][0] == payloads[1]["input"][0]
+    assert payloads[0]["input"][1] != payloads[1]["input"][1]
+    assert json.dumps(payloads[0]).count(
+        '"prompt_cache_breakpoint"'
+    ) == 1
+    assert json.dumps(payloads[1]).count(
+        '"prompt_cache_breakpoint"'
+    ) == 1
 
 
 def test_openai_provider_emits_safe_low_cardinality_operation_metric(
@@ -362,7 +445,18 @@ def test_provider_resolves_internal_image_and_pdf_assets_before_openai_call() ->
         "actor_user_id": actor_user_id,
         "request_id": "attachment-request",
     }
-    assert client.kwargs["input"][0]["content"] == [
+    assert client.kwargs["input"][0] == {
+        "type": "message",
+        "role": "developer",
+        "content": [
+            {
+                "type": "input_text",
+                "text": "inspect",
+                "prompt_cache_breakpoint": {"mode": "explicit"},
+            }
+        ],
+    }
+    assert client.kwargs["input"][1]["content"] == [
         {
             "type": "input_image",
             "image_url": "https://assets.test/image",

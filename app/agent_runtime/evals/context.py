@@ -18,6 +18,7 @@ CONTEXT_EVAL_SCHEMA_VERSION = "agent_context_eval_suite.v1"
 KNOWN_CONTEXT_ASSERTIONS = frozenset(
     {
         "provider.no_internal_asset_refs",
+        "provider.stable_prefix_breakpoint",
         "persistence.no_materialized_urls",
         "checkpoint.low_trust",
         "checkpoint.schema_valid",
@@ -126,6 +127,34 @@ def _evaluate_assertion(
 ) -> Any:
     if assertion.type == "provider.no_internal_asset_refs":
         return "asset_id" not in _json(trace.get("provider_inputs", []))
+    if assertion.type == "provider.stable_prefix_breakpoint":
+        request_payload = trace.get("provider_request", {})
+        if not isinstance(request_payload, dict):
+            return False
+        input_items = request_payload.get("input", [])
+        if not isinstance(input_items, list) or not input_items:
+            return False
+        first = input_items[0]
+        if not isinstance(first, dict):
+            return False
+        content = first.get("content", [])
+        if not isinstance(content, list) or len(content) != 1:
+            return False
+        block = content[0]
+        return (
+            request_payload.get("prompt_cache_options")
+            == {"mode": "explicit", "ttl": "30m"}
+            and "instructions" not in request_payload
+            and first.get("type") == "message"
+            and first.get("role") == "developer"
+            and isinstance(block, dict)
+            and block.get("type") == "input_text"
+            and bool(block.get("text"))
+            and block.get("prompt_cache_breakpoint")
+            == {"mode": "explicit"}
+            and "prompt_cache_breakpoint"
+            not in _json(input_items[1:])
+        )
     if assertion.type == "persistence.no_materialized_urls":
         persisted = _json(trace.get("persisted_context", {}))
         return "image_url" not in persisted and "file_url" not in persisted

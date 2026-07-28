@@ -16,6 +16,17 @@
       ]}
     },
     {
+      "id": "stable_prefix_cache_breakpoint",
+      "priority": "p0",
+      "status": "active",
+      "scenario": "Responses 请求只在稳定 tools 与 developer instructions 之后写 explicit breakpoint，附件与多轮历史都位于断点之后。",
+      "tags": ["prompt_cache", "attachment", "request_shape"],
+      "turns": [{"role": "user", "content": "继续结合上一轮附件回答。"}],
+      "expected": {"assertions": [
+        {"type": "provider.stable_prefix_breakpoint"}
+      ]}
+    },
+    {
       "id": "checkpoint_prompt_injection_boundary",
       "priority": "p0",
       "status": "active",

@@ -20,6 +20,11 @@ from .manifest import build_openai_responses_execution_manifest
 
 
 LOGGER = logging.getLogger("agent_runtime.model")
+PROMPT_CACHE_OPTIONS = {
+    "mode": "explicit",
+    "ttl": "30m",
+}
+PROMPT_CACHE_BREAKPOINT = {"mode": "explicit"}
 
 
 class OpenAIResponsesProvider:
@@ -238,8 +243,10 @@ class OpenAIResponsesProvider:
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self.model,
-            "instructions": request.instructions,
-            "input": [dict(item) for item in input_items],
+            "input": [
+                _stable_prefix_item(request.instructions),
+                *(dict(item) for item in input_items),
+            ],
             "tools": [
                 {
                     "type": "function",
@@ -254,12 +261,29 @@ class OpenAIResponsesProvider:
             "text": {"verbosity": self.text_verbosity},
             "store": self.store,
             "truncation": "disabled",
+            "prompt_cache_options": dict(PROMPT_CACHE_OPTIONS),
         }
         if not self.store:
             kwargs["include"] = ["reasoning.encrypted_content"]
         if request.response_format is not None:
             kwargs["text"]["format"] = dict(request.response_format)
         return kwargs
+
+
+def _stable_prefix_item(instructions: str) -> dict[str, Any]:
+    return {
+        "type": "message",
+        "role": "developer",
+        "content": [
+            {
+                "type": "input_text",
+                "text": instructions,
+                "prompt_cache_breakpoint": dict(
+                    PROMPT_CACHE_BREAKPOINT
+                ),
+            }
+        ],
+    }
 
 
 def _is_context_window_error(exc: Exception) -> bool:

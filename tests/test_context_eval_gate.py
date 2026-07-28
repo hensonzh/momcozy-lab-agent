@@ -29,6 +29,7 @@ def test_context_eval_catalog_covers_v2_release_risks() -> None:
     assert suite.schema_version == "agent_context_eval_suite.v1"
     assert {case.id for case in suite.cases} == {
         "attachment_materialization",
+        "stable_prefix_cache_breakpoint",
         "checkpoint_prompt_injection_boundary",
         "typed_summary_preservation",
         "recursive_compaction",
@@ -87,6 +88,22 @@ def test_context_eval_assertion_engine_detects_asset_and_trust_regressions() -> 
     assert trust_failures[0].assertion == "checkpoint.low_trust"
 
 
+def test_context_eval_assertion_engine_detects_breakpoint_after_dynamic_attachment() -> None:
+    suite = load_context_eval_suite(CATALOG_PATH)
+    case = next(
+        case
+        for case in suite.cases
+        if case.id == "stable_prefix_cache_breakpoint"
+    )
+    trace = _release_trace()
+    dynamic_block = trace["provider_request"]["input"][1]["content"][0]
+    dynamic_block["prompt_cache_breakpoint"] = {"mode": "explicit"}
+
+    failures = evaluate_context_case(case=case, trace=trace)
+
+    assert failures[0].assertion == "provider.stable_prefix_breakpoint"
+
+
 def _release_trace() -> dict[str, Any]:
     checkpoint = {
         "schema_version": CONTEXT_CHECKPOINT_SCHEMA_VERSION,
@@ -109,6 +126,36 @@ def _release_trace() -> dict[str, Any]:
                 ],
             }
         ],
+        "provider_request": {
+            "prompt_cache_options": {
+                "mode": "explicit",
+                "ttl": "30m",
+            },
+            "input": [
+                {
+                    "type": "message",
+                    "role": "developer",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "stable instructions",
+                            "prompt_cache_breakpoint": {
+                                "mode": "explicit"
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_image",
+                            "image_url": "ephemeral-provider-url",
+                        }
+                    ],
+                },
+            ],
+        },
         "persisted_context": {
             "asset_id": "stable-product-file-id",
         },

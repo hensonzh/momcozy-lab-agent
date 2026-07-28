@@ -68,6 +68,13 @@ def build_openai_responses_execution_manifest(
                 if request.response_format is not None
                 else None
             ),
+            "prompt_cache": {
+                "mode": "explicit",
+                "ttl": "30m",
+                "breakpoint": (
+                    "stable_tools_and_developer_instructions"
+                ),
+            },
             "timeout_seconds": timeout_seconds,
         },
         "context": {

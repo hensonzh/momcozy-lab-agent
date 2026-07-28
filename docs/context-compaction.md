@@ -27,12 +27,19 @@ attachments.
 
 `CanonicalContextPlan` contains only stable ledger IDs, sequences, immutable
 Product file IDs, checkpoint references, trust labels, and raw provider items.
-Its SHA-256 never contains a signed URL.
+Its SHA-256 never contains a model-fetch capability URL.
 
 Immediately before any token-count, compaction, or main-model call, the shared
-`AgentAttachmentService` converts `asset_id` blocks to short-lived provider
-URLs. Materialized input is ephemeral. Signed `image_url` and `file_url` values
-are not written to the ledger or a URL cache.
+`AgentAttachmentService` converts `asset_id` blocks to opaque Product
+capability URLs. Materialized input is ephemeral. `image_url` and `file_url`
+values are not written to the ledger or Replay.
+
+For GPT-5.6 model calls, Runtime renders the Agent instructions as the first
+developer `input_text` block and writes one explicit cache breakpoint on it.
+OpenAI injects the stable tool schemas before developer instructions, so the
+breakpoint covers tools plus instructions while all history and attachment
+URLs remain after it. Request-wide caching uses explicit mode with a `30m`
+minimum lifetime; the eval gate asserts this exact request shape.
 
 ## Typed low-trust checkpoints
 
