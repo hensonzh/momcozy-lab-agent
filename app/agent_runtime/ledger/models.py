@@ -100,8 +100,8 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
     runtime_pattern: Mapped[str] = mapped_column(
         String(64),
-        default="legacy_adapter",
-        server_default="legacy_adapter",
+        default="proprietary_runtime",
+        server_default="proprietary_runtime",
         nullable=False,
     )
     runtime_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)

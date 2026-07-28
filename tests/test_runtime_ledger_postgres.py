@@ -83,7 +83,7 @@ async def _postgres_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-runtime-ledger",
                 trace_id="trace-runtime-ledger",
@@ -106,7 +106,7 @@ async def _postgres_scenario() -> None:
                 await repository.create_run(
                     thread_id=thread.id,
                     actor_user_id=other_user_id,
-                    runtime_pattern="legacy_adapter",
+                    runtime_pattern="proprietary_runtime",
                     runtime_version="test",
                     request_id="req-cross-owner",
                     trace_id="trace-cross-owner",
@@ -137,7 +137,7 @@ async def _run_lease_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                    runtime_pattern="legacy_adapter",
+                    runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-lease-fencing",
                 trace_id="trace-lease-fencing",
@@ -262,7 +262,7 @@ async def _row_lock_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-row-lock-expiry",
                 trace_id="trace-row-lock-expiry",
@@ -349,7 +349,7 @@ async def _confirmation_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-confirmation-expiry",
                 trace_id="trace-confirmation-expiry",
@@ -438,7 +438,7 @@ async def _context_compaction_scenario() -> None:
             prior = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-prior",
                 trace_id="trace-context-prior",
@@ -477,7 +477,7 @@ async def _context_compaction_scenario() -> None:
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-current",
                 trace_id="trace-context-current",
@@ -495,7 +495,7 @@ async def _context_compaction_scenario() -> None:
             next_run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-next",
                 trace_id="trace-context-next",
@@ -609,7 +609,7 @@ async def _context_recovery_scenario() -> None:
             prior = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-recovery-prior",
                 trace_id="trace-context-recovery-prior",
@@ -631,7 +631,7 @@ async def _context_recovery_scenario() -> None:
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-recovery-current",
                 trace_id="trace-context-recovery-current",

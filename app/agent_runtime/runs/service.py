@@ -30,7 +30,7 @@ from app.core.errors import ApiError
 from .admission import RunAdmission
 from .registry import (
     DEFAULT_RUNTIME_VERSION,
-    LEGACY_ADAPTER_RUNTIME_PATTERN,
+    PROPRIETARY_RUNTIME_PATTERN,
     validate_runtime,
 )
 
@@ -137,7 +137,7 @@ class AgentRuntimeService:
         idempotency_key: str | None = None,
     ) -> AgentRun:
         pattern = str(
-            runtime_pattern or LEGACY_ADAPTER_RUNTIME_PATTERN
+            runtime_pattern or PROPRIETARY_RUNTIME_PATTERN
         ).strip()
         version = str(runtime_version or DEFAULT_RUNTIME_VERSION).strip()
         validate_runtime(version=version, pattern=pattern)

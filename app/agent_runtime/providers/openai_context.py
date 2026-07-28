@@ -6,14 +6,13 @@ from dataclasses import dataclass
 import json
 from typing import Any
 
+from openai import AsyncOpenAI
+
 from app.agent_runtime.context.compaction import (
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
     validate_checkpoint_document,
 )
 from app.core.errors import ApiError
-
-from .openai_responses import _openai_client
-
 
 TOKEN_COUNTER = "openai.responses.input_tokens"
 TOKEN_COUNTER_VERSION = "v1"
@@ -436,6 +435,19 @@ CONTEXT_CHECKPOINT_JSON_SCHEMA: dict[str, Any] = {
         },
     },
 }
+
+
+def _openai_client(*, api_key: str, base_url: str) -> AsyncOpenAI:
+    if not api_key:
+        raise ApiError(
+            code="model_provider_unavailable",
+            message="OpenAI API credentials are not configured.",
+            status=503,
+        )
+    kwargs: dict[str, Any] = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return AsyncOpenAI(**kwargs)
 
 
 __all__ = [

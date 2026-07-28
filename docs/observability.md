@@ -19,6 +19,20 @@ counter and latency histogram from these events. `request_id`, `trace_id`,
 `run_id`, `thread_id`, `tool_call_id`, and `action_id` are search/correlation
 fields only and must never become metric labels.
 
+Agents SDK tracing is disabled in the execution adapter. Runtime lifecycle
+hooks emit the existing privacy-safe `agent_runtime_model` operation records,
+while the durable execution manifest and replay remain the diagnostic source
+of truth. This avoids exporting Prompt, user content, or Tool payloads through
+an independent tracing path.
+
+`AGENT_MODEL_TIMEOUT_SECONDS` bounds one complete model call for every Agent,
+including the entire streamed response and provider SDK retries. A deadline
+breach emits `agent_runtime_model` with `outcome="timeout"` and
+`error_code="model_provider_timeout"`; external cancellation remains an
+interrupted execution and is not reclassified as a provider timeout. The
+durable execution manifest records the timeout value and
+`timeout_scope="per_model_call_wall_clock"`.
+
 There is intentionally no public or process-local metrics endpoint. API and
 workers run in separate processes, so an in-memory endpoint would be incomplete
 and easy to expose accidentally. Production log collection is the shared,

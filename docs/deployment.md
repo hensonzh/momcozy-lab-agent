@@ -31,7 +31,13 @@ recreating the Runtime database before this baseline is deployed.
    must be resolved.
 7. Run the deterministic Context Pipeline release gate:
    `pytest -q tests/test_context_eval_gate.py tests/test_context_pipeline_v2.py`.
-8. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
+8. Run the Agents SDK execution contract gate:
+   `pytest -q tests/test_openai_agents_execution.py tests/test_multi_agent_loop.py`.
+9. Verify `AGENT_MODEL_TIMEOUT_SECONDS` against the production model and keep
+   `AGENT_WORKER_DB_LEASE_DURATION_SECONDS` at least one lease-renewal interval
+   longer. The execution contract gate must prove that both root and delegated
+   Agent streams stop at the configured wall-clock deadline.
+10. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
    action application, terminal events, ready health, and the durable
    context-compaction/next-Run gate described in
    [context-compaction.md](context-compaction.md).

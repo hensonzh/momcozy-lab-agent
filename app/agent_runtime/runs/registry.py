@@ -3,8 +3,8 @@ from __future__ import annotations
 from app.core.errors import ApiError
 
 
-LEGACY_ADAPTER_RUNTIME_PATTERN = "legacy_adapter"
-DEFAULT_RUNTIME_VERSION = "momcozy-agent-v3"
+PROPRIETARY_RUNTIME_PATTERN = "proprietary_runtime"
+DEFAULT_RUNTIME_VERSION = "momcozy-agent-v4"
 
 
 def validate_runtime(*, version: str, pattern: str) -> None:
@@ -18,7 +18,7 @@ def validate_runtime(*, version: str, pattern: str) -> None:
                 "supported_runtime_version": DEFAULT_RUNTIME_VERSION,
             },
         )
-    if pattern != LEGACY_ADAPTER_RUNTIME_PATTERN:
+    if pattern != PROPRIETARY_RUNTIME_PATTERN:
         raise ApiError(
             code="runtime_pattern_mismatch",
             message="Run runtime pattern does not match its runtime version.",

@@ -7,7 +7,7 @@ import json
 import logging
 from time import monotonic
 from types import SimpleNamespace
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from app.core.errors import ApiError
@@ -418,6 +418,22 @@ class ContextCompactionService:
             ),
             *records,
         ]
+
+    async def resolve_model_input(
+        self,
+        *,
+        run: Any,
+        input_items: tuple[dict[str, Any], ...],
+    ) -> tuple[dict[str, Any], ...]:
+        return cast(
+            tuple[dict[str, Any], ...],
+            await self.model_input_resolver.resolve_for_model(
+                input_items=input_items,
+                thread_id=run.thread_id,
+                actor_user_id=run.actor_user_id,
+                request_id=run.request_id,
+            ),
+        )
 
     async def recover_context_overflow(self, *, run: Any) -> bool:
         """Durably suspend the Run until one checkpoint generation is ready."""

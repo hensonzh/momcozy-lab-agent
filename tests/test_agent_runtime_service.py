@@ -47,8 +47,8 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     )
 
     assert run.status == "queued"
-    assert run.runtime_pattern == "legacy_adapter"
-    assert run.runtime_version == "momcozy-agent-v3"
+    assert run.runtime_pattern == "proprietary_runtime"
+    assert run.runtime_version == "momcozy-agent-v4"
     assert repository.message_content == {
         "text": "Review my pumping pattern",
         "attachments": [],
@@ -104,17 +104,18 @@ def test_create_run_rejects_blocked_context_head_before_writing_run() -> None:
     assert repository.created_run_count == 0
 
 
-def test_run_create_contract_uses_legacy_adapter_not_sdk_only() -> None:
+def test_run_create_contract_uses_proprietary_runtime_only() -> None:
     assert AgentRunCreate(
         message="Hello",
-        runtime_pattern="legacy_adapter",
-    ).runtime_pattern == "legacy_adapter"
+        runtime_pattern="proprietary_runtime",
+    ).runtime_pattern == "proprietary_runtime"
 
-    with pytest.raises(ValidationError):
-        AgentRunCreate(
-            message="Hello",
-            runtime_pattern="sdk_only",  # type: ignore[arg-type]
-        )
+    for unsupported_pattern in ("legacy_adapter", "sdk_only"):
+        with pytest.raises(ValidationError):
+            AgentRunCreate(
+                message="Hello",
+                runtime_pattern=unsupported_pattern,  # type: ignore[arg-type]
+            )
 
 
 def test_create_run_notifies_worker_only_after_transaction_commit() -> None:

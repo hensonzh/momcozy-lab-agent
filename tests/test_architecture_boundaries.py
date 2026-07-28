@@ -178,6 +178,33 @@ def test_agent_runtime_does_not_depend_on_application_definitions() -> None:
     assert violations == []
 
 
+def test_durable_agent_loop_depends_on_execution_contract_not_sdk_adapter() -> None:
+    path = (
+        REPOSITORY_ROOT
+        / "app"
+        / "agent_runtime"
+        / "orchestration"
+        / "loop.py"
+    )
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imported_modules = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    } | {
+        str(node.module or "")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+    }
+
+    assert "openai_agents" not in imported_modules
+    assert not any(
+        module == "agents" or module.startswith("agents.")
+        for module in imported_modules
+    )
+
+
 def test_application_delivery_and_composition_are_outside_runtime() -> None:
     runtime_root = REPOSITORY_ROOT / "app" / "agent_runtime"
 

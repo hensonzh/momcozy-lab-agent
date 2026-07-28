@@ -59,7 +59,7 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
     active_run = AgentRun(
         thread_id=thread.id,
         actor_user_id=owner_user_id,
-        runtime_pattern="legacy_adapter",
+        runtime_pattern="proprietary_runtime",
         runtime_version="test",
         request_id="existing",
         trace_id="existing",
@@ -72,7 +72,7 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
             repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                runtime_pattern="legacy_adapter",
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="new",
                 trace_id="new",
@@ -88,8 +88,8 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="legacy_adapter",
-        runtime_version="momcozy-agent-v3",
+        runtime_pattern="proprietary_runtime",
+        runtime_version="momcozy-agent-v4",
         request_id="request",
         trace_id="trace",
     )
@@ -118,8 +118,8 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
     assert first == replayed
     assert run.execution_manifest == {
         "schema_version": "agent_run_execution_manifest.v1",
-        "runtime_pattern": "legacy_adapter",
-        "runtime_version": "momcozy-agent-v3",
+        "runtime_pattern": "proprietary_runtime",
+        "runtime_version": "momcozy-agent-v4",
         "invocations": [
             {
                 "sequence": 1,
@@ -135,8 +135,8 @@ def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="legacy_adapter",
-        runtime_version="momcozy-agent-v3",
+        runtime_pattern="proprietary_runtime",
+        runtime_version="momcozy-agent-v4",
         request_id="request",
         trace_id="trace",
     )
@@ -257,7 +257,7 @@ def test_run_terminal_transitions_clear_or_record_error_state() -> None:
     run = AgentRun(
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="legacy_adapter",
+        runtime_pattern="proprietary_runtime",
         runtime_version="test",
         request_id="request",
         trace_id="trace",
@@ -299,7 +299,7 @@ def test_late_worker_failure_cannot_overwrite_run_after_fence_changed() -> None:
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="legacy_adapter",
+        runtime_pattern="proprietary_runtime",
         runtime_version="test",
         request_id="request",
         trace_id="trace",
@@ -355,7 +355,7 @@ def test_start_tool_call_reuses_committed_started_call_during_recovery() -> None
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
-        runtime_pattern="legacy_adapter",
+        runtime_pattern="proprietary_runtime",
         runtime_version="test",
         request_id="request",
         trace_id="trace",

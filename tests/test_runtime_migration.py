@@ -50,6 +50,10 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     sql = result.stdout
     assert "CREATE TABLE agent_threads" in sql
     assert "CREATE TABLE agent_runs" in sql
+    assert (
+        "runtime_pattern VARCHAR(64) DEFAULT 'proprietary_runtime' NOT NULL"
+        in sql
+    )
     assert "context_state_json JSONB" in sql
     assert "CREATE TABLE agent_context_checkpoints" in sql
     assert "CREATE TABLE agent_context_compaction_jobs" in sql

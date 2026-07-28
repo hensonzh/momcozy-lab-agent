@@ -67,7 +67,7 @@ def upgrade() -> None:
     sa.Column('thread_id', sa.UUID(), nullable=False),
     sa.Column('actor_user_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.String(length=32), server_default='queued', nullable=False),
-    sa.Column('runtime_pattern', sa.String(length=64), server_default='legacy_adapter', nullable=False),
+    sa.Column('runtime_pattern', sa.String(length=64), server_default='proprietary_runtime', nullable=False),
     sa.Column('runtime_version', sa.String(length=80), server_default='', nullable=False),
     sa.Column('skill_id', sa.String(length=64), server_default='', nullable=False),
     sa.Column('request_id', sa.String(length=80), server_default='', nullable=False),

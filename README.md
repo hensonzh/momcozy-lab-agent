@@ -36,6 +36,9 @@ Independent production Agent service owned by the Agent team.
 
 PostgreSQL is the durable source of truth. Redis carries run controls and
 transient stream notifications; losing Redis must not erase the durable ledger.
+The durable loop uses OpenAI Agents SDK as its inner model/Tool execution
+engine, without SDK `Session`; process recovery always rebuilds state from the
+Runtime ledger.
 
 Flutter configures exactly one Agent origin through
 `MOMCOZY_AGENT_API_BASE_URL`; runs, streams, cancellation, client events, and
@@ -72,9 +75,10 @@ Export a replay, optionally evaluating a stored case:
 python scripts/run_replay_eval.py --run-id <run-uuid> [--eval-case-id <case-uuid>]
 ```
 
-Replay v2 includes the run's ordered model-execution manifest: exact resolved
-Prompt and Tool schemas with hashes, model/provider settings, and ordered
-Context-item/request hashes. User-derived Context content remains governed by
+Replay v2 includes the run's ordered model-execution manifest: Prompt identity
+and content hashes, Tool schemas and hashes, Agents SDK/OpenAI SDK versions,
+model settings, and ordered Context-item/request hashes. The manifest does not
+copy Prompt or user content; user-derived Context content remains governed by
 the replay export's explicit content-inclusion flag.
 
 Validate the versioned behavior catalog without calling a model:

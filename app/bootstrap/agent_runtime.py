@@ -19,8 +19,8 @@ from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
     AgentCatalog,
     AgentDefinition as RuntimeAgentDefinition,
+    DelegationToolDefinition,
 )
-from app.agent_runtime.providers import ModelTool
 from app.agent_runtime.tools import ToolContractRegistry
 from app.agent_runtime.tools.handlers import ToolHandler
 from app.agents import AGENT_DEFINITIONS, MAIN_AGENT, SPECIALIST_AGENT_NAMES
@@ -86,7 +86,7 @@ AGENT_CATALOG = AgentCatalog(
     main_agent_name=MAIN_AGENT.name,
     delegated_agent_names=frozenset(SPECIALIST_AGENT_NAMES),
     delegation_tools={
-        tool_name: ModelTool(
+        tool_name: DelegationToolDefinition(
             name=tool_name,
             description=SPECIALIST_TOOL_DESCRIPTIONS[tool_name],
             input_schema=dict(SPECIALIST_TOOL_INPUT_SCHEMA),

@@ -723,7 +723,7 @@
           "runtime_pattern": {
             "anyOf": [
               {
-                "const": "legacy_adapter",
+                "const": "proprietary_runtime",
                 "type": "string"
               },
               {

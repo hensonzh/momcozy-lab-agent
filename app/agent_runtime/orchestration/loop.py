@@ -16,15 +16,7 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
-from app.agent_runtime.providers import (
-    ModelFunctionCall,
-    ModelProvider,
-    ModelRequest,
-    ModelTool,
-    ModelTurn,
-)
 from app.agent_runtime.tools import (
-    ToolContractRegistry,
     ToolExecutor,
     TrustedToolArgumentsProvider,
 )
@@ -35,7 +27,13 @@ from app.core.observability import (
     emit_operation_metric,
 )
 
-from .contracts import AgentCatalog, AgentDefinition
+from .contracts import (
+    AgentCatalog,
+    AgentDefinition,
+    AgentExecutionEngine,
+    AgentExecutionPort,
+    DelegationResult,
+)
 
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", "expired"})
@@ -47,6 +45,15 @@ RUN_LOGGER = logging.getLogger("agent_runtime.run")
 class AgentAnswer:
     text: str
     agent: str
+
+
+@dataclass(frozen=True)
+class _PendingToolCall:
+    call_id: str
+    name: str
+    arguments: dict[str, Any]
+    provider_item_id: str = ""
+    status: str = ""
 
 
 class _WaitingForConfirmation(Exception):
@@ -76,6 +83,13 @@ class ContextCoordinator(Protocol):
 
     async def recover_context_overflow(self, *, run: Any) -> bool: ...
 
+    async def resolve_model_input(
+        self,
+        *,
+        run: Any,
+        input_items: tuple[dict[str, Any], ...],
+    ) -> tuple[dict[str, Any], ...]: ...
+
 
 class AgentLoop:
     """Durable append-only main-agent/specialist tool loop."""
@@ -84,25 +98,19 @@ class AgentLoop:
         self,
         *,
         repository: RuntimeLedgerRepository,
-        provider: ModelProvider,
-        tool_registry: ToolContractRegistry,
+        execution_engine: AgentExecutionEngine,
         tool_executor: ToolExecutor,
         agent_catalog: AgentCatalog,
-        max_turns: int = 10,
         transient_delta_publisher: TransientDeltaPublisher | None = None,
         trusted_arguments_provider: (
             TrustedToolArgumentsProvider | None
         ) = None,
         context_coordinator: ContextCoordinator | None = None,
     ) -> None:
-        if max_turns < 1:
-            raise ValueError("max_turns must be positive")
         self.repository = repository
-        self.provider = provider
-        self.tool_registry = tool_registry
+        self.execution_engine = execution_engine
         self.tool_executor = tool_executor
         self.agent_catalog = agent_catalog
-        self.max_turns = max_turns
         self.transient_delta_publisher = transient_delta_publisher
         self.trusted_arguments_provider = trusted_arguments_provider
         self.context_coordinator = context_coordinator
@@ -276,7 +284,7 @@ class AgentLoop:
         self,
         *,
         run: AgentRun,
-        calls: tuple[ModelFunctionCall, ...],
+        calls: tuple[_PendingToolCall, ...],
         emit_deltas: bool,
         as_of_date: date | None,
         base_items: tuple[dict[str, Any], ...],
@@ -364,6 +372,12 @@ class AgentLoop:
                 agent_name=agent_name,
             )
         responding_answer = answers[-1]
+        completed_call_ids = {
+            str(record.item.get("call_id") or "")
+            for record in context_records
+            if record.item.get("type")
+            == "function_call_output"
+        }
         async with self._persistence_lock:
             await self.repository.append_context_items(
                 thread_id=run.thread_id,
@@ -384,6 +398,7 @@ class AgentLoop:
                         answers,
                         strict=True,
                     )
+                    if call.call_id not in completed_call_ids
                 ),
             )
             await self.repository.set_run_skill_id(
@@ -539,91 +554,71 @@ class AgentLoop:
             branch_id=branch_id,
             initial_input_items=initial_input_items,
         )
-        for _turn in range(self.max_turns):
-            await self._ensure_active(run)
-            context_records = await self._context_records(run)
-            pending = _pending_calls(
+        await self._ensure_active(run)
+        pending = _pending_calls(
+            context_records,
+            run_id=run.id,
+            agent_name=definition.name,
+            branch_id=branch_id,
+        )
+        if pending:
+            recovery_calls = _recovery_call_batch(
                 context_records,
                 run_id=run.id,
                 agent_name=definition.name,
                 branch_id=branch_id,
+                pending=pending,
+                delegation_tool_names=frozenset(
+                    self.agent_catalog.delegation_tools
+                ),
             )
-            if pending:
-                direct = await self._execute_calls(
-                    run=run,
-                    definition=definition,
-                    calls=pending,
-                    emit_deltas=emit_deltas,
-                    as_of_date=as_of_date,
-                    branch_items=branch_items,
-                    delegation_base_items=_input_before_calls(
-                        branch_items,
-                        pending,
-                    ),
-                )
-                if direct is not None:
-                    return direct
-                continue
-
-            input_items = tuple(dict(item) for item in branch_items)
-            turn = await self.provider.respond(
-                ModelRequest(
-                    agent_name=definition.name,
-                    run_id=run.id,
-                    thread_id=run.thread_id,
-                    actor_user_id=run.actor_user_id,
-                    request_id=run.request_id,
-                    instructions=definition.instructions,
-                    input_items=input_items,
-                    tools=self._model_tools(definition),
-                    branch_id=branch_id,
-                    on_text_delta=(
-                        self._delta_handler(run, definition.name) if emit_deltas and self.transient_delta_publisher is not None else None
-                    ),
-                    on_execution_manifest=(
-                        self._execution_manifest_handler(run)
-                    ),
-                    runtime_context=dict(
-                        getattr(run, "context_state", None) or {}
-                    ),
-                )
-            )
-            await self._ensure_active(run)
-            await self._persist_model_turn(
+            direct = await self._execute_calls(
                 run=run,
+                definition=definition,
+                calls=recovery_calls,
+                emit_deltas=emit_deltas,
+                as_of_date=as_of_date,
+                branch_items=branch_items,
+                delegation_base_items=_input_before_calls(
+                    branch_items,
+                    recovery_calls,
+                ),
+            )
+            if direct is not None:
+                return direct
+            context_records = await self._context_records(run)
+            branch_items = _restore_agent_input(
+                context_records,
+                run_id=run.id,
                 agent_name=definition.name,
                 branch_id=branch_id,
-                turn=turn,
+                initial_input_items=initial_input_items,
             )
-            branch_items.extend(dict(item) for item in turn.context_items)
-            if turn.function_calls:
-                direct = await self._execute_calls(
-                    run=run,
-                    definition=definition,
-                    calls=turn.function_calls,
-                    emit_deltas=emit_deltas,
-                    as_of_date=as_of_date,
-                    branch_items=branch_items,
-                    delegation_base_items=input_items,
-                )
-                if direct is not None:
-                    return direct
-                continue
-            final_text = turn.final_text.strip()
-            if not final_text:
-                raise ApiError(
-                    code="model_empty_response",
-                    message="Model returned no answer or function call.",
-                    status=502,
-                )
-            return AgentAnswer(
-                text=final_text,
-                agent=definition.name,
-            )
-        raise ApiError(
-            code="agent_max_turns_exceeded",
-            message="Agent exceeded its tool-call turn limit.",
-            status=504,
+        result = await self.execution_engine.execute(
+            starting_agent_name=definition.name,
+            branch_id=branch_id,
+            input_items=tuple(
+                dict(item) for item in branch_items
+            ),
+            port=_LoopExecutionPort(
+                loop=self,
+                run=run,
+                as_of_date=as_of_date,
+                emit_deltas=emit_deltas,
+            ),
+            runtime_context=dict(
+                getattr(run, "context_state", None) or {}
+            ),
+            observation_context={
+                "run_id": str(run.id),
+                "thread_id": str(run.thread_id),
+                "request_id": run.request_id,
+            },
+        )
+        await self._ensure_active(run)
+        return AgentAnswer(
+            text=result.text,
+            agent=result.agent,
         )
 
     async def _execute_calls(
@@ -631,7 +626,7 @@ class AgentLoop:
         *,
         run: AgentRun,
         definition: AgentDefinition,
-        calls: tuple[ModelFunctionCall, ...],
+        calls: tuple[_PendingToolCall, ...],
         emit_deltas: bool,
         as_of_date: date | None,
         branch_items: list[dict[str, Any]],
@@ -693,7 +688,7 @@ class AgentLoop:
         self,
         *,
         run: AgentRun,
-        call: ModelFunctionCall,
+        call: _PendingToolCall,
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
@@ -766,7 +761,7 @@ class AgentLoop:
         self,
         *,
         run: AgentRun,
-        call: ModelFunctionCall,
+        call: _PendingToolCall,
         code: str,
     ) -> dict[str, Any]:
         output = json.dumps(
@@ -794,15 +789,16 @@ class AgentLoop:
             await self._checkpoint_unlocked()
         return output_item
 
-    async def _persist_model_turn(
+    async def _persist_model_output(
         self,
         *,
         run: AgentRun,
         agent_name: str,
         branch_id: str,
-        turn: ModelTurn,
+        response_id: str,
+        output_items: tuple[dict[str, Any], ...],
     ) -> None:
-        if not turn.context_items:
+        if not output_items:
             return
         items = tuple(
             ContextItemAppend(
@@ -810,13 +806,13 @@ class AgentLoop:
                     run_id=run.id,
                     agent_name=agent_name,
                     branch_id=branch_id,
-                    response_id=turn.response_id,
+                    response_id=response_id,
                     index=index,
                     item=item,
                 ),
                 item=dict(item),
             )
-            for index, item in enumerate(turn.context_items)
+            for index, item in enumerate(output_items)
         )
         async with self._persistence_lock:
             await self.repository.append_context_items(
@@ -1026,29 +1022,6 @@ class AgentLoop:
                     await commit()
             return ready
 
-    def _model_tools(
-        self,
-        definition: AgentDefinition,
-    ) -> tuple[ModelTool, ...]:
-        allowed = frozenset(definition.tool_names)
-        tools = [
-            ModelTool(
-                name=contract.name,
-                description=contract.description,
-                input_schema=dict(contract.input_schema),
-            )
-            for contract in self.tool_registry.list()
-            if contract.name in allowed
-        ]
-        if definition.name == self.agent_catalog.main_agent_name:
-            tools[0:0] = [
-                tool
-                for tool_name, tool
-                in self.agent_catalog.delegation_tools.items()
-                if tool_name in allowed
-            ]
-        return tuple(tools)
-
     async def _fail(self, *, run: AgentRun, code: str) -> AgentRun:
         async with self._persistence_lock:
             refreshed = await self.repository.refresh_run(run=run)
@@ -1104,18 +1077,219 @@ class AgentLoop:
             raise RunLeaseLostError("external run lock was lost") from exc
 
 
+class _LoopExecutionPort(AgentExecutionPort):
+    def __init__(
+        self,
+        *,
+        loop: AgentLoop,
+        run: AgentRun,
+        as_of_date: date | None,
+        emit_deltas: bool,
+    ) -> None:
+        self.loop = loop
+        self.run = run
+        self.as_of_date = as_of_date
+        self.emit_deltas = emit_deltas
+
+    async def resolve_model_input(
+        self,
+        *,
+        input_items: tuple[dict[str, Any], ...],
+    ) -> tuple[dict[str, Any], ...]:
+        coordinator = self.loop.context_coordinator
+        resolver = (
+            getattr(coordinator, "resolve_model_input", None)
+            if coordinator is not None
+            else None
+        )
+        if not callable(resolver):
+            return tuple(dict(item) for item in input_items)
+        return cast(
+            tuple[dict[str, Any], ...],
+            await resolver(
+                run=self.run,
+                input_items=input_items,
+            ),
+        )
+
+    async def invoke_tool(
+        self,
+        *,
+        agent_name: str,
+        tool_name: str,
+        call_id: str,
+        arguments: dict[str, Any],
+    ) -> Any:
+        del agent_name
+        output_item = await self.loop._execute_tool(
+            run=self.run,
+            call=_PendingToolCall(
+                call_id=call_id,
+                name=tool_name,
+                arguments=dict(arguments),
+            ),
+            as_of_date=self.as_of_date,
+        )
+        return output_item["output"]
+
+    async def persist_model_output(
+        self,
+        *,
+        agent_name: str,
+        branch_id: str,
+        response_id: str,
+        output_items: tuple[dict[str, Any], ...],
+    ) -> None:
+        await self.loop._ensure_active(self.run)
+        await self.loop._persist_model_output(
+            run=self.run,
+            agent_name=agent_name,
+            branch_id=branch_id,
+            response_id=response_id,
+            output_items=output_items,
+        )
+
+    async def record_execution_manifest(
+        self,
+        *,
+        manifest: dict[str, Any],
+    ) -> None:
+        await self.loop._execution_manifest_handler(
+            self.run
+        )(manifest)
+
+    async def publish_text_delta(
+        self,
+        *,
+        agent_name: str,
+        delta: str,
+    ) -> None:
+        if not self.emit_deltas:
+            return
+        await self.loop._delta_handler(
+            self.run,
+            agent_name,
+        )(delta)
+
+    async def on_delegation_started(
+        self,
+        *,
+        call_id: str,
+        index: int,
+        agent_name: str,
+    ) -> None:
+        del call_id, index
+        await self.loop._progress(
+            self.run,
+            phase="agent.started",
+            label=f"{agent_name} 正在处理…",
+            agent_name=agent_name,
+        )
+
+    async def persist_delegation_result(
+        self,
+        *,
+        result: DelegationResult,
+    ) -> None:
+        async with self.loop._persistence_lock:
+            await self.loop.repository.append_context_items(
+                thread_id=self.run.thread_id,
+                run_id=self.run.id,
+                items=(
+                    ContextItemAppend(
+                        item_key=(
+                            f"run:{self.run.id}:delegation-result:"
+                            f"{result.call_id}:{result.index}:"
+                            f"{result.agent_name}"
+                        ),
+                        item=result.as_context_item(),
+                    ),
+                ),
+            )
+            await self.loop._checkpoint_unlocked()
+        await self.loop._progress(
+            self.run,
+            phase="agent.completed",
+            label=f"{result.agent_name} 已完成",
+            agent_name=result.agent_name,
+        )
+
+    async def complete_delegation(
+        self,
+        *,
+        results: tuple[DelegationResult, ...],
+    ) -> None:
+        if not results:
+            raise ApiError(
+                code="agent_delegation_invalid",
+                message="Specialist delegation produced no result.",
+                status=502,
+            )
+        async with self.loop._persistence_lock:
+            await self.loop.repository.append_context_items(
+                thread_id=self.run.thread_id,
+                run_id=self.run.id,
+                items=tuple(
+                    ContextItemAppend(
+                        item_key=(
+                            f"run:{self.run.id}:delegation-output:"
+                            f"{result.call_id}"
+                        ),
+                        item=_delegated_tool_output(
+                            call=_PendingToolCall(
+                                call_id=result.call_id,
+                                name=result.agent_name,
+                                arguments={
+                                    "request": result.request
+                                },
+                            ),
+                            answer=AgentAnswer(
+                                text=result.answer,
+                                agent=result.agent_name,
+                            ),
+                        ),
+                    )
+                    for result in results
+                ),
+            )
+            await self.loop.repository.set_run_skill_id(
+                run=self.run,
+                skill_id=results[-1].agent_name,
+            )
+            await self.loop.repository.append_event(
+                run_id=self.run.id,
+                event_type="agent.delegation.completed",
+                payload={
+                    "call_ids": [
+                        result.call_id for result in results
+                    ],
+                    "agents": [
+                        result.agent_name for result in results
+                    ],
+                    "responding_agent": (
+                        results[-1].agent_name
+                    ),
+                },
+            )
+            await self.loop._checkpoint_unlocked()
+
+
 def _pending_calls(
     context_records: list[Any],
     *,
     run_id: UUID,
     agent_name: str,
     branch_id: str,
-) -> tuple[ModelFunctionCall, ...]:
-    outputs = {str(record.item.get("call_id") or "") for record in context_records if record.item.get("type") == "function_call_output"}
+) -> tuple[_PendingToolCall, ...]:
+    outputs = {
+        str(record.item.get("call_id") or "")
+        for record in context_records
+        if record.item.get("type") == "function_call_output"
+    }
     prefix = (
         f"run:{run_id}:agent:{agent_name}:branch:{branch_id}:"
     )
-    calls: list[ModelFunctionCall] = []
+    calls: list[_PendingToolCall] = []
     for record in context_records:
         item = record.item
         call_id = str(item.get("call_id") or "")
@@ -1127,31 +1301,140 @@ def _pending_calls(
             or call_id in outputs
         ):
             continue
-        raw_arguments = item.get("arguments", "{}")
-        try:
-            arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
-        except json.JSONDecodeError as exc:
-            raise ApiError(
-                code="model_provider_malformed_tool_call",
-                message="Persisted function call arguments are invalid.",
-                status=500,
-            ) from exc
-        if not isinstance(arguments, dict):
-            raise ApiError(
-                code="model_provider_malformed_tool_call",
-                message="Persisted function call arguments are invalid.",
-                status=500,
-            )
-        calls.append(
-            ModelFunctionCall(
-                call_id=call_id,
-                name=str(item.get("name") or ""),
-                arguments=dict(arguments),
-                provider_item_id=str(item.get("id") or ""),
-                status=str(item.get("status") or ""),
-            )
-        )
+        calls.append(_pending_tool_call_from_item(item))
     return tuple(calls)
+
+
+def _recovery_call_batch(
+    context_records: list[Any],
+    *,
+    run_id: UUID,
+    agent_name: str,
+    branch_id: str,
+    pending: tuple[_PendingToolCall, ...],
+    delegation_tool_names: frozenset[str],
+) -> tuple[_PendingToolCall, ...]:
+    """Restore the original ordered delegation batch around pending calls."""
+    if not pending:
+        return pending
+    pending_delegations = tuple(
+        call
+        for call in pending
+        if call.name in delegation_tool_names
+    )
+    if not pending_delegations:
+        return pending
+    if len(pending_delegations) != len(pending):
+        raise _invalid_persisted_delegation()
+
+    prefix = (
+        f"run:{run_id}:agent:{agent_name}:branch:{branch_id}:"
+    )
+    call_records = sorted(
+        (
+            record
+            for record in context_records
+            if record.run_id == run_id
+            and str(record.item_key).startswith(prefix)
+            and record.item.get("type") == "function_call"
+        ),
+        key=lambda record: int(record.sequence),
+    )
+    pending_ids = {call.call_id for call in pending}
+    positions = [
+        index
+        for index, record in enumerate(call_records)
+        if str(record.item.get("call_id") or "") in pending_ids
+    ]
+    if len(positions) != len(pending_ids):
+        raise _invalid_persisted_delegation()
+
+    left = min(positions)
+    right = max(positions)
+    while left > 0 and _adjacent_delegation_records(
+        call_records[left - 1],
+        call_records[left],
+        delegation_tool_names=delegation_tool_names,
+    ):
+        left -= 1
+    while right + 1 < len(call_records) and _adjacent_delegation_records(
+        call_records[right],
+        call_records[right + 1],
+        delegation_tool_names=delegation_tool_names,
+    ):
+        right += 1
+
+    batch = tuple(
+        _pending_tool_call_from_item(record.item)
+        for record in call_records[left : right + 1]
+    )
+    call_ids = [call.call_id for call in batch]
+    tool_names = [call.name for call in batch]
+    if (
+        not pending_ids.issubset(call_ids)
+        or any(
+            name not in delegation_tool_names
+            for name in tool_names
+        )
+        or len(call_ids) != len(set(call_ids))
+        or len(tool_names) != len(set(tool_names))
+    ):
+        raise _invalid_persisted_delegation()
+    return batch
+
+
+def _adjacent_delegation_records(
+    left: Any,
+    right: Any,
+    *,
+    delegation_tool_names: frozenset[str],
+) -> bool:
+    return (
+        int(right.sequence) == int(left.sequence) + 1
+        and str(left.item.get("name") or "")
+        in delegation_tool_names
+        and str(right.item.get("name") or "")
+        in delegation_tool_names
+    )
+
+
+def _pending_tool_call_from_item(
+    item: dict[str, Any],
+) -> _PendingToolCall:
+    raw_arguments = item.get("arguments", "{}")
+    try:
+        arguments = (
+            json.loads(raw_arguments)
+            if isinstance(raw_arguments, str)
+            else raw_arguments
+        )
+    except json.JSONDecodeError as exc:
+        raise ApiError(
+            code="model_provider_malformed_tool_call",
+            message="Persisted function call arguments are invalid.",
+            status=500,
+        ) from exc
+    if not isinstance(arguments, dict):
+        raise ApiError(
+            code="model_provider_malformed_tool_call",
+            message="Persisted function call arguments are invalid.",
+            status=500,
+        )
+    return _PendingToolCall(
+        call_id=str(item.get("call_id") or ""),
+        name=str(item.get("name") or ""),
+        arguments=dict(arguments),
+        provider_item_id=str(item.get("id") or ""),
+        status=str(item.get("status") or ""),
+    )
+
+
+def _invalid_persisted_delegation() -> ApiError:
+    return ApiError(
+        code="agent_delegation_invalid",
+        message="Persisted specialist delegation batch is invalid.",
+        status=500,
+    )
 
 
 def _restore_agent_input(
@@ -1267,7 +1550,7 @@ def _base_input_before_agent_records(
 
 def _input_before_calls(
     branch_items: list[dict[str, Any]],
-    calls: tuple[ModelFunctionCall, ...],
+    calls: tuple[_PendingToolCall, ...],
 ) -> tuple[dict[str, Any], ...]:
     call_ids = {call.call_id for call in calls}
     call_index = next(
@@ -1393,7 +1676,7 @@ def _delegated_request_item(
 
 def _delegated_tool_output(
     *,
-    call: ModelFunctionCall,
+    call: _PendingToolCall,
     answer: AgentAnswer,
 ) -> dict[str, Any]:
     return {

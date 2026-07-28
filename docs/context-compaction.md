@@ -1,9 +1,10 @@
 # Context Pipeline v2
 
-Context Pipeline v2 is a subsystem inside the existing `legacy_adapter`
-Runtime. It preserves the append-only ledger and the Run/tool/action loop while
-making long-thread context reproducible, low-trust, recoverable, and safe for
-attachments.
+Context Pipeline v2 is a subsystem inside the existing `proprietary_runtime`
+Runtime (`momcozy-agent-v4`). The durable pipeline remains outside the OpenAI
+Agents SDK execution engine. It preserves the append-only ledger and the
+Run/tool/action loop while making long-thread context reproducible, low-trust,
+recoverable, and safe for attachments.
 
 ## Product contract
 
@@ -29,17 +30,19 @@ attachments.
 Product file IDs, checkpoint references, trust labels, and raw provider items.
 Its SHA-256 never contains a model-fetch capability URL.
 
-Immediately before any token-count, compaction, or main-model call, the shared
+Immediately before any token-count, compaction, or SDK Agent model call, the shared
 `AgentAttachmentService` converts `asset_id` blocks to opaque Product
 capability URLs. Materialized input is ephemeral. `image_url` and `file_url`
 values are not written to the ledger or Replay.
 
-For GPT-5.6 model calls, Runtime renders the Agent instructions as the first
-developer `input_text` block and writes one explicit cache breakpoint on it.
+For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
+materializes attachments, then renders the active Agent instructions as the
+first developer `input_text` block and writes one explicit cache breakpoint on it.
 OpenAI injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment
 URLs remain after it. Request-wide caching uses explicit mode with a `30m`
-minimum lifetime; the eval gate asserts this exact request shape.
+minimum lifetime. The same filter runs for `main_agent`, specialist
+agent-as-tool calls, and every post-Tool model turn.
 
 ## Typed low-trust checkpoints
 

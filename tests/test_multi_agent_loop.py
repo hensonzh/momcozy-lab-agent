@@ -15,11 +15,14 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
-from app.agent_runtime.orchestration import AgentLoop
-from app.agent_runtime.providers import (
-    ModelFunctionCall,
-    ModelTurn,
-    ScriptedModelProvider,
+from app.agent_runtime.orchestration import (
+    AgentLoop,
+    OpenAIAgentsExecutionEngine,
+)
+from app.agent_runtime.orchestration.testing import (
+    ScriptedAgentModel,
+    ScriptedToolCall,
+    ScriptedTurn,
 )
 from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
@@ -31,16 +34,16 @@ from app.agents import (
 )
 from app.agents.main_agent import ORCHESTRATION_TOOL_NAMES
 from app.agents.shared import BASE_AGENT_INSTRUCTIONS
-from app.bootstrap import AGENT_CATALOG
+from app.bootstrap import AGENT_CATALOG, build_runtime_tool_registry
 from app.core.errors import ApiError
 
 
 def test_general_question_is_answered_by_main_agent_without_delegation() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.final(
+                ScriptedTurn.final(
                     "可以先观察体温和精神状态。",
                     deltas=("可以先观察", "体温和精神状态。"),
                 )
@@ -113,7 +116,9 @@ def test_context_window_overflow_can_suspend_without_failing_run() -> None:
 
 def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     repository = ManifestMemoryLedger()
-    provider = ManifestEmittingProvider()
+    provider = ScriptedAgentModel(
+        {"main_agent": [ScriptedTurn.final("完成。")]}
+    )
 
     run = asyncio.run(
         _loop(repository=repository, provider=provider).process(
@@ -122,24 +127,27 @@ def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     )
 
     assert run.status == "completed"
-    assert repository.execution_manifests == [
-        {
-            "schema_version": "agent_model_execution.v1",
-            "agent_name": "main_agent",
-            "branch_id": "main",
-            "manifest_sha256": "a" * 64,
-        }
-    ]
+    assert len(repository.execution_manifests) == 1
+    manifest = repository.execution_manifests[0]
+    assert manifest["schema_version"] == (
+        "agent_model_execution.v1"
+    )
+    assert manifest["agent_name"] == "main_agent"
+    assert manifest["branch_id"] == "main"
+    assert manifest["model"]["execution_engine"] == (
+        "openai_agents_sdk"
+    )
+    assert len(manifest["manifest_sha256"]) == 64
 
 
 def test_run_processing_emits_correlated_outcome_metric(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.final("完成。"),
+                ScriptedTurn.final("完成。"),
             ],
         }
     )
@@ -215,10 +223,10 @@ def test_specialists_include_their_domain_workflow_contracts() -> None:
 def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     repository = MemoryLedger()
     publisher = RecordingDeltaPublisher()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.final(
+                ScriptedTurn.final(
                     "你好",
                     deltas=("你", "好"),
                 )
@@ -239,10 +247,10 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     asyncio.run(
         _loop(
             repository=control_repository,
-            provider=ScriptedModelProvider(
+            provider=ScriptedAgentModel(
                 {
                     "main_agent": [
-                        ModelTurn.final("你好"),
+                        ScriptedTurn.final("你好"),
                     ],
                 }
             ),
@@ -253,10 +261,10 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
 
 def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.final(
+                ScriptedTurn.final(
                     "最终回复仍然可用。",
                     deltas=("最终回复", "仍然可用。"),
                 )
@@ -290,10 +298,10 @@ def test_cancellation_during_provider_call_cannot_be_overwritten_by_completion()
 
 def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
     repository = FencedMemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.final("这条晚到回复不能落库。"),
+                ScriptedTurn.final("这条晚到回复不能落库。"),
             ],
         }
     )
@@ -322,7 +330,7 @@ def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
 
 def test_main_agent_calls_specialist_tool_and_specialist_replies() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
                 _delegate(
@@ -330,7 +338,7 @@ def test_main_agent_calls_specialist_tool_and_specialist_replies() -> None:
                     request="帮我准备孕36周待产包。",
                 ),
             ],
-            "prenatal_agent": [ModelTurn.final("证件、产褥垫和宝宝衣物先装好。")],
+            "prenatal_agent": [ScriptedTurn.final("证件、产褥垫和宝宝衣物先装好。")],
         }
     )
     loop = _loop(repository=repository, provider=provider)
@@ -377,16 +385,16 @@ def test_main_agent_calls_specialist_tool_and_specialist_replies() -> None:
 
 def test_multiple_specialist_tools_run_in_order_and_last_specialist_replies() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
-            "prenatal_agent": [ModelTurn.final("先准备证件和待产用品。")],
+            "prenatal_agent": [ScriptedTurn.final("先准备证件和待产用品。")],
             "lactation_agent": [
-                ModelTurn.final(
+                ScriptedTurn.final(
                     "先准备待产用品，再按泌乳建议观察奶量。"
                 )
             ],
             "main_agent": [
-                ModelTurn.calls(
+                ScriptedTurn.calls(
                     _specialist_call(
                         "prenatal_agent",
                         request="生成孕36周待产包。",
@@ -423,18 +431,109 @@ def test_multiple_specialist_tools_run_in_order_and_last_specialist_replies() ->
     )
 
 
-def test_main_agent_cannot_mix_delegation_with_business_tools() -> None:
+def test_restart_restores_full_ordered_specialist_batch() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    first_provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    _specialist_call(
+                        "prenatal_agent",
+                        request="先整理待产事项。",
+                        call_id="delegate-prenatal",
+                    ),
+                    _specialist_call(
+                        "lactation_agent",
+                        request="结合前序结果分析奶量。",
+                        call_id="delegate-lactation",
+                    ),
+                ),
+            ],
+            "prenatal_agent": [
+                ScriptedTurn.final("已整理待产用品。"),
+            ],
+            "lactation_agent": [SimulatedProcessDeath()],
+        }
+    )
+
+    with pytest.raises(SimulatedProcessDeath):
+        asyncio.run(
+            _loop(
+                repository=repository,
+                provider=first_provider,
+            ).process(repository.run.id)
+        )
+
+    assert repository.run.status == "running"
+    first_outputs = [
+        item
+        for item in repository.context_payloads
+        if item.get("type") == "function_call_output"
+    ]
+    assert first_outputs == []
+
+    second_provider = ScriptedAgentModel(
+        {
+            "lactation_agent": [
+                ScriptedTurn.final("结合待产安排，继续观察奶量。"),
+            ],
+        }
+    )
+    run = asyncio.run(
+        _loop(
+            repository=repository,
+            provider=second_provider,
+        ).process(repository.run.id)
+    )
+
+    assert run.status == "completed"
+    assert [
+        request.agent_name for request in second_provider.requests
+    ] == ["lactation_agent"]
+    assert any(
+        item.get("role") == "developer"
+        and "已整理待产用品" in str(item.get("content") or "")
+        for item in second_provider.requests[0].input_items
+    )
+    outputs = [
+        item
+        for item in repository.context_payloads
+        if item.get("type") == "function_call_output"
+    ]
+    assert [item["call_id"] for item in outputs] == [
+        "delegate-prenatal",
+        "delegate-lactation",
+    ]
+    delegation_event = next(
+        event
+        for event in repository.events
+        if event.event_type == "agent.delegation.completed"
+    )
+    assert delegation_event.payload == {
+        "call_ids": [
+            "delegate-prenatal",
+            "delegate-lactation",
+        ],
+        "agents": [
+            "prenatal_agent",
+            "lactation_agent",
+        ],
+        "responding_agent": "lactation_agent",
+    }
+
+
+def test_main_agent_cannot_mix_delegation_with_business_tools() -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel(
+        {
+            "main_agent": [
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="delegate-call",
                         name="prenatal_agent",
                         arguments={"request": "生成待产包。"},
                     ),
-                    ModelFunctionCall(
+                    ScriptedToolCall(
                         call_id="profile-call",
                         name="profile_read",
                         arguments={},
@@ -461,10 +560,10 @@ def test_main_agent_cannot_mix_delegation_with_business_tools() -> None:
 
 def test_main_agent_cannot_call_the_same_specialist_tool_twice() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
+                ScriptedTurn.calls(
                     _specialist_call(
                         "prenatal_agent",
                         request="第一次请求。",
@@ -496,21 +595,21 @@ def test_main_agent_cannot_call_the_same_specialist_tool_twice() -> None:
 
 def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "prenatal_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="prenatal-tool-call",
                         name="plan_read",
                         arguments={"scope": "current"},
                     )
                 ),
-                ModelTurn.final("产前结果"),
+                ScriptedTurn.final("产前结果"),
             ],
             "lactation_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="lactation-tool-call",
                         name="milk_analysis_manage",
                         arguments={
@@ -519,10 +618,10 @@ def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
                         },
                     )
                 ),
-                ModelTurn.final("综合产前和泌乳结果。"),
+                ScriptedTurn.final("综合产前和泌乳结果。"),
             ],
             "main_agent": [
-                ModelTurn.calls(
+                ScriptedTurn.calls(
                     _specialist_call(
                         "prenatal_agent",
                         request="处理产前事项。",
@@ -612,17 +711,17 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
             },
         ),
     )
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="profile-call",
                         name="profile_read",
                         arguments={"infant_scope": "all"},
                     )
                 ),
-                ModelTurn.final("我已经读取到你和宝宝的资料。"),
+                ScriptedTurn.final("我已经读取到你和宝宝的资料。"),
             ]
         }
     )
@@ -656,11 +755,11 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
 
 def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
-    first_provider = ScriptedModelProvider(
+    first_provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="recover-call",
                         name="profile_read",
                         arguments={},
@@ -685,7 +784,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     assert repository.run.status == "running"
     assert repository.context_payloads[-1]["call_id"] == "recover-call"
 
-    second_provider = ScriptedModelProvider({"main_agent": [ModelTurn.final("恢复后继续完成。")]})
+    second_provider = ScriptedAgentModel({"main_agent": [ScriptedTurn.final("恢复后继续完成。")]})
     second_executor = RecordingToolExecutor(repository)
     second_loop = _loop(
         repository=repository,
@@ -709,7 +808,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
 
 def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None:
     repository = MemoryLedger()
-    first_provider = ScriptedModelProvider(
+    first_provider = ScriptedAgentModel(
         {
             "main_agent": [
                 _delegate(
@@ -718,8 +817,8 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
                 )
             ],
             "prenatal_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="recover-prenatal-tool",
                         name="plan_read",
                         arguments={"scope": "current"},
@@ -749,10 +848,10 @@ def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None
         "recover-prenatal-tool",
     }
 
-    second_provider = ScriptedModelProvider(
+    second_provider = ScriptedAgentModel(
         {
             "prenatal_agent": [
-                ModelTurn.final("恢复后完成产前结果。"),
+                ScriptedTurn.final("恢复后完成产前结果。"),
             ],
         }
     )
@@ -826,11 +925,11 @@ def test_agent_definitions_use_fixed_domain_allowlists() -> None:
 
 def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="confirmation-call",
                         name="profile_read",
                         arguments={},
@@ -866,11 +965,11 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
 def test_confirmation_resume_restores_each_tool_item_once() -> None:
     repository = MemoryLedger()
     action_id = uuid4()
-    first_provider = ScriptedModelProvider(
+    first_provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="confirmation-resume-call",
                         name="profile_read",
                         arguments={},
@@ -923,8 +1022,8 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
             ),
         )
     )
-    resumed_provider = ScriptedModelProvider(
-        {"main_agent": [ModelTurn.final("确认后已完成。")]}
+    resumed_provider = ScriptedAgentModel(
+        {"main_agent": [ScriptedTurn.final("确认后已完成。")]}
     )
 
     resumed = asyncio.run(
@@ -956,17 +1055,17 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
 
 def test_fatal_tool_output_persistence_error_terminates_run() -> None:
     repository = MemoryLedger()
-    provider = ScriptedModelProvider(
+    provider = ScriptedAgentModel(
         {
             "main_agent": [
-                ModelTurn.calls(
-                    ModelFunctionCall(
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
                         call_id="fatal-output-call",
                         name="profile_read",
                         arguments={},
                     )
                 ),
-                ModelTurn.final("不应继续生成回复。"),
+                ScriptedTurn.final("不应继续生成回复。"),
             ],
         }
     )
@@ -999,17 +1098,17 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
     failed = asyncio.run(
         _loop(
             repository=failed_repository,
-            provider=ScriptedModelProvider({}),
+            provider=ScriptedAgentModel({}),
         ).process(failed_repository.run.id)
     )
 
     assert failed.status == "failed"
-    assert failed.error_code == "scripted_provider_exhausted"
+    assert failed.error_code == "scripted_model_exhausted"
     assert failed_repository.event_types[-1] == "run.failed"
 
     cancelled_repository = MemoryLedger()
     cancelled_repository.run.status = "cancelled"
-    provider = ScriptedModelProvider({"main_agent": [ModelTurn.final("must not run")]})
+    provider = ScriptedAgentModel({"main_agent": [ScriptedTurn.final("must not run")]})
     cancelled = asyncio.run(
         _loop(
             repository=cancelled_repository,
@@ -1063,7 +1162,7 @@ def test_restart_after_specialist_result_completes_pending_agent_tool() -> None:
             },
         )
     )
-    provider = ScriptedModelProvider({})
+    provider = ScriptedAgentModel({})
 
     run = asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
 
@@ -1112,7 +1211,7 @@ def test_restart_after_agent_tool_event_persists_specialist_reply() -> None:
             },
         )
     )
-    provider = ScriptedModelProvider({})
+    provider = ScriptedAgentModel({})
 
     run = asyncio.run(
         _loop(repository=repository, provider=provider).process(
@@ -1136,7 +1235,7 @@ def test_restart_after_final_message_commit_only_marks_run_completed() -> None:
             content={"text": "已经生成的最终回复。"},
         )
     )
-    provider = ScriptedModelProvider({})
+    provider = ScriptedAgentModel({})
 
     run = asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
 
@@ -1151,8 +1250,8 @@ def _delegate(
     *,
     request: str,
     call_id: str = "delegate-call",
-) -> ModelTurn:
-    return ModelTurn.calls(
+) -> ScriptedTurn:
+    return ScriptedTurn.calls(
         _specialist_call(
             agent,
             request=request,
@@ -1166,8 +1265,8 @@ def _specialist_call(
     *,
     request: str,
     call_id: str,
-) -> ModelFunctionCall:
-    return ModelFunctionCall(
+) -> ScriptedToolCall:
+    return ScriptedToolCall(
         call_id=call_id,
         name=agent,
         arguments={"request": request},
@@ -1184,11 +1283,15 @@ def _loop(
 ) -> AgentLoop:
     return AgentLoop(
         repository=cast(RuntimeLedgerRepository, repository),
-        provider=provider,
-        tool_registry=repository.tool_registry,
+        execution_engine=OpenAIAgentsExecutionEngine(
+            model=provider,
+            model_name="scripted",
+            tool_registry=repository.tool_registry,
+            agent_catalog=AGENT_CATALOG,
+            max_turns=8,
+        ),
         tool_executor=tool_executor or cast(ToolExecutor, RecordingToolExecutor(repository)),
         agent_catalog=AGENT_CATALOG,
-        max_turns=8,
         transient_delta_publisher=transient_delta_publisher,
         context_coordinator=context_coordinator,
     )
@@ -1245,24 +1348,6 @@ class RecordingToolExecutor:
         return SimpleNamespace(tool_result=result)
 
 
-class MemoryToolRegistry:
-    def __init__(self) -> None:
-        self._contracts = {
-            "profile_read": SimpleNamespace(
-                name="profile_read",
-                description="读取资料",
-                input_schema={
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {},
-                },
-            )
-        }
-
-    def list(self) -> list[Any]:
-        return list(self._contracts.values())
-
-
 class MemoryLedger:
     def __init__(self) -> None:
         owner = uuid4()
@@ -1271,8 +1356,8 @@ class MemoryLedger:
             thread_id=uuid4(),
             actor_user_id=owner,
             status="queued",
-            runtime_pattern="legacy_adapter",
-            runtime_version="momcozy-agent-v3",
+            runtime_pattern="proprietary_runtime",
+            runtime_version="momcozy-agent-v4",
             skill_id="",
             request_id="request-id",
             trace_id="trace-id",
@@ -1283,7 +1368,7 @@ class MemoryLedger:
             error_details={},
             context_state={},
         )
-        self.tool_registry = cast(Any, MemoryToolRegistry())
+        self.tool_registry = build_runtime_tool_registry()
         self.context: list[Any] = [
             SimpleNamespace(
                 run_id=self.run.id,
@@ -1447,20 +1532,21 @@ class ManifestMemoryLedger(MemoryLedger):
         return dict(manifest)
 
 
-class ContextOverflowThenFinalProvider:
+class ContextOverflowThenFinalProvider(ScriptedAgentModel):
     def __init__(self) -> None:
-        self.requests: list[Any] = []
-
-    async def respond(self, request: Any) -> ModelTurn:
-        self.requests.append(request)
-        if len(self.requests) == 1:
-            raise ApiError(
-                code="model_context_window_exceeded",
-                message="Model context window exceeded.",
-                status=400,
-                details={"retryable": True},
-            )
-        return ModelTurn.final("压缩后继续完成。")
+        super().__init__(
+            {
+                "main_agent": [
+                    ApiError(
+                        code="model_context_window_exceeded",
+                        message="Model context window exceeded.",
+                        status=400,
+                        details={"retryable": True},
+                    ),
+                    ScriptedTurn.final("压缩后继续完成。"),
+                ]
+            }
+        )
 
 
 class RecordingContextCoordinator:
@@ -1576,27 +1662,18 @@ class FailingDeltaPublisher:
         raise ConnectionError("Redis is temporarily unavailable")
 
 
-class CancellingProvider:
+class CancellingProvider(ScriptedAgentModel):
     def __init__(self, repository: MemoryLedger) -> None:
-        self.repository = repository
-        self.requests: list[Any] = []
-
-    async def respond(self, request: Any) -> ModelTurn:
-        self.requests.append(request)
-        self.repository.run.status = "cancelled"
-        self.repository.run.cancelled_at = datetime.now(timezone.utc)
-        return ModelTurn.final("这条回复不应持久化。")
-
-
-class ManifestEmittingProvider:
-    async def respond(self, request: Any) -> ModelTurn:
-        assert request.on_execution_manifest is not None
-        await request.on_execution_manifest(
+        super().__init__(
             {
-                "schema_version": "agent_model_execution.v1",
-                "agent_name": request.agent_name,
-                "branch_id": request.branch_id,
-                "manifest_sha256": "a" * 64,
+                "main_agent": [
+                    ScriptedTurn.final("这条回复不应持久化。")
+                ]
             }
         )
-        return ModelTurn.final("完成。")
+        self.repository = repository
+
+    async def next_response(self, **kwargs: Any) -> Any:
+        self.repository.run.status = "cancelled"
+        self.repository.run.cancelled_at = datetime.now(timezone.utc)
+        return await super().next_response(**kwargs)

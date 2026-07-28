@@ -5,6 +5,7 @@ from typing import Any, AsyncIterator
 
 import httpx
 from openai import AsyncOpenAI
+from agents.models.openai_responses import OpenAIResponsesModel
 
 from app.bootstrap import (
     AGENT_CATALOG,
@@ -21,11 +22,13 @@ from app.agent_runtime.context import (
 )
 from app.agent_runtime.events import RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
-from app.agent_runtime.orchestration import AgentLoop
+from app.agent_runtime.orchestration import (
+    AgentLoop,
+    OpenAIAgentsExecutionEngine,
+)
 from app.agent_runtime.providers import (
     OpenAIContextCompactor,
     OpenAIContextTokenCounter,
-    OpenAIResponsesProvider,
 )
 from app.agent_runtime.runs import (
     AdmissionReleasingProcessor,
@@ -78,7 +81,10 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
         interval_seconds=settings.worker_heartbeat_interval_seconds,
         ttl_seconds=settings.worker_heartbeat_ttl_seconds,
     )
-    openai_kwargs: dict[str, Any] = {"api_key": settings.openai_api_key}
+    openai_kwargs: dict[str, Any] = {
+        "api_key": settings.openai_api_key,
+        "timeout": settings.agent_model_timeout_seconds,
+    }
     if settings.openai_base_url:
         openai_kwargs["base_url"] = settings.openai_base_url
     output_store = (
@@ -109,6 +115,25 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 service_key=settings.product_backend_service_key,
             )
             registry = build_runtime_tool_registry()
+            execution_engine = OpenAIAgentsExecutionEngine(
+                model=OpenAIResponsesModel(
+                    model=settings.openai_model,
+                    openai_client=openai_client,
+                ),
+                model_name=settings.openai_model,
+                tool_registry=registry,
+                agent_catalog=AGENT_CATALOG,
+                max_turns=settings.agent_max_turns,
+                reasoning_effort=(
+                    settings.openai_reasoning_effort
+                ),
+                text_verbosity=settings.openai_text_verbosity,
+                store=settings.openai_responses_store,
+                base_url=settings.openai_base_url,
+                timeout_seconds=(
+                    settings.agent_model_timeout_seconds
+                ),
+            )
             context_token_counter = OpenAIContextTokenCounter(
                 client=openai_client,
                 model=settings.openai_model,
@@ -179,15 +204,6 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     repository=repository,
                     product_client=product_client,
                 )
-                provider = OpenAIResponsesProvider(
-                    client=openai_client,
-                    model=settings.openai_model,
-                    reasoning_effort=settings.openai_reasoning_effort,
-                    text_verbosity=settings.openai_text_verbosity,
-                    store=settings.openai_responses_store,
-                    timeout_seconds=settings.agent_model_timeout_seconds,
-                    model_input_resolver=attachments,
-                )
                 executor = ToolExecutor(
                     repository=repository,
                     registry=registry,
@@ -200,11 +216,9 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 return AdmissionReleasingProcessor(
                     processor=AgentLoop(
                         repository=repository,
-                        provider=provider,
-                        tool_registry=registry,
+                        execution_engine=execution_engine,
                         tool_executor=executor,
                         agent_catalog=AGENT_CATALOG,
-                        max_turns=settings.agent_max_turns,
                         transient_delta_publisher=transient_stream,
                         trusted_arguments_provider=(
                             TrustedToolArgumentsProvider(

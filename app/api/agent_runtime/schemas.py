@@ -142,7 +142,7 @@ class AgentRunCreate(BaseModel):
     client_context: AgentClientContext = Field(
         default_factory=AgentClientContext
     )
-    runtime_pattern: Literal["legacy_adapter"] | None = None
+    runtime_pattern: Literal["proprietary_runtime"] | None = None
     runtime_version: str | None = Field(default=None, max_length=80)
     idempotency_key: str | None = Field(default=None, max_length=255)
 
