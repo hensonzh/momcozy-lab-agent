@@ -255,6 +255,14 @@ class AgentActionReject(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ContextCompactionRecoveryRead(BaseModel):
+    job_id: UUID
+    supersedes_job_id: UUID
+    thread_id: UUID
+    generation: int
+    status: str
+
+
 class AgentEvalCaseCreate(BaseModel):
     suite: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=255)

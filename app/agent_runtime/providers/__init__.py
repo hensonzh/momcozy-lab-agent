@@ -7,6 +7,10 @@ from .contracts import (
     ModelTurn,
 )
 from .openai_responses import OpenAIResponsesProvider
+from .openai_context import (
+    OpenAIContextCompactor,
+    OpenAIContextTokenCounter,
+)
 from .scripted import ScriptedModelProvider
 
 __all__ = [
@@ -17,5 +21,7 @@ __all__ = [
     "ModelTool",
     "ModelTurn",
     "OpenAIResponsesProvider",
+    "OpenAIContextCompactor",
+    "OpenAIContextTokenCounter",
     "ScriptedModelProvider",
 ]

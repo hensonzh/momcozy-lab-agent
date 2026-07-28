@@ -62,6 +62,7 @@ class ModelRequest:
     response_format: dict[str, Any] | None = None
     on_text_delta: TextDeltaHandler | None = None
     on_execution_manifest: ExecutionManifestHandler | None = None
+    runtime_context: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

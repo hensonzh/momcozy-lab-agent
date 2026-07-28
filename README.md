@@ -28,6 +28,8 @@ Independent production Agent service owned by the Agent team.
   endpoints.
 - **Run worker:** executes durable queued runs, resumes confirmed actions, and
   reclaims abandoned confirmations with a low-frequency durable expiry sweep.
+  The same process also runs the independently bounded durable Thread-context
+  compaction lane.
 - **Replay/eval ops:** an audited one-shot CLI for exporting a persisted run and
   evaluating a stored case, plus a release behavior gate over real persisted
   replay bundles.
@@ -125,3 +127,7 @@ are defined in [observability.md](docs/observability.md).
 
 The current multi-agent package structure and Tool ownership model are defined
 in [main-agent-design.md](docs/main-agent-design.md).
+The Context Pipeline v2 100k-token contract, typed low-trust checkpoints,
+next-Run generation gate, audited dead-letter recovery, and durable hard-limit
+resume are defined in
+[context-compaction.md](docs/context-compaction.md).

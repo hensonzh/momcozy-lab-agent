@@ -29,13 +29,18 @@ recreating the Runtime database before this baseline is deployed.
 6. Run `scripts/run_behavior_eval.py` against database-backed replay bundles.
    Structural assertions must pass, and all safety and response-quality reviews
    must be resolved.
-7. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
-   action application, terminal events, and ready health.
+7. Run the deterministic Context Pipeline release gate:
+   `pytest -q tests/test_context_eval_gate.py tests/test_context_pipeline_v2.py`.
+8. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
+   action application, terminal events, ready health, and the durable
+   context-compaction/next-Run gate described in
+   [context-compaction.md](context-compaction.md).
 
 ## Rollback
 
 - Roll back application images only when they support the current baseline.
-- Quiesce new runs and drain or cancel active runs before stopping workers.
+- Quiesce new runs and drain active runs plus
+  queued/retry-wait/running context-compaction jobs before stopping workers.
 - Never point Product Backend and Agent Runtime at the same PostgreSQL
   database.
 - Database downgrade and cross-service data conversion are not rollback

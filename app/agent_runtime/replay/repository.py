@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent_runtime.ledger import (
     AgentAction,
     AgentArtifact,
+    AgentContextCheckpoint,
     AgentContextItem,
     AgentEvent,
     AgentMessage,
     AgentRun,
     AgentThread,
+    AgentThreadContextHead,
     AgentToolCall,
     AgentToolOutput,
     AgentWorkflowEvent,
@@ -90,6 +92,46 @@ class RuntimeReplayRepository:
             .order_by(AgentEvent.sequence)
         )
         return list(result.all())
+
+    async def get_context_checkpoint_for_run(
+        self,
+        *,
+        run: AgentRun,
+    ) -> AgentContextCheckpoint | None:
+        context_state = run.context_state or {}
+        raw_checkpoint = context_state.get("checkpoint")
+        if not isinstance(raw_checkpoint, dict):
+            return None
+        raw_id = raw_checkpoint.get("id")
+        if not raw_id:
+            return None
+        try:
+            checkpoint_id = UUID(str(raw_id))
+        except ValueError:
+            return None
+        return cast(
+            AgentContextCheckpoint | None,
+            await self.session.scalar(
+                select(AgentContextCheckpoint).where(
+                    AgentContextCheckpoint.id == checkpoint_id,
+                    AgentContextCheckpoint.thread_id == run.thread_id,
+                )
+            ),
+        )
+
+    async def get_context_head_for_run(
+        self,
+        *,
+        run: AgentRun,
+    ) -> AgentThreadContextHead | None:
+        return cast(
+            AgentThreadContextHead | None,
+            await self.session.scalar(
+                select(AgentThreadContextHead).where(
+                    AgentThreadContextHead.thread_id == run.thread_id
+                )
+            ),
+        )
 
     async def list_tool_calls(
         self,

@@ -10,10 +10,12 @@ from app.agent_runtime.audit import AuditService
 from app.agent_runtime.ledger import (
     AgentAction,
     AgentArtifact,
+    AgentContextCheckpoint,
     AgentContextItem,
     AgentEvent,
     AgentMessage,
     AgentRun,
+    AgentThreadContextHead,
     AgentToolCall,
     AgentToolOutput,
     AgentWorkflowEvent,
@@ -82,6 +84,8 @@ class RuntimeReplayService:
         (
             messages,
             context_items,
+            context_checkpoint,
+            context_head,
             events,
             tool_calls,
             tool_outputs,
@@ -92,6 +96,10 @@ class RuntimeReplayService:
         ) = (
             await self.repository.list_messages_through_run(run=run),
             await self.repository.list_context_through_run(run=run),
+            await self.repository.get_context_checkpoint_for_run(
+                run=run
+            ),
+            await self.repository.get_context_head_for_run(run=run),
             await self.repository.list_events(run_id=run.id),
             await self.repository.list_tool_calls(run_id=run.id),
             await self.repository.list_tool_outputs(run_id=run.id),
@@ -124,6 +132,14 @@ class RuntimeReplayService:
                 "status": thread.status,
             },
             "run": _run(run),
+            # This envelope is Runtime-owned metadata only (IDs, hashes,
+            # counters, and versions); it never contains transcript content.
+            "context_state": deepcopy(run.context_state),
+            "context_checkpoint": _context_checkpoint(
+                context_checkpoint,
+                include_content=include_message_content,
+            ),
+            "context_head": _context_head(context_head),
             "execution_manifest": deepcopy(run.execution_manifest),
             "messages": [
                 _message(item, include_content=include_message_content)
@@ -225,6 +241,69 @@ def _context(
             if include_content
             else {"redacted": True}
         ),
+    }
+
+
+def _context_checkpoint(
+    checkpoint: AgentContextCheckpoint | None,
+    *,
+    include_content: bool,
+) -> dict[str, Any] | None:
+    if checkpoint is None:
+        return None
+    return {
+        "id": str(checkpoint.id),
+        "schema_version": checkpoint.schema_version,
+        "source_cutoff_run_id": str(
+            checkpoint.source_cutoff_run_id
+        ),
+        "source_cutoff_sequence": (
+            checkpoint.source_cutoff_sequence
+        ),
+        "generation": checkpoint.generation,
+        "source_sha256": checkpoint.source_sha256,
+        "summary_sha256": checkpoint.summary_sha256,
+        "model": checkpoint.model,
+        "token_counter": checkpoint.token_counter,
+        "token_counter_version": (
+            checkpoint.token_counter_version
+        ),
+        "source_input_tokens": checkpoint.source_input_tokens,
+        "summary_output_tokens": (
+            checkpoint.summary_output_tokens
+        ),
+        "prompt_version": checkpoint.prompt_version,
+        "materializer_version": checkpoint.materializer_version,
+        "context_schema_version": checkpoint.context_schema_version,
+        "summary_policy_version": checkpoint.summary_policy_version,
+        "checkpoint": (
+            redact_value(checkpoint.checkpoint)
+            if include_content
+            else {"redacted": True}
+        ),
+    }
+
+
+def _context_head(
+    head: AgentThreadContextHead | None,
+) -> dict[str, Any] | None:
+    if head is None:
+        return None
+    return {
+        "thread_id": str(head.thread_id),
+        "status": head.status,
+        "generation": head.generation,
+        "ready_checkpoint_id": (
+            str(head.ready_checkpoint_id)
+            if head.ready_checkpoint_id
+            else None
+        ),
+        "pending_job_id": (
+            str(head.pending_job_id)
+            if head.pending_job_id
+            else None
+        ),
+        "error_code": head.error_code,
     }
 
 

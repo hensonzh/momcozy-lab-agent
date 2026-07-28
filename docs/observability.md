@@ -11,6 +11,8 @@ using `LOG_LEVEL`.
 | `agent_runtime_run` | one run processing attempt | `outcome`, `error_code` |
 | `agent_runtime_tool` | one tool execution attempt | `tool_name`, `outcome`, `error_code` |
 | `agent_runtime_model` | one model operation | `provider`, `model`, `agent_name`, `outcome`, `error_code` |
+| `agent_runtime_context_preflight` | one Run history measurement | `provider`, `model`, `outcome` |
+| `agent_runtime_context_compaction` | one durable compaction attempt | `provider`, `model`, `outcome`, `error_code` |
 
 Each event contains `duration_ms`; the log collector derives an operation
 counter and latency histogram from these events. `request_id`, `trace_id`,
@@ -51,6 +53,9 @@ correlation.
 - `agent_runtime_run{outcome="failed"}` and interrupted-run events.
 - Tool timeout/error rate by the bounded tool catalog.
 - Model timeout/error rate by configured provider/model.
+- Context-compaction retry/dead-letter rate, queued-job age, lease-renewal
+  failures, and Thread Context Heads stuck in `compacting`. A `blocked` head
+  rejects new Runs until an audited supersede recovery succeeds.
 - `http.request.unhandled` events, grouped by route and exception type.
 - Missing worker heartbeat or repeated `worker.heartbeat.failed` events.
 

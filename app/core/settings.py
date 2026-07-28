@@ -80,6 +80,11 @@ class Settings:
     agent_worker_db_lease_duration_seconds: float = 180.0
     agent_worker_db_lease_renew_interval_seconds: float = 30.0
     agent_worker_lock_ttl_seconds: int = 120
+    agent_context_compaction_threshold_tokens: int = 100_000
+    agent_context_summary_max_tokens: int = 2_000
+    agent_context_compaction_max_attempts: int = 3
+    agent_context_compaction_batch_size: int = 2
+    agent_context_compaction_concurrency: int = 1
     agent_action_expiry_scan_interval_seconds: float = 30.0
     agent_action_expiry_batch_size: int = 64
 
@@ -243,6 +248,26 @@ class Settings:
             agent_worker_lock_ttl_seconds=_env_int(
                 "AGENT_WORKER_LOCK_TTL_SECONDS",
                 cls.agent_worker_lock_ttl_seconds,
+            ),
+            agent_context_compaction_threshold_tokens=_env_int(
+                "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS",
+                cls.agent_context_compaction_threshold_tokens,
+            ),
+            agent_context_summary_max_tokens=_env_int(
+                "AGENT_CONTEXT_SUMMARY_MAX_TOKENS",
+                cls.agent_context_summary_max_tokens,
+            ),
+            agent_context_compaction_max_attempts=_env_int(
+                "AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS",
+                cls.agent_context_compaction_max_attempts,
+            ),
+            agent_context_compaction_batch_size=_env_int(
+                "AGENT_CONTEXT_COMPACTION_BATCH_SIZE",
+                cls.agent_context_compaction_batch_size,
+            ),
+            agent_context_compaction_concurrency=_env_int(
+                "AGENT_CONTEXT_COMPACTION_CONCURRENCY",
+                cls.agent_context_compaction_concurrency,
             ),
             agent_action_expiry_scan_interval_seconds=_env_float(
                 "AGENT_ACTION_EXPIRY_SCAN_INTERVAL_SECONDS",
@@ -427,6 +452,26 @@ class Settings:
             ("AGENT_WORKER_BATCH_SIZE", self.agent_worker_batch_size),
             ("AGENT_WORKER_CONCURRENCY", self.agent_worker_concurrency),
             (
+                "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS",
+                self.agent_context_compaction_threshold_tokens,
+            ),
+            (
+                "AGENT_CONTEXT_SUMMARY_MAX_TOKENS",
+                self.agent_context_summary_max_tokens,
+            ),
+            (
+                "AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS",
+                self.agent_context_compaction_max_attempts,
+            ),
+            (
+                "AGENT_CONTEXT_COMPACTION_BATCH_SIZE",
+                self.agent_context_compaction_batch_size,
+            ),
+            (
+                "AGENT_CONTEXT_COMPACTION_CONCURRENCY",
+                self.agent_context_compaction_concurrency,
+            ),
+            (
                 "AGENT_ACTION_EXPIRY_BATCH_SIZE",
                 self.agent_action_expiry_batch_size,
             ),
@@ -459,10 +504,34 @@ class Settings:
                 errors.append(f"{name} must be positive")
         if self.agent_worker_db_lease_renew_interval_seconds * 2 >= self.agent_worker_db_lease_duration_seconds:
             errors.append("AGENT_WORKER_DB_LEASE_RENEW_INTERVAL_SECONDS must be less than half AGENT_WORKER_DB_LEASE_DURATION_SECONDS")
-        if self.agent_worker_db_lease_duration_seconds < self.agent_model_timeout_seconds:
-            errors.append("AGENT_WORKER_DB_LEASE_DURATION_SECONDS must be at least AGENT_MODEL_TIMEOUT_SECONDS")
+        if (
+            self.agent_worker_db_lease_duration_seconds
+            < self.agent_model_timeout_seconds
+            + self.agent_worker_db_lease_renew_interval_seconds
+        ):
+            errors.append(
+                "AGENT_WORKER_DB_LEASE_DURATION_SECONDS must exceed "
+                "AGENT_MODEL_TIMEOUT_SECONDS by at least "
+                "AGENT_WORKER_DB_LEASE_RENEW_INTERVAL_SECONDS"
+            )
         if self.agent_worker_lock_ttl_seconds <= 0:
             errors.append("AGENT_WORKER_LOCK_TTL_SECONDS must be positive")
+        if (
+            self.agent_context_summary_max_tokens
+            >= self.agent_context_compaction_threshold_tokens
+        ):
+            errors.append(
+                "AGENT_CONTEXT_SUMMARY_MAX_TOKENS must be below "
+                "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS"
+            )
+        if (
+            self.agent_context_compaction_batch_size
+            < self.agent_context_compaction_concurrency
+        ):
+            errors.append(
+                "AGENT_CONTEXT_COMPACTION_BATCH_SIZE must be at least "
+                "AGENT_CONTEXT_COMPACTION_CONCURRENCY"
+            )
         if errors:
             raise ValueError("; ".join(errors))
 

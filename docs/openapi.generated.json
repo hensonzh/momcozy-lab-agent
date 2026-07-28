@@ -955,6 +955,42 @@
         "title": "AgentThreadRead",
         "type": "object"
       },
+      "ContextCompactionRecoveryRead": {
+        "properties": {
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "supersedes_job_id": {
+            "format": "uuid",
+            "title": "Supersedes Job Id",
+            "type": "string"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "supersedes_job_id",
+          "thread_id",
+          "generation",
+          "status"
+        ],
+        "title": "ContextCompactionRecoveryRead",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1664,6 +1700,57 @@
           }
         ],
         "summary": "Reject Action",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/v1/agent/admin/context-compaction-jobs/{job_id}/supersede": {
+      "post": {
+        "operationId": "supersede_context_compaction_job_v1_agent_admin_context_compaction_jobs__job_id__supersede_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextCompactionRecoveryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "RuntimeAdminServiceKey": []
+          }
+        ],
+        "summary": "Supersede Context Compaction Job",
         "tags": [
           "agent"
         ]

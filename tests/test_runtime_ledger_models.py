@@ -1,3 +1,4 @@
+from app.agent_runtime.audit import models as _audit_models  # noqa: F401
 from app.agent_runtime.ledger import models as _ledger_models  # noqa: F401
 from app.infrastructure.db import Base
 
@@ -6,12 +7,14 @@ RUNTIME_TABLES = {
     "agent_actions",
     "agent_artifacts",
     "agent_context_items",
+    "agent_context_checkpoints",
+    "agent_context_compaction_jobs",
     "agent_eval_cases",
     "agent_events",
-    "agent_image_accesses",
     "agent_messages",
     "agent_runs",
     "agent_threads",
+    "agent_thread_context_heads",
     "agent_tool_calls",
     "agent_tool_outputs",
     "agent_workflow_events",
@@ -37,7 +40,6 @@ def test_external_identity_and_asset_references_remain_plain_uuid_columns() -> N
     external_references = {
         ("agent_actions", "actor_user_id"),
         ("agent_artifacts", "owner_user_id"),
-        ("agent_image_accesses", "asset_id"),
         ("agent_runs", "actor_user_id"),
         ("agent_threads", "owner_user_id"),
         ("agent_workflow_events", "owner_user_id"),
@@ -55,6 +57,8 @@ def test_runtime_ledger_keeps_critical_recovery_and_owner_indexes() -> None:
 
     assert {
         "ix_agent_events_run_sequence",
+        "ix_agent_context_checkpoints_thread_cutoff",
+        "ix_agent_context_compaction_jobs_runnable",
         "ix_agent_actions_confirmation_expiry",
         "ix_agent_messages_thread_sequence",
         "ix_agent_runs_actor_status_started",
@@ -70,3 +74,4 @@ def test_agent_run_schema_has_database_lease_fencing_columns() -> None:
     assert run_table.c.lease_token.nullable is True
     assert run_table.c.locked_until.nullable is True
     assert any(constraint.name == "ck_agent_runs_ck_agent_runs_lease_pair" for constraint in run_table.constraints)
+    assert run_table.c.context_state_json.nullable is False

@@ -59,6 +59,89 @@ def test_repository_claim_uses_skip_locked_and_only_reclaims_expired_leases() ->
     assert "agent_runs.locked_until <=" in sql
     assert "FOR UPDATE SKIP LOCKED" in sql
     assert "LIMIT 8" in sql
+    assert "NOT (EXISTS" in sql
+    assert "agent_context_compaction_jobs" in sql
+
+
+def test_worker_completes_context_job_before_claiming_newly_unblocked_run() -> None:
+    state = ContextLaneState()
+    sessions = ContextLaneSessionFactory(state)
+    processed_runs: list[UUID] = []
+    processed_jobs: list[UUID] = []
+    worker = AgentRunWorker(
+        session_factory=sessions,
+        processor_factory=lambda _repository: RecordingProcessor(
+            processed_runs
+        ),
+        repository_factory=lambda _session: ContextLaneRepository(
+            state
+        ),
+        context_compaction_processor_factory=lambda _repository: (
+            RecordingContextProcessor(processed_jobs)
+        ),
+        context_compaction_batch_size=1,
+        context_compaction_concurrency=1,
+    )
+
+    count = asyncio.run(worker.run_once())
+
+    assert count == 2
+    assert processed_jobs == [state.job.id]
+    assert processed_runs == [state.run.id]
+    assert state.job.status == "completed"
+    assert len(sessions.sessions) == 4
+    assert all(session.committed for session in sessions.sessions)
+
+
+def test_worker_compacts_in_parallel_with_the_run_that_queued_the_job() -> None:
+    state = AsyncContextLaneState()
+    sessions = ContextLaneSessionFactory(state)
+    worker = AgentRunWorker(
+        session_factory=sessions,
+        processor_factory=lambda _repository: (
+            RunThatQueuesContextJob(state)
+        ),
+        repository_factory=lambda _session: AsyncContextLaneRepository(
+            state
+        ),
+        context_compaction_processor_factory=lambda _repository: (
+            AsyncRecordingContextProcessor(state)
+        ),
+        context_compaction_batch_size=1,
+        context_compaction_concurrency=1,
+        poll_interval_seconds=0.01,
+    )
+
+    count = asyncio.run(worker.run_once())
+
+    assert count == 2
+    assert state.run_completed is True
+    assert state.job.status == "completed"
+
+
+def test_worker_renews_context_job_lease_during_long_compaction() -> None:
+    state = ContextLaneState()
+    sessions = ContextLaneSessionFactory(state)
+    repository = ContextRenewRepository(state)
+    worker = AgentRunWorker(
+        session_factory=sessions,
+        processor_factory=lambda _repository: RecordingProcessor([]),
+        repository_factory=lambda _session: repository,
+        context_compaction_processor_factory=lambda _repository: (
+            SlowContextProcessor(delay_seconds=0.07)
+        ),
+        context_compaction_batch_size=4,
+        context_compaction_concurrency=1,
+        db_lease_duration_seconds=0.2,
+        db_lease_renew_interval_seconds=0.02,
+    )
+
+    count = asyncio.run(worker.run_once())
+
+    assert count == 1
+    assert state.job.status == "completed"
+    assert repository.renew_count >= 2
+    assert repository.claim_limits == [1]
 
 
 def test_worker_skips_claimed_run_when_another_worker_holds_runtime_lock() -> None:
@@ -255,6 +338,199 @@ class RecordingConfirmationExpiryService:
     async def expire_due_confirmations(self, *, limit: int) -> int:
         self.limits.append(limit)
         return 0
+
+
+class RecordingContextProcessor:
+    def __init__(self, processed: list[UUID]) -> None:
+        self.processed = processed
+
+    async def process_claimed_job(self, *, job: Any) -> Any:
+        self.processed.append(job.id)
+        job.status = "completed"
+        job.lease_token = None
+        return job
+
+
+class SlowContextProcessor:
+    def __init__(self, *, delay_seconds: float) -> None:
+        self.delay_seconds = delay_seconds
+
+    async def process_claimed_job(self, *, job: Any) -> Any:
+        await asyncio.sleep(self.delay_seconds)
+        job.status = "completed"
+        job.lease_token = None
+        return job
+
+
+class ContextLaneState:
+    def __init__(self) -> None:
+        self.job = SimpleNamespace(
+            id=uuid4(),
+            status="queued",
+            lease_token=None,
+        )
+        self.run = SimpleNamespace(
+            id=uuid4(),
+            lease_token=None,
+        )
+        self.job_claimed = False
+        self.run_claimed = False
+
+
+class ContextLaneRepository:
+    def __init__(self, state: ContextLaneState) -> None:
+        self.state = state
+
+    async def claim_context_compaction_jobs(
+        self,
+        **_kwargs: Any,
+    ) -> list[Any]:
+        if self.state.job_claimed:
+            return []
+        self.state.job_claimed = True
+        self.state.job.status = "running"
+        self.state.job.lease_token = uuid4()
+        return [self.state.job]
+
+    async def get_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> Any:
+        if job_id == self.state.job.id:
+            return self.state.job
+        return None
+
+    async def claim_runnable_runs(self, **_kwargs: Any) -> list[Any]:
+        if (
+            self.state.run_claimed
+            or self.state.job.status != "completed"
+        ):
+            return []
+        self.state.run_claimed = True
+        self.state.run.lease_token = uuid4()
+        return [self.state.run]
+
+    async def renew_run_lease(self, **_kwargs: Any) -> bool:
+        return True
+
+
+class ContextRenewRepository(ContextLaneRepository):
+    def __init__(self, state: ContextLaneState) -> None:
+        super().__init__(state)
+        self.renew_count = 0
+        self.claim_limits: list[int] = []
+
+    async def claim_context_compaction_jobs(
+        self,
+        **kwargs: Any,
+    ) -> list[Any]:
+        self.claim_limits.append(int(kwargs["limit"]))
+        return await super().claim_context_compaction_jobs(**kwargs)
+
+    async def renew_context_compaction_job_lease(
+        self,
+        **_kwargs: Any,
+    ) -> bool:
+        self.renew_count += 1
+        return True
+
+    async def claim_runnable_runs(self, **_kwargs: Any) -> list[Any]:
+        return []
+
+
+class ContextLaneSessionFactory:
+    def __init__(self, state: Any) -> None:
+        self.state = state
+        self.sessions: list[FakeSession] = []
+
+    @asynccontextmanager
+    async def __call__(self) -> Any:
+        session = FakeSession()
+        self.sessions.append(session)
+        yield session
+
+
+class AsyncContextLaneState:
+    def __init__(self) -> None:
+        self.job = SimpleNamespace(
+            id=uuid4(),
+            status="absent",
+            lease_token=None,
+        )
+        self.run = SimpleNamespace(
+            id=uuid4(),
+            lease_token=None,
+        )
+        self.run_claimed = False
+        self.compaction_done = asyncio.Event()
+        self.run_completed = False
+
+
+class AsyncContextLaneRepository:
+    def __init__(self, state: AsyncContextLaneState) -> None:
+        self.state = state
+
+    async def claim_context_compaction_jobs(
+        self,
+        **_kwargs: Any,
+    ) -> list[Any]:
+        if self.state.job.status != "queued":
+            return []
+        self.state.job.status = "running"
+        self.state.job.lease_token = uuid4()
+        return [self.state.job]
+
+    async def get_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> Any:
+        return self.state.job if job_id == self.state.job.id else None
+
+    async def claim_runnable_runs(self, **_kwargs: Any) -> list[Any]:
+        if self.state.run_claimed:
+            return []
+        self.state.run_claimed = True
+        self.state.run.lease_token = uuid4()
+        return [self.state.run]
+
+    async def renew_run_lease(self, **_kwargs: Any) -> bool:
+        return True
+
+
+class RunThatQueuesContextJob:
+    def __init__(self, state: AsyncContextLaneState) -> None:
+        self.state = state
+
+    async def process(
+        self,
+        run_id: UUID,
+        *,
+        lease_token: UUID,
+        lease_guard: Any | None = None,
+    ) -> Any:
+        assert run_id == self.state.run.id
+        assert lease_token == self.state.run.lease_token
+        assert lease_guard is None
+        self.state.job.status = "queued"
+        await asyncio.wait_for(
+            self.state.compaction_done.wait(),
+            timeout=1,
+        )
+        self.state.run_completed = True
+        return SimpleNamespace(status="completed")
+
+
+class AsyncRecordingContextProcessor:
+    def __init__(self, state: AsyncContextLaneState) -> None:
+        self.state = state
+
+    async def process_claimed_job(self, *, job: Any) -> Any:
+        job.status = "completed"
+        job.lease_token = None
+        self.state.compaction_done.set()
+        return job
 
 
 class MutableClock:

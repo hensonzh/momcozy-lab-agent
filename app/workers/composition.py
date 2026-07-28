@@ -15,11 +15,18 @@ from app.bootstrap import (
     validate_runtime_composition,
 )
 from app.agent_runtime.actions import ConfirmationExpiryService
-from app.agent_runtime.context import AgentAttachmentService
+from app.agent_runtime.context import (
+    AgentAttachmentService,
+    ContextCompactionService,
+)
 from app.agent_runtime.events import RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import AgentLoop
-from app.agent_runtime.providers import OpenAIResponsesProvider
+from app.agent_runtime.providers import (
+    OpenAIContextCompactor,
+    OpenAIContextTokenCounter,
+    OpenAIResponsesProvider,
+)
 from app.agent_runtime.runs import (
     AdmissionReleasingProcessor,
     RedisRunAdmission,
@@ -102,6 +109,50 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 service_key=settings.product_backend_service_key,
             )
             registry = build_runtime_tool_registry()
+            context_token_counter = OpenAIContextTokenCounter(
+                client=openai_client,
+                model=settings.openai_model,
+                timeout_seconds=(
+                    settings.agent_model_timeout_seconds
+                ),
+            )
+            context_compactor = OpenAIContextCompactor(
+                client=openai_client,
+                model=settings.openai_model,
+                reasoning_effort=settings.openai_reasoning_effort,
+                text_verbosity=settings.openai_text_verbosity,
+                timeout_seconds=(
+                    settings.agent_model_timeout_seconds
+                ),
+            )
+
+            def context_service(
+                repository: RuntimeLedgerRepository,
+                model_input_resolver: AgentAttachmentService | None = None,
+            ) -> ContextCompactionService:
+                resolver = (
+                    model_input_resolver
+                    or AgentAttachmentService(
+                        repository=repository,
+                        product_client=product_client,
+                    )
+                )
+                return ContextCompactionService(
+                    repository=repository,
+                    token_counter=context_token_counter,
+                    compactor=context_compactor,
+                    model_input_resolver=resolver,
+                    model=settings.openai_model,
+                    threshold_tokens=(
+                        settings.agent_context_compaction_threshold_tokens
+                    ),
+                    summary_max_tokens=(
+                        settings.agent_context_summary_max_tokens
+                    ),
+                    max_attempts=(
+                        settings.agent_context_compaction_max_attempts
+                    ),
+                )
 
             def processor_factory(
                 repository: RuntimeLedgerRepository,
@@ -161,6 +212,10 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                                 product_client=product_client,
                             )
                         ),
+                        context_coordinator=context_service(
+                            repository,
+                            attachments,
+                        ),
                     ),
                     admission=run_admission,
                 )
@@ -186,6 +241,15 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 ),
                 confirmation_expiry_batch_size=(
                     settings.agent_action_expiry_batch_size
+                ),
+                context_compaction_processor_factory=(
+                    context_service
+                ),
+                context_compaction_batch_size=(
+                    settings.agent_context_compaction_batch_size
+                ),
+                context_compaction_concurrency=(
+                    settings.agent_context_compaction_concurrency
                 ),
             )
     finally:

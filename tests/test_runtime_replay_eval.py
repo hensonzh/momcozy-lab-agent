@@ -23,6 +23,11 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
     assert bundle["run"]["runtime_pattern"] == "legacy_adapter"
     assert bundle["run"]["skill_id"] == "main_agent"
     assert bundle["execution_manifest"] == repository.run.execution_manifest
+    assert bundle["context_state"] == repository.run.context_state
+    assert bundle["context_checkpoint"]["checkpoint"] == {
+        "redacted": True
+    }
+    assert bundle["context_head"]["generation"] == 1
     assert bundle["messages"][0]["content"] == {"redacted": True}
     assert bundle["tool_outputs"][0]["output"] == {"redacted": True}
     assert bundle["events"][0]["payload"] == {"redacted": True}
@@ -44,6 +49,15 @@ def test_replay_bundle_includes_sanitized_content_only_when_requested() -> None:
     assert bundle["messages"][0]["content"] == {"text": "private"}
     assert bundle["tool_outputs"][0]["output"] == {"ok": True}
     assert bundle["events"][0]["payload"]["token"] == "[redacted]"
+    assert bundle["context_checkpoint"]["checkpoint"] == {
+        "schema_version": "agent_context_checkpoint.v2",
+        "user_claims": [],
+        "verified_tool_facts": [],
+        "confirmed_decisions": [],
+        "unresolved_items": [],
+        "safety_constraints": [],
+        "chronology_summary": [],
+    }
 
 
 def test_replay_operator_service_identity_is_audited() -> None:
@@ -134,6 +148,13 @@ class FakeReplayRepository:
                     }
                 ],
             },
+            context_state={
+                "schema_version": "agent_run_context.v2",
+                "checkpoint": {
+                    "id": str(uuid4()),
+                    "summary_sha256": "b" * 64,
+                },
+            },
         )
         self.thread = SimpleNamespace(
             id=self.run.thread_id,
@@ -172,6 +193,55 @@ class FakeReplayRepository:
                 payload={"token": "secret"},
             )
         ]
+
+    async def get_context_checkpoint_for_run(
+        self,
+        *,
+        run: Any,
+    ) -> Any:
+        return SimpleNamespace(
+            id=UUID(run.context_state["checkpoint"]["id"]),
+            schema_version="agent_context_checkpoint.v2",
+            generation=1,
+            source_cutoff_run_id=uuid4(),
+            source_cutoff_sequence=7,
+            source_sha256="a" * 64,
+            summary_sha256="b" * 64,
+            model="gpt-5.6-terra",
+            token_counter="openai.responses.input_tokens",
+            token_counter_version="v1",
+            source_input_tokens=100_001,
+            summary_output_tokens=1_900,
+            prompt_version="agent_context_compaction.v2",
+            materializer_version="agent_context_materializer.v1",
+            context_schema_version="agent_context_checkpoint.v2",
+            summary_policy_version="agent_context_summary_policy.v1",
+            checkpoint={
+                "schema_version": "agent_context_checkpoint.v2",
+                "user_claims": [],
+                "verified_tool_facts": [],
+                "confirmed_decisions": [],
+                "unresolved_items": [],
+                "safety_constraints": [],
+                "chronology_summary": [],
+            },
+        )
+
+    async def get_context_head_for_run(
+        self,
+        *,
+        run: Any,
+    ) -> Any:
+        return SimpleNamespace(
+            thread_id=run.thread_id,
+            status="ready",
+            generation=1,
+            ready_checkpoint_id=UUID(
+                run.context_state["checkpoint"]["id"]
+            ),
+            pending_job_id=None,
+            error_code="",
+        )
 
     async def list_tool_calls(self, *, run_id: UUID) -> list[Any]:
         return []

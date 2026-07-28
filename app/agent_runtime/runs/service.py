@@ -191,6 +191,33 @@ class AgentRuntimeService:
                 thread_id=thread_id,
                 message=normalized_message,
             )
+            get_context_head = getattr(
+                self.repository,
+                "get_context_head",
+                None,
+            )
+            context_head = (
+                await get_context_head(thread_id=thread.id)
+                if callable(get_context_head)
+                else None
+            )
+            if (
+                context_head is not None
+                and context_head.status == "blocked"
+            ):
+                raise ApiError(
+                    code="context_compaction_dead_lettered",
+                    message=(
+                        "Thread context compaction requires intervention."
+                    ),
+                    status=503,
+                    details={
+                        "retryable": False,
+                        "recovery_id": str(
+                            context_head.pending_job_id or ""
+                        ),
+                    },
+                )
             active_run = await self.repository.get_active_run_for_thread(
                 thread_id=thread.id,
                 owner_user_id=actor_user_id,

@@ -4,7 +4,6 @@ import json
 import math
 import re
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -14,13 +13,13 @@ from app.infrastructure.product_backend import (
     AgentFileResolveRequest,
     AgentFileResolveResponse,
 )
+from app.agent_runtime.context.compaction import MATERIALIZER_VERSION
 
 
 MODEL_IMAGE_TYPES = frozenset(
     {"image/gif", "image/jpeg", "image/png", "image/webp"}
 )
 MAX_ATTACHMENTS = 20
-URL_REFRESH_MARGIN = timedelta(minutes=5)
 MAX_FORM_FIELDS = 50
 MAX_FORM_VALUE_BYTES = 32 * 1024
 MAX_FORM_STRING_LENGTH = 4096
@@ -53,6 +52,8 @@ class _FileResolver(Protocol):
 
 
 class AgentAttachmentService:
+    version = MATERIALIZER_VERSION
+
     def __init__(
         self,
         *,
@@ -169,16 +170,6 @@ class AgentAttachmentService:
         asset_id: UUID,
         request_id: str,
     ) -> str:
-        access = await self.repository.get_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=asset_id,
-        )
-        if (
-            access is not None
-            and access.expires_at > _utcnow() + URL_REFRESH_MARGIN
-        ):
-            return access.image_url
         resolved = await self.product_client.resolve_agent_file(
             command=AgentFileResolveRequest(
                 actor_user_id=actor_user_id,
@@ -186,13 +177,6 @@ class AgentAttachmentService:
                 purpose="model_image",
             ),
             request_id=request_id,
-        )
-        await self.repository.upsert_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=asset_id,
-            image_url=resolved.model_url,
-            expires_at=resolved.expires_at,
         )
         return resolved.model_url
 
@@ -204,16 +188,6 @@ class AgentAttachmentService:
         asset_id: UUID,
         request_id: str,
     ) -> str:
-        access = await self.repository.get_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=asset_id,
-        )
-        if (
-            access is not None
-            and access.expires_at > _utcnow() + URL_REFRESH_MARGIN
-        ):
-            return access.image_url
         resolved = await self.product_client.resolve_agent_file(
             command=AgentFileResolveRequest(
                 actor_user_id=actor_user_id,
@@ -221,13 +195,6 @@ class AgentAttachmentService:
                 purpose="model_file",
             ),
             request_id=request_id,
-        )
-        await self.repository.upsert_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=asset_id,
-            image_url=resolved.model_url,
-            expires_at=resolved.expires_at,
         )
         return resolved.model_url
 
@@ -262,13 +229,6 @@ class AgentAttachmentService:
                 message="Agent image attachment has an unsupported type.",
                 status=422,
             )
-        await self.repository.upsert_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=asset_id,
-            image_url=resolved.model_url,
-            expires_at=resolved.expires_at,
-        )
         detail = str(attachment.get("detail") or "auto")
         return {
             "type": "image",
@@ -306,13 +266,6 @@ class AgentAttachmentService:
                 message="Agent file attachment must be a PDF.",
                 status=422,
             )
-        await self.repository.upsert_image_access(
-            thread_id=thread_id,
-            owner_user_id=actor_user_id,
-            asset_id=file_id,
-            image_url=resolved.model_url,
-            expires_at=resolved.expires_at,
-        )
         return {
             "type": "file",
             "file_id": str(file_id),
@@ -671,7 +624,3 @@ def _invalid_form_submission(message: str) -> ApiError:
         message=message,
         status=422,
     )
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)

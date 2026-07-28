@@ -74,6 +74,43 @@ def test_general_question_is_answered_by_main_agent_without_delegation() -> None
     assert "message.delta" not in repository.event_types
 
 
+def test_context_window_overflow_waits_for_compaction_and_retries_current_run() -> None:
+    repository = MemoryLedger()
+    provider = ContextOverflowThenFinalProvider()
+    coordinator = RecordingContextCoordinator(repository)
+    loop = _loop(
+        repository=repository,
+        provider=provider,
+        context_coordinator=coordinator,
+    )
+
+    run = asyncio.run(loop.process(repository.run.id))
+
+    assert run.status == "completed"
+    assert coordinator.prepared == [repository.run.id]
+    assert coordinator.recovered == [repository.run.id]
+    assert len(provider.requests) == 2
+    assert repository.assistant_text == "压缩后继续完成。"
+
+
+def test_context_window_overflow_can_suspend_without_failing_run() -> None:
+    repository = MemoryLedger()
+    provider = ContextOverflowThenFinalProvider()
+    coordinator = SuspendingContextCoordinator(repository)
+    loop = _loop(
+        repository=repository,
+        provider=provider,
+        context_coordinator=coordinator,
+    )
+
+    run = asyncio.run(loop.process(repository.run.id))
+
+    assert run.status == "queued"
+    assert run.error_code == ""
+    assert len(provider.requests) == 1
+    assert coordinator.recovered == [repository.run.id]
+
+
 def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     repository = ManifestMemoryLedger()
     provider = ManifestEmittingProvider()
@@ -1143,6 +1180,7 @@ def _loop(
     provider: Any,
     tool_executor: ToolExecutor | None = None,
     transient_delta_publisher: Any | None = None,
+    context_coordinator: Any | None = None,
 ) -> AgentLoop:
     return AgentLoop(
         repository=cast(RuntimeLedgerRepository, repository),
@@ -1152,6 +1190,7 @@ def _loop(
         agent_catalog=AGENT_CATALOG,
         max_turns=8,
         transient_delta_publisher=transient_delta_publisher,
+        context_coordinator=context_coordinator,
     )
 
 
@@ -1242,6 +1281,7 @@ class MemoryLedger:
             cancelled_at=None,
             error_code="",
             error_details={},
+            context_state={},
         )
         self.tool_registry = cast(Any, MemoryToolRegistry())
         self.context: list[Any] = [
@@ -1405,6 +1445,48 @@ class ManifestMemoryLedger(MemoryLedger):
         assert run is self.run
         self.execution_manifests.append(dict(manifest))
         return dict(manifest)
+
+
+class ContextOverflowThenFinalProvider:
+    def __init__(self) -> None:
+        self.requests: list[Any] = []
+
+    async def respond(self, request: Any) -> ModelTurn:
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            raise ApiError(
+                code="model_context_window_exceeded",
+                message="Model context window exceeded.",
+                status=400,
+                details={"retryable": True},
+            )
+        return ModelTurn.final("压缩后继续完成。")
+
+
+class RecordingContextCoordinator:
+    def __init__(self, repository: MemoryLedger) -> None:
+        self.repository = repository
+        self.prepared: list[UUID] = []
+        self.recovered: list[UUID] = []
+
+    async def prepare_run(self, *, run: Any) -> None:
+        self.prepared.append(run.id)
+
+    async def list_context_records(self, *, run: Any) -> list[Any]:
+        return await self.repository.list_context_items_for_thread(
+            thread_id=run.thread_id,
+        )
+
+    async def recover_context_overflow(self, *, run: Any) -> bool:
+        self.recovered.append(run.id)
+        return True
+
+
+class SuspendingContextCoordinator(RecordingContextCoordinator):
+    async def recover_context_overflow(self, *, run: Any) -> bool:
+        self.recovered.append(run.id)
+        run.status = "queued"
+        return False
 
 
 class FencedMemoryLedger(MemoryLedger):

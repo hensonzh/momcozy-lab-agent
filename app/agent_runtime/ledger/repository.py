@@ -8,7 +8,8 @@ import json
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 
@@ -22,12 +23,14 @@ from .models import (
     ACTIVE_RUN_STATUSES,
     AgentAction,
     AgentArtifact,
+    AgentContextCheckpoint,
+    AgentContextCompactionJob,
     AgentContextItem,
     AgentEvent,
-    AgentImageAccess,
     AgentMessage,
     AgentRun,
     AgentThread,
+    AgentThreadContextHead,
     AgentToolCall,
     AgentToolOutput,
     AgentWorkflowEvent,
@@ -314,13 +317,35 @@ class RuntimeLedgerRepository:
     ) -> list[AgentRun]:
         if lease_expires_at <= claimed_at:
             raise ValueError("lease_expires_at must be after claimed_at")
+        pending_prior_compaction = exists(
+            select(AgentThreadContextHead.thread_id)
+            .join(
+                AgentContextCompactionJob,
+                AgentContextCompactionJob.id
+                == AgentThreadContextHead.pending_job_id,
+            )
+            .where(
+                AgentThreadContextHead.thread_id
+                == AgentRun.thread_id,
+                AgentThreadContextHead.status == "compacting",
+                or_(
+                    AgentContextCompactionJob.trigger_run_id
+                    != AgentRun.id,
+                    AgentRun.context_state[
+                        "waiting_for_context"
+                    ].as_boolean()
+                    .is_(True),
+                ),
+            )
+        )
         statement = (
             select(AgentRun)
             .where(
                 or_(
                     AgentRun.status == "queued",
                     ((AgentRun.status == "running") & (AgentRun.locked_until.is_(None) | (AgentRun.locked_until <= claimed_at))),
-                )
+                ),
+                ~pending_prior_compaction,
             )
             .order_by(
                 AgentRun.created_at.asc(),
@@ -471,6 +496,28 @@ class RuntimeLedgerRepository:
         run.error_details = {}
         await self.session.flush()
         return run
+
+    async def suspend_run_for_context(
+        self,
+        *,
+        run: AgentRun,
+        lease_token: UUID,
+        context_state: dict[str, Any],
+    ) -> AgentRun:
+        return await self._transition_run_with_lease(
+            run=run,
+            lease_token=lease_token,
+            values={
+                "status": "queued",
+                "context_state": deepcopy(context_state),
+                "lease_token": None,
+                "locked_until": None,
+                "completed_at": None,
+                "cancelled_at": None,
+                "error_code": "",
+                "error_details": {},
+            },
+        )
 
     async def mark_run_cancelled(
         self,
@@ -774,6 +821,700 @@ class RuntimeLedgerRepository:
         context_items = list(result.all())
         context_items.reverse()
         return context_items
+
+    async def get_prior_completed_context_cutoff(
+        self,
+        *,
+        thread_id: UUID,
+        before_run_id: UUID,
+    ) -> Any | None:
+        statement = (
+            select(
+                AgentContextItem.run_id,
+                AgentContextItem.sequence,
+            )
+            .join(AgentRun, AgentRun.id == AgentContextItem.run_id)
+            .where(
+                AgentContextItem.thread_id == thread_id,
+                AgentRun.thread_id == thread_id,
+                AgentRun.id != before_run_id,
+                AgentRun.status == "completed",
+            )
+            .order_by(AgentContextItem.sequence.desc())
+            .limit(1)
+        )
+        row = (await self.session.execute(statement)).first()
+        if row is None or row.run_id is None:
+            return None
+        return type(
+            "CompletedContextCutoff",
+            (),
+            {
+                "run_id": row.run_id,
+                "sequence": int(row.sequence),
+            },
+        )()
+
+    async def get_or_create_context_head(
+        self,
+        *,
+        thread_id: UUID,
+    ) -> AgentThreadContextHead:
+        await self.session.execute(
+            pg_insert(AgentThreadContextHead)
+            .values(thread_id=thread_id)
+            .on_conflict_do_nothing(
+                index_elements=[AgentThreadContextHead.thread_id]
+            )
+        )
+        head = await self.get_context_head(thread_id=thread_id)
+        assert head is not None
+        return head
+
+    async def get_context_head(
+        self,
+        *,
+        thread_id: UUID,
+    ) -> AgentThreadContextHead | None:
+        return cast(
+            AgentThreadContextHead | None,
+            await self.session.scalar(
+                select(AgentThreadContextHead).where(
+                    AgentThreadContextHead.thread_id == thread_id
+                )
+            ),
+        )
+
+    async def _lock_context_head(
+        self,
+        *,
+        thread_id: UUID,
+    ) -> AgentThreadContextHead | None:
+        return cast(
+            AgentThreadContextHead | None,
+            await self.session.scalar(
+                select(AgentThreadContextHead)
+                .where(
+                    AgentThreadContextHead.thread_id == thread_id
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ),
+        )
+
+    async def get_latest_context_checkpoint(
+        self,
+        *,
+        thread_id: UUID,
+        through_sequence: int,
+    ) -> AgentContextCheckpoint | None:
+        statement = (
+            select(AgentContextCheckpoint)
+            .where(
+                AgentContextCheckpoint.thread_id == thread_id,
+                AgentContextCheckpoint.source_cutoff_sequence
+                <= through_sequence,
+            )
+            .order_by(
+                AgentContextCheckpoint.source_cutoff_sequence.desc(),
+                AgentContextCheckpoint.created_at.desc(),
+                AgentContextCheckpoint.id.desc(),
+            )
+            .limit(1)
+        )
+        return cast(
+            AgentContextCheckpoint | None,
+            await self.session.scalar(statement),
+        )
+
+    async def get_context_checkpoint(
+        self,
+        *,
+        checkpoint_id: UUID,
+    ) -> AgentContextCheckpoint | None:
+        return cast(
+            AgentContextCheckpoint | None,
+            await self.session.scalar(
+                select(AgentContextCheckpoint).where(
+                    AgentContextCheckpoint.id == checkpoint_id
+                )
+            ),
+        )
+
+    async def list_completed_context_items(
+        self,
+        *,
+        thread_id: UUID,
+        after_sequence: int,
+        through_sequence: int,
+    ) -> list[AgentContextItem]:
+        result = await self.session.scalars(
+            select(AgentContextItem)
+            .join(AgentRun, AgentRun.id == AgentContextItem.run_id)
+            .where(
+                AgentContextItem.thread_id == thread_id,
+                AgentContextItem.sequence > after_sequence,
+                AgentContextItem.sequence <= through_sequence,
+                AgentRun.status == "completed",
+            )
+            .order_by(AgentContextItem.sequence)
+        )
+        return list(result.all())
+
+    async def list_context_items_for_projection(
+        self,
+        *,
+        thread_id: UUID,
+        current_run_id: UUID,
+        after_sequence: int,
+    ) -> list[AgentContextItem]:
+        completed_run = exists(
+            select(AgentRun.id).where(
+                AgentRun.id == AgentContextItem.run_id,
+                AgentRun.status == "completed",
+            )
+        )
+        result = await self.session.scalars(
+            select(AgentContextItem)
+            .where(
+                AgentContextItem.thread_id == thread_id,
+                AgentContextItem.sequence > after_sequence,
+                or_(
+                    AgentContextItem.run_id == current_run_id,
+                    completed_run,
+                ),
+            )
+            .order_by(AgentContextItem.sequence)
+        )
+        return list(result.all())
+
+    async def set_run_context_state(
+        self,
+        *,
+        run: AgentRun,
+        context_state: dict[str, Any],
+    ) -> AgentRun:
+        run.context_state = deepcopy(context_state)
+        await self.session.flush()
+        return run
+
+    async def enqueue_context_compaction_job(
+        self,
+        *,
+        thread_id: UUID,
+        trigger_run_id: UUID,
+        actor_user_id: UUID,
+        base_checkpoint_id: UUID | None,
+        source_cutoff_run_id: UUID,
+        source_cutoff_sequence: int,
+        source_sha256: str,
+        generation: int,
+        idempotency_key: str,
+        model: str,
+        token_counter: str,
+        token_counter_version: str,
+        source_input_tokens: int,
+        summary_max_tokens: int,
+        prompt_version: str,
+        materializer_version: str,
+        context_schema_version: str,
+        summary_policy_version: str,
+        max_attempts: int = 3,
+        supersedes_job_id: UUID | None = None,
+    ) -> AgentContextCompactionJob:
+        head = await self.get_or_create_context_head(
+            thread_id=thread_id
+        )
+        await self.session.refresh(head, with_for_update=True)
+        if (
+            head.status == "compacting"
+            and head.pending_job_id is not None
+        ):
+            existing = await self.get_context_compaction_job(
+                job_id=head.pending_job_id
+            )
+            if (
+                existing is not None
+                and existing.idempotency_key == idempotency_key
+                and existing.status
+                in {"queued", "retry_wait", "running", "completed"}
+            ):
+                return existing
+            raise RunLeaseLostError(
+                f"context head already has pending generation: {thread_id}"
+            )
+        if generation != head.generation + 1:
+            raise RunLeaseLostError(
+                f"context generation changed: {thread_id}"
+            )
+        values = {
+            "id": uuid4(),
+            "thread_id": thread_id,
+            "trigger_run_id": trigger_run_id,
+            "actor_user_id": actor_user_id,
+            "base_checkpoint_id": base_checkpoint_id,
+            "source_cutoff_run_id": source_cutoff_run_id,
+            "source_cutoff_sequence": source_cutoff_sequence,
+            "source_sha256": source_sha256,
+            "generation": generation,
+            "idempotency_key": idempotency_key,
+            "model": model,
+            "token_counter": token_counter,
+            "token_counter_version": token_counter_version,
+            "source_input_tokens": source_input_tokens,
+            "summary_max_tokens": summary_max_tokens,
+            "prompt_version": prompt_version,
+            "materializer_version": materializer_version,
+            "context_schema_version": context_schema_version,
+            "summary_policy_version": summary_policy_version,
+            "max_attempts": max_attempts,
+            "supersedes_job_id": supersedes_job_id,
+        }
+        job = AgentContextCompactionJob(**values)
+        self.session.add(job)
+        await self.session.flush()
+        head.status = "compacting"
+        head.pending_job_id = job.id
+        head.error_code = ""
+        await self.session.flush()
+        return job
+
+    async def get_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> AgentContextCompactionJob | None:
+        return cast(
+            AgentContextCompactionJob | None,
+            await self.session.scalar(
+                select(AgentContextCompactionJob)
+                .where(AgentContextCompactionJob.id == job_id)
+                .execution_options(populate_existing=True)
+            ),
+        )
+
+    async def supersede_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> AgentContextCompactionJob:
+        job = cast(
+            AgentContextCompactionJob | None,
+            await self.session.scalar(
+                select(AgentContextCompactionJob)
+                .where(AgentContextCompactionJob.id == job_id)
+                .with_for_update()
+            ),
+        )
+        if job is None:
+            raise LedgerResourceNotFoundError(
+                "context compaction job not found"
+            )
+        if job.status != "dead_lettered":
+            raise ValueError(
+                "only a dead-lettered context job can be superseded"
+            )
+        head = cast(
+            AgentThreadContextHead | None,
+            await self.session.scalar(
+                select(AgentThreadContextHead)
+                .where(
+                    AgentThreadContextHead.thread_id == job.thread_id
+                )
+                .with_for_update()
+            ),
+        )
+        if (
+            head is None
+            or head.status != "blocked"
+            or head.pending_job_id != job.id
+        ):
+            raise RunLeaseLostError(
+                f"context recovery target changed: {job.thread_id}"
+            )
+        replacement_id = uuid4()
+        replacement = AgentContextCompactionJob(
+            id=replacement_id,
+            thread_id=job.thread_id,
+            trigger_run_id=job.trigger_run_id,
+            actor_user_id=job.actor_user_id,
+            base_checkpoint_id=job.base_checkpoint_id,
+            source_cutoff_run_id=job.source_cutoff_run_id,
+            source_cutoff_sequence=job.source_cutoff_sequence,
+            source_sha256=job.source_sha256,
+            generation=job.generation,
+            idempotency_key=hashlib.sha256(
+                f"{job.id}:{replacement_id}".encode("utf-8")
+            ).hexdigest(),
+            model=job.model,
+            token_counter=job.token_counter,
+            token_counter_version=job.token_counter_version,
+            source_input_tokens=job.source_input_tokens,
+            summary_max_tokens=job.summary_max_tokens,
+            prompt_version=job.prompt_version,
+            materializer_version=job.materializer_version,
+            context_schema_version=job.context_schema_version,
+            summary_policy_version=job.summary_policy_version,
+            max_attempts=job.max_attempts,
+            supersedes_job_id=job.id,
+        )
+        job.status = "superseded"
+        self.session.add(replacement)
+        await self.session.flush()
+        head.status = "compacting"
+        head.pending_job_id = replacement.id
+        head.error_code = ""
+        await self.session.flush()
+        return replacement
+
+    async def claim_context_compaction_jobs(
+        self,
+        *,
+        claimed_at: datetime,
+        lease_expires_at: datetime,
+        limit: int,
+    ) -> list[AgentContextCompactionJob]:
+        if lease_expires_at <= claimed_at:
+            raise ValueError("lease_expires_at must be after claimed_at")
+        await self._dead_letter_exhausted_context_jobs(
+            claimed_at=claimed_at,
+            limit=limit,
+        )
+        statement = (
+            select(AgentContextCompactionJob)
+            .where(
+                AgentContextCompactionJob.next_attempt_at <= claimed_at,
+                AgentContextCompactionJob.attempts
+                < AgentContextCompactionJob.max_attempts,
+                or_(
+                    AgentContextCompactionJob.status.in_(
+                        ("queued", "retry_wait")
+                    ),
+                    (
+                        (
+                            AgentContextCompactionJob.status
+                            == "running"
+                        )
+                        & (
+                            AgentContextCompactionJob.locked_until
+                            <= claimed_at
+                        )
+                    ),
+                ),
+            )
+            .order_by(
+                AgentContextCompactionJob.next_attempt_at,
+                AgentContextCompactionJob.created_at,
+                AgentContextCompactionJob.id,
+            )
+            .with_for_update(skip_locked=True)
+            .limit(_bounded_limit(limit))
+        )
+        result = await self.session.scalars(statement)
+        jobs = list(result.all())
+        for job in jobs:
+            _claim_context_job(
+                job,
+                claimed_at=claimed_at,
+                lease_expires_at=lease_expires_at,
+            )
+        await self.session.flush()
+        return jobs
+
+    async def claim_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+        lease_duration_seconds: float = 180,
+    ) -> AgentContextCompactionJob | None:
+        claimed_at = _utcnow()
+        await self._dead_letter_exhausted_context_job(
+            job_id=job_id,
+            claimed_at=claimed_at,
+        )
+        result = await self.session.scalars(
+            select(AgentContextCompactionJob)
+            .where(
+                AgentContextCompactionJob.id == job_id,
+                AgentContextCompactionJob.next_attempt_at
+                <= claimed_at,
+                AgentContextCompactionJob.attempts
+                < AgentContextCompactionJob.max_attempts,
+                or_(
+                    AgentContextCompactionJob.status.in_(
+                        ("queued", "retry_wait")
+                    ),
+                    (
+                        (
+                            AgentContextCompactionJob.status
+                            == "running"
+                        )
+                        & (
+                            AgentContextCompactionJob.locked_until
+                            <= claimed_at
+                        )
+                    ),
+                ),
+            )
+            .with_for_update(skip_locked=True)
+        )
+        job = result.first()
+        if job is None:
+            return None
+        _claim_context_job(
+            job,
+            claimed_at=claimed_at,
+            lease_expires_at=claimed_at
+            + timedelta(seconds=lease_duration_seconds),
+        )
+        await self.session.flush()
+        return job
+
+    async def _dead_letter_exhausted_context_job(
+        self,
+        *,
+        job_id: UUID,
+        claimed_at: datetime,
+    ) -> None:
+        job = cast(
+            AgentContextCompactionJob | None,
+            await self.session.scalar(
+                select(AgentContextCompactionJob)
+                .where(
+                    AgentContextCompactionJob.id == job_id,
+                    AgentContextCompactionJob.attempts
+                    >= AgentContextCompactionJob.max_attempts,
+                    AgentContextCompactionJob.next_attempt_at
+                    <= claimed_at,
+                    or_(
+                        AgentContextCompactionJob.status.in_(
+                            ("queued", "retry_wait")
+                        ),
+                        (
+                            AgentContextCompactionJob.status
+                            == "running"
+                        )
+                        & (
+                            AgentContextCompactionJob.locked_until
+                            <= claimed_at
+                        ),
+                    ),
+                )
+                .with_for_update(skip_locked=True)
+            ),
+        )
+        if job is not None:
+            await self._mark_context_job_attempts_exhausted(
+                job=job,
+                claimed_at=claimed_at,
+            )
+            await self.session.flush()
+
+    async def _dead_letter_exhausted_context_jobs(
+        self,
+        *,
+        claimed_at: datetime,
+        limit: int,
+    ) -> None:
+        result = await self.session.scalars(
+            select(AgentContextCompactionJob)
+            .where(
+                AgentContextCompactionJob.attempts
+                >= AgentContextCompactionJob.max_attempts,
+                AgentContextCompactionJob.next_attempt_at <= claimed_at,
+                or_(
+                    AgentContextCompactionJob.status.in_(
+                        ("queued", "retry_wait")
+                    ),
+                    (
+                        AgentContextCompactionJob.status == "running"
+                    )
+                    & (
+                        AgentContextCompactionJob.locked_until
+                        <= claimed_at
+                    ),
+                ),
+            )
+            .order_by(
+                AgentContextCompactionJob.next_attempt_at,
+                AgentContextCompactionJob.created_at,
+                AgentContextCompactionJob.id,
+            )
+            .with_for_update(skip_locked=True)
+            .limit(_bounded_limit(limit))
+        )
+        for job in result.all():
+            await self._mark_context_job_attempts_exhausted(
+                job=job,
+                claimed_at=claimed_at,
+            )
+        await self.session.flush()
+
+    async def _mark_context_job_attempts_exhausted(
+        self,
+        *,
+        job: AgentContextCompactionJob,
+        claimed_at: datetime,
+    ) -> None:
+        job.status = "dead_lettered"
+        job.error_code = "context_compaction_attempts_exhausted"
+        job.completed_at = claimed_at
+        job.lease_token = None
+        job.locked_until = None
+        head = await self._lock_context_head(thread_id=job.thread_id)
+        if head is not None and head.pending_job_id == job.id:
+            head.status = "blocked"
+            head.error_code = job.error_code
+
+    async def complete_context_compaction_job(
+        self,
+        *,
+        job: AgentContextCompactionJob,
+        checkpoint: dict[str, Any],
+        summary_sha256: str,
+        summary_output_tokens: int,
+        provider_response_id: str,
+    ) -> AgentContextCheckpoint:
+        await self._assert_context_compaction_job_lease(job=job)
+        head = await self._lock_context_head(thread_id=job.thread_id)
+        if (
+            head is None
+            or head.status != "compacting"
+            or head.pending_job_id != job.id
+            or job.generation != head.generation + 1
+        ):
+            raise RunLeaseLostError(
+                f"context head ownership lost: {job.thread_id}"
+            )
+        stored_checkpoint = AgentContextCheckpoint(
+            thread_id=job.thread_id,
+            source_cutoff_run_id=job.source_cutoff_run_id,
+            source_cutoff_sequence=job.source_cutoff_sequence,
+            generation=job.generation,
+            schema_version=job.context_schema_version,
+            source_sha256=job.source_sha256,
+            summary_sha256=summary_sha256,
+            model=job.model,
+            token_counter=job.token_counter,
+            token_counter_version=job.token_counter_version,
+            source_input_tokens=job.source_input_tokens,
+            summary_output_tokens=summary_output_tokens,
+            prompt_version=job.prompt_version,
+            materializer_version=job.materializer_version,
+            context_schema_version=job.context_schema_version,
+            summary_policy_version=job.summary_policy_version,
+            provider_response_id=provider_response_id,
+            checkpoint=deepcopy(checkpoint),
+        )
+        self.session.add(stored_checkpoint)
+        await self.session.flush()
+        job.status = "completed"
+        job.checkpoint_id = stored_checkpoint.id
+        job.completed_at = _utcnow()
+        job.error_code = ""
+        job.lease_token = None
+        job.locked_until = None
+        head.status = "ready"
+        head.generation = job.generation
+        head.ready_checkpoint_id = stored_checkpoint.id
+        head.pending_job_id = None
+        head.error_code = ""
+        await self.session.flush()
+        return stored_checkpoint
+
+    async def fail_context_compaction_job(
+        self,
+        *,
+        job: AgentContextCompactionJob,
+        error_code: str,
+        retryable: bool,
+    ) -> AgentContextCompactionJob:
+        await self._assert_context_compaction_job_lease(job=job)
+        job.error_code = error_code
+        job.lease_token = None
+        job.locked_until = None
+        if retryable and job.attempts < job.max_attempts:
+            job.status = "retry_wait"
+            job.next_attempt_at = _utcnow() + timedelta(
+                seconds=min(2 ** max(job.attempts, 1), 60)
+            )
+        else:
+            job.status = "dead_lettered"
+            job.completed_at = _utcnow()
+            head = await self._lock_context_head(
+                thread_id=job.thread_id
+            )
+            if (
+                head is not None
+                and head.pending_job_id == job.id
+            ):
+                head.status = "blocked"
+                head.error_code = error_code
+        await self.session.flush()
+        return job
+
+    async def renew_context_compaction_job_lease(
+        self,
+        *,
+        job_id: UUID,
+        lease_token: UUID,
+        lease_duration_seconds: float,
+    ) -> bool:
+        if lease_duration_seconds <= 0:
+            raise ValueError("lease_duration_seconds must be positive")
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(AgentContextCompactionJob)
+                .where(
+                    AgentContextCompactionJob.id == job_id,
+                    AgentContextCompactionJob.status == "running",
+                    AgentContextCompactionJob.lease_token
+                    == lease_token,
+                    AgentContextCompactionJob.locked_until.is_not(None),
+                    AgentContextCompactionJob.locked_until
+                    > func.clock_timestamp(),
+                )
+                .values(
+                    locked_until=(
+                        func.clock_timestamp()
+                        + timedelta(
+                            seconds=lease_duration_seconds
+                        )
+                    )
+                )
+                .execution_options(synchronize_session=False)
+            ),
+        )
+        return bool(result.rowcount == 1)
+
+    async def _assert_context_compaction_job_lease(
+        self,
+        *,
+        job: AgentContextCompactionJob,
+    ) -> None:
+        lease_token = job.lease_token
+        if job.status != "running" or lease_token is None:
+            raise RunLeaseLostError(
+                f"context compaction lease lost: {job.id}"
+            )
+        owned = await self.session.scalar(
+            select(AgentContextCompactionJob.id)
+            .where(
+                AgentContextCompactionJob.id == job.id,
+                AgentContextCompactionJob.status == "running",
+                AgentContextCompactionJob.lease_token
+                == lease_token,
+                AgentContextCompactionJob.locked_until.is_not(None),
+                AgentContextCompactionJob.locked_until
+                > func.clock_timestamp(),
+            )
+            .with_for_update()
+        )
+        if owned is None:
+            raise RunLeaseLostError(
+                f"context compaction lease lost: {job.id}"
+            )
 
     async def append_event(
         self,
@@ -1564,66 +2305,6 @@ class RuntimeLedgerRepository:
         await self.session.flush()
         return event
 
-    async def get_image_access(
-        self,
-        *,
-        thread_id: UUID,
-        owner_user_id: UUID,
-        asset_id: UUID,
-    ) -> AgentImageAccess | None:
-        statement = (
-            select(AgentImageAccess)
-            .join(
-                AgentThread,
-                AgentThread.id == AgentImageAccess.thread_id,
-            )
-            .where(
-                AgentImageAccess.thread_id == thread_id,
-                AgentImageAccess.asset_id == asset_id,
-                AgentThread.owner_user_id == owner_user_id,
-                AgentThread.deleted_at.is_(None),
-            )
-        )
-        return cast(
-            AgentImageAccess | None,
-            await self.session.scalar(statement),
-        )
-
-    async def upsert_image_access(
-        self,
-        *,
-        thread_id: UUID,
-        owner_user_id: UUID,
-        asset_id: UUID,
-        image_url: str,
-        expires_at: datetime,
-    ) -> AgentImageAccess:
-        thread = await self._get_thread_for_owner(
-            thread_id=thread_id,
-            owner_user_id=owner_user_id,
-            for_update=True,
-        )
-        if thread is None:
-            raise LedgerResourceNotFoundError("thread not found")
-        access = await self.get_image_access(
-            thread_id=thread.id,
-            owner_user_id=owner_user_id,
-            asset_id=asset_id,
-        )
-        if access is None:
-            access = AgentImageAccess(
-                thread_id=thread.id,
-                asset_id=asset_id,
-                image_url=image_url,
-                expires_at=expires_at,
-            )
-            self.session.add(access)
-        else:
-            access.image_url = image_url
-            access.expires_at = expires_at
-        await self.session.flush()
-        return access
-
     async def _get_thread_for_owner(
         self,
         *,
@@ -1731,6 +2412,26 @@ class RuntimeLedgerRepository:
 
 def _bounded_limit(limit: int) -> int:
     return max(1, min(limit, 500))
+
+
+def _claim_context_job(
+    job: AgentContextCompactionJob,
+    *,
+    claimed_at: datetime,
+    lease_expires_at: datetime,
+) -> None:
+    if lease_expires_at <= claimed_at:
+        raise ValueError("lease_expires_at must be after claimed_at")
+    job.status = "running"
+    job.attempts += 1
+    job.lease_token = uuid4()
+    job.locked_until = lease_expires_at
+    job.error_code = ""
+    job.completed_at = None
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _execution_manifest_sha256(manifest: dict[str, Any]) -> str:

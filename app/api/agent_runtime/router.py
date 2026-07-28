@@ -15,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent_runtime.actions import RuntimeActionService
 from app.bootstrap import build_action_service
-from app.agent_runtime.context import AgentAttachmentService
+from app.agent_runtime.context import (
+    AgentAttachmentService,
+    ContextRecoveryService,
+)
 from app.agent_runtime.evals import RuntimeEvalRepository, RuntimeEvalService
 from app.agent_runtime.events import RuntimeTransientEvent, RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
@@ -48,6 +51,7 @@ from .schemas import (
     AgentThreadCreate,
     AgentThreadListResponse,
     AgentThreadRead,
+    ContextCompactionRecoveryRead,
 )
 
 
@@ -169,6 +173,22 @@ def get_eval_service(
         repository=RuntimeEvalRepository(session),
         replay_service=replay_service,
         audit_service=audit_service,
+    )
+
+
+def get_context_recovery_service(
+    session: AsyncSession = Depends(get_session),
+) -> ContextRecoveryService:
+    from app.agent_runtime.audit import (  # noqa: PLC0415
+        AuditService,
+        RuntimeAuditRepository,
+    )
+
+    return ContextRecoveryService(
+        repository=RuntimeLedgerRepository(session),
+        audit_service=AuditService(
+            repository=RuntimeAuditRepository(session)
+        ),
     )
 
 
@@ -466,6 +486,35 @@ async def export_run_replay(
         admin_actor_user_id=principal.actor_user_id,
         admin_actor_service=principal.actor_service,
         request_id=str(getattr(request.state, "request_id", "") or ""),
+    )
+
+
+@router.post(
+    "/admin/context-compaction-jobs/{job_id}/supersede",
+    response_model=ContextCompactionRecoveryRead,
+)
+async def supersede_context_compaction_job(
+    job_id: UUID,
+    request: Request,
+    principal: RuntimeAdminPrincipal = Depends(require_runtime_admin),
+    service: ContextRecoveryService = Depends(
+        get_context_recovery_service
+    ),
+) -> ContextCompactionRecoveryRead:
+    replacement = await service.supersede_dead_letter(
+        job_id=job_id,
+        admin_actor_user_id=principal.actor_user_id,
+        admin_actor_service=principal.actor_service,
+        request_id=str(
+            getattr(request.state, "request_id", "") or ""
+        ),
+    )
+    return ContextCompactionRecoveryRead(
+        job_id=replacement.id,
+        supersedes_job_id=job_id,
+        thread_id=replacement.thread_id,
+        generation=int(replacement.generation),
+        status=str(replacement.status),
     )
 
 

@@ -11,7 +11,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
     UniqueConstraint,
     func,
     text,
@@ -28,6 +27,16 @@ ACTIVE_RUN_STATUSES = ("queued", "running", "waiting_for_confirmation")
 ACTION_STATUSES = ("proposed", "confirmation_required", "confirmed", "applying", "applied", "rejected", "failed", "expired")
 TOOL_CALL_STATUSES = ("started", "completed", "failed", "skipped", "blocked", "timed_out")
 WORKFLOW_STATE_STATUSES = ("collecting", "ready", "waiting", "paused", "completed", "expired", "failed")
+CONTEXT_COMPACTION_JOB_STATUSES = (
+    "queued",
+    "retry_wait",
+    "running",
+    "completed",
+    "dead_lettered",
+    "superseded",
+    "cancelled",
+)
+CONTEXT_HEAD_STATUSES = ("ready", "compacting", "blocked")
 
 
 class AgentThread(Base):
@@ -119,6 +128,13 @@ class AgentRun(Base):
         server_default=text("'{}'::jsonb"),
         nullable=False,
     )
+    context_state: Mapped[dict[str, Any]] = mapped_column(
+        "context_state_json",
+        postgresql.JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
     lease_token: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         default=None,
@@ -178,19 +194,325 @@ class AgentContextItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
-class AgentImageAccess(Base):
-    __tablename__ = "agent_image_accesses"
+class AgentContextCheckpoint(Base):
+    __tablename__ = "agent_context_checkpoints"
     __table_args__ = (
-        UniqueConstraint("thread_id", "asset_id", name="uq_agent_image_accesses_thread_asset"),
-        Index("ix_agent_image_accesses_thread_asset", "thread_id", "asset_id"),
+        UniqueConstraint(
+            "thread_id",
+            "source_cutoff_sequence",
+            "source_sha256",
+            name="uq_agent_context_checkpoints_source",
+        ),
+        Index(
+            "ix_agent_context_checkpoints_thread_cutoff",
+            "thread_id",
+            "source_cutoff_sequence",
+        ),
     )
 
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    thread_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_threads.id"), nullable=False)
-    asset_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    image_url: Mapped[str] = mapped_column(Text, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    thread_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_threads.id"),
+        nullable=False,
+    )
+    source_cutoff_run_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id"),
+        nullable=False,
+    )
+    source_cutoff_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    schema_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    source_sha256: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    summary_sha256: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    token_counter: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+    )
+    token_counter_version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+    source_input_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    summary_output_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    prompt_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    materializer_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    context_schema_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    summary_policy_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    provider_response_id: Mapped[str] = mapped_column(
+        String(255),
+        default="",
+        server_default="",
+        nullable=False,
+    )
+    checkpoint: Mapped[dict[str, Any]] = mapped_column(
+        "checkpoint_json",
+        postgresql.JSONB,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class AgentContextCompactionJob(Base):
+    __tablename__ = "agent_context_compaction_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "(lease_token IS NULL) = (locked_until IS NULL)",
+            name="ck_agent_context_compaction_jobs_lease_pair",
+        ),
+        CheckConstraint(
+            "attempts >= 0 AND max_attempts > 0",
+            name="ck_agent_context_compaction_jobs_attempts",
+        ),
+        Index(
+            "uq_agent_context_compaction_jobs_active_idempotency",
+            "thread_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('queued', 'retry_wait', 'running', 'completed')"
+            ),
+        ),
+        Index(
+            "ix_agent_context_compaction_jobs_runnable",
+            "status",
+            "next_attempt_at",
+            "locked_until",
+            "created_at",
+            "id",
+            postgresql_where=text(
+                "status IN ('queued', 'retry_wait', 'running')"
+            ),
+        ),
+        Index(
+            "ix_agent_context_compaction_jobs_thread_status",
+            "thread_id",
+            "status",
+            "source_cutoff_sequence",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    thread_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_threads.id"),
+        nullable=False,
+    )
+    trigger_run_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id"),
+        nullable=False,
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=False,
+    )
+    base_checkpoint_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_context_checkpoints.id"),
+        default=None,
+    )
+    source_cutoff_run_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id"),
+        nullable=False,
+    )
+    source_cutoff_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    source_sha256: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    token_counter: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+    )
+    token_counter_version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+    source_input_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    summary_max_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    prompt_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    materializer_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    context_schema_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    summary_policy_version: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="queued",
+        server_default="queued",
+        nullable=False,
+    )
+    checkpoint_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_context_checkpoints.id"),
+        default=None,
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=3,
+        server_default="3",
+        nullable=False,
+    )
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    lease_token: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        default=None,
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=None,
+    )
+    error_code: Mapped[str] = mapped_column(
+        String(120),
+        default="",
+        server_default="",
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=None,
+    )
+    supersedes_job_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_context_compaction_jobs.id"),
+        default=None,
+    )
+
+
+class AgentThreadContextHead(Base):
+    __tablename__ = "agent_thread_context_heads"
+
+    thread_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_threads.id"),
+        primary_key=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="ready",
+        server_default="ready",
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
+    ready_checkpoint_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_context_checkpoints.id"),
+        default=None,
+    )
+    pending_job_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_context_compaction_jobs.id"),
+        default=None,
+    )
+    error_code: Mapped[str] = mapped_column(
+        String(120),
+        default="",
+        server_default="",
+        nullable=False,
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

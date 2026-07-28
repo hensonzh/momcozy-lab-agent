@@ -62,19 +62,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('actor_user_id', 'scope', 'key', name='uq_idempotency_actor_scope_key')
     )
     op.create_index('ix_idempotency_keys_expires_at', 'idempotency_keys', ['expires_at'], unique=False)
-    op.create_table('agent_image_accesses',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('thread_id', sa.UUID(), nullable=False),
-    sa.Column('asset_id', sa.UUID(), nullable=False),
-    sa.Column('image_url', sa.Text(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['thread_id'], ['agent_threads.id'], name=op.f('fk_agent_image_accesses_thread_id_agent_threads')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_agent_image_accesses')),
-    sa.UniqueConstraint('thread_id', 'asset_id', name='uq_agent_image_accesses_thread_asset')
-    )
-    op.create_index('ix_agent_image_accesses_thread_asset', 'agent_image_accesses', ['thread_id', 'asset_id'], unique=False)
     op.create_table('agent_runs',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('thread_id', sa.UUID(), nullable=False),
@@ -88,6 +75,7 @@ def upgrade() -> None:
     sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
     sa.Column('error_details_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
     sa.Column('execution_manifest_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
+    sa.Column('context_state_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
     sa.Column('lease_token', sa.UUID(), nullable=True),
     sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -166,6 +154,91 @@ def upgrade() -> None:
     )
     op.create_index('ix_agent_context_items_run_sequence', 'agent_context_items', ['run_id', 'sequence'], unique=False)
     op.create_index('ix_agent_context_items_thread_sequence', 'agent_context_items', ['thread_id', 'sequence'], unique=False)
+    op.create_table('agent_context_checkpoints',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('thread_id', sa.UUID(), nullable=False),
+    sa.Column('source_cutoff_run_id', sa.UUID(), nullable=False),
+    sa.Column('source_cutoff_sequence', sa.Integer(), nullable=False),
+    sa.Column('generation', sa.Integer(), nullable=False),
+    sa.Column('schema_version', sa.String(length=80), nullable=False),
+    sa.Column('source_sha256', sa.String(length=64), nullable=False),
+    sa.Column('summary_sha256', sa.String(length=64), nullable=False),
+    sa.Column('model', sa.String(length=120), nullable=False),
+    sa.Column('token_counter', sa.String(length=120), nullable=False),
+    sa.Column('token_counter_version', sa.String(length=32), nullable=False),
+    sa.Column('source_input_tokens', sa.Integer(), nullable=False),
+    sa.Column('summary_output_tokens', sa.Integer(), nullable=False),
+    sa.Column('prompt_version', sa.String(length=80), nullable=False),
+    sa.Column('materializer_version', sa.String(length=80), nullable=False),
+    sa.Column('context_schema_version', sa.String(length=80), nullable=False),
+    sa.Column('summary_policy_version', sa.String(length=80), nullable=False),
+    sa.Column('provider_response_id', sa.String(length=255), server_default='', nullable=False),
+    sa.Column('checkpoint_json', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['source_cutoff_run_id'], ['agent_runs.id'], name=op.f('fk_agent_context_checkpoints_source_cutoff_run_id_agent_runs')),
+    sa.ForeignKeyConstraint(['thread_id'], ['agent_threads.id'], name=op.f('fk_agent_context_checkpoints_thread_id_agent_threads')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_agent_context_checkpoints')),
+    sa.UniqueConstraint('thread_id', 'source_cutoff_sequence', 'source_sha256', name='uq_agent_context_checkpoints_source')
+    )
+    op.create_index('ix_agent_context_checkpoints_thread_cutoff', 'agent_context_checkpoints', ['thread_id', 'source_cutoff_sequence'], unique=False)
+    op.create_table('agent_context_compaction_jobs',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('thread_id', sa.UUID(), nullable=False),
+    sa.Column('trigger_run_id', sa.UUID(), nullable=False),
+    sa.Column('actor_user_id', sa.UUID(), nullable=False),
+    sa.Column('base_checkpoint_id', sa.UUID(), nullable=True),
+    sa.Column('source_cutoff_run_id', sa.UUID(), nullable=False),
+    sa.Column('source_cutoff_sequence', sa.Integer(), nullable=False),
+    sa.Column('source_sha256', sa.String(length=64), nullable=False),
+    sa.Column('generation', sa.Integer(), nullable=False),
+    sa.Column('idempotency_key', sa.String(length=64), nullable=False),
+    sa.Column('model', sa.String(length=120), nullable=False),
+    sa.Column('token_counter', sa.String(length=120), nullable=False),
+    sa.Column('token_counter_version', sa.String(length=32), nullable=False),
+    sa.Column('source_input_tokens', sa.Integer(), nullable=False),
+    sa.Column('summary_max_tokens', sa.Integer(), nullable=False),
+    sa.Column('prompt_version', sa.String(length=80), nullable=False),
+    sa.Column('materializer_version', sa.String(length=80), nullable=False),
+    sa.Column('context_schema_version', sa.String(length=80), nullable=False),
+    sa.Column('summary_policy_version', sa.String(length=80), nullable=False),
+    sa.Column('status', sa.String(length=32), server_default='queued', nullable=False),
+    sa.Column('checkpoint_id', sa.UUID(), nullable=True),
+    sa.Column('attempts', sa.Integer(), server_default='0', nullable=False),
+    sa.Column('max_attempts', sa.Integer(), server_default='3', nullable=False),
+    sa.Column('next_attempt_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('lease_token', sa.UUID(), nullable=True),
+    sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('supersedes_job_id', sa.UUID(), nullable=True),
+    sa.CheckConstraint('attempts >= 0 AND max_attempts > 0', name=op.f('ck_agent_context_compaction_jobs_ck_agent_context_compaction_jobs_attempts')),
+    sa.CheckConstraint('(lease_token IS NULL) = (locked_until IS NULL)', name=op.f('ck_agent_context_compaction_jobs_ck_agent_context_compaction_jobs_lease_pair')),
+    sa.ForeignKeyConstraint(['base_checkpoint_id'], ['agent_context_checkpoints.id'], name=op.f('fk_agent_context_compaction_jobs_base_checkpoint_id_agent_context_checkpoints')),
+    sa.ForeignKeyConstraint(['checkpoint_id'], ['agent_context_checkpoints.id'], name=op.f('fk_agent_context_compaction_jobs_checkpoint_id_agent_context_checkpoints')),
+    sa.ForeignKeyConstraint(['source_cutoff_run_id'], ['agent_runs.id'], name=op.f('fk_agent_context_compaction_jobs_source_cutoff_run_id_agent_runs')),
+    sa.ForeignKeyConstraint(['supersedes_job_id'], ['agent_context_compaction_jobs.id'], name=op.f('fk_agent_context_compaction_jobs_supersedes_job_id_agent_context_compaction_jobs')),
+    sa.ForeignKeyConstraint(['thread_id'], ['agent_threads.id'], name=op.f('fk_agent_context_compaction_jobs_thread_id_agent_threads')),
+    sa.ForeignKeyConstraint(['trigger_run_id'], ['agent_runs.id'], name=op.f('fk_agent_context_compaction_jobs_trigger_run_id_agent_runs')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_agent_context_compaction_jobs'))
+    )
+    op.create_index('ix_agent_context_compaction_jobs_runnable', 'agent_context_compaction_jobs', ['status', 'next_attempt_at', 'locked_until', 'created_at', 'id'], unique=False, postgresql_where=sa.text("status IN ('queued', 'retry_wait', 'running')"))
+    op.create_index('ix_agent_context_compaction_jobs_thread_status', 'agent_context_compaction_jobs', ['thread_id', 'status', 'source_cutoff_sequence'], unique=False)
+    op.create_index('uq_agent_context_compaction_jobs_active_idempotency', 'agent_context_compaction_jobs', ['thread_id', 'idempotency_key'], unique=True, postgresql_where=sa.text("status IN ('queued', 'retry_wait', 'running', 'completed')"))
+    op.create_table('agent_thread_context_heads',
+    sa.Column('thread_id', sa.UUID(), nullable=False),
+    sa.Column('status', sa.String(length=32), server_default='ready', nullable=False),
+    sa.Column('generation', sa.Integer(), server_default='0', nullable=False),
+    sa.Column('ready_checkpoint_id', sa.UUID(), nullable=True),
+    sa.Column('pending_job_id', sa.UUID(), nullable=True),
+    sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['pending_job_id'], ['agent_context_compaction_jobs.id'], name=op.f('fk_agent_thread_context_heads_pending_job_id_agent_context_compaction_jobs')),
+    sa.ForeignKeyConstraint(['ready_checkpoint_id'], ['agent_context_checkpoints.id'], name=op.f('fk_agent_thread_context_heads_ready_checkpoint_id_agent_context_checkpoints')),
+    sa.ForeignKeyConstraint(['thread_id'], ['agent_threads.id'], name=op.f('fk_agent_thread_context_heads_thread_id_agent_threads')),
+    sa.PrimaryKeyConstraint('thread_id', name=op.f('pk_agent_thread_context_heads'))
+    )
     op.create_table('agent_eval_cases',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('suite', sa.String(length=120), nullable=False),
@@ -320,6 +393,13 @@ def downgrade() -> None:
     op.drop_index('ix_agent_eval_cases_suite_status', table_name='agent_eval_cases')
     op.drop_index('ix_agent_eval_cases_domain_status', table_name='agent_eval_cases')
     op.drop_table('agent_eval_cases')
+    op.drop_table('agent_thread_context_heads')
+    op.drop_index('uq_agent_context_compaction_jobs_active_idempotency', table_name='agent_context_compaction_jobs', postgresql_where=sa.text("status IN ('queued', 'retry_wait', 'running', 'completed')"))
+    op.drop_index('ix_agent_context_compaction_jobs_thread_status', table_name='agent_context_compaction_jobs')
+    op.drop_index('ix_agent_context_compaction_jobs_runnable', table_name='agent_context_compaction_jobs', postgresql_where=sa.text("status IN ('queued', 'retry_wait', 'running')"))
+    op.drop_table('agent_context_compaction_jobs')
+    op.drop_index('ix_agent_context_checkpoints_thread_cutoff', table_name='agent_context_checkpoints')
+    op.drop_table('agent_context_checkpoints')
     op.drop_index('ix_agent_context_items_thread_sequence', table_name='agent_context_items')
     op.drop_index('ix_agent_context_items_run_sequence', table_name='agent_context_items')
     op.drop_table('agent_context_items')
@@ -339,8 +419,6 @@ def downgrade() -> None:
     op.drop_index('ix_agent_runs_request_id', table_name='agent_runs')
     op.drop_index('ix_agent_runs_actor_status_started', table_name='agent_runs')
     op.drop_table('agent_runs')
-    op.drop_index('ix_agent_image_accesses_thread_asset', table_name='agent_image_accesses')
-    op.drop_table('agent_image_accesses')
     op.drop_index('ix_idempotency_keys_expires_at', table_name='idempotency_keys')
     op.drop_table('idempotency_keys')
     op.drop_index('ix_audit_logs_resource', table_name='audit_logs')

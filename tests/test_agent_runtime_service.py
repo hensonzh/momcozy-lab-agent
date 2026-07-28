@@ -71,6 +71,39 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     assert repository.event_types == ["run.queued", "message.completed"]
 
 
+def test_create_run_rejects_blocked_context_head_before_writing_run() -> None:
+    owner_user_id = uuid4()
+    repository = FakeLedgerRepository(owner_user_id=owner_user_id)
+    thread = asyncio.run(
+        repository.create_thread(
+            owner_user_id=owner_user_id,
+            title="blocked",
+            metadata={},
+        )
+    )
+    recovery_id = uuid4()
+    repository.context_head = SimpleNamespace(
+        status="blocked",
+        pending_job_id=recovery_id,
+    )
+    service = AgentRuntimeService(
+        repository=repository,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            service.create_run(
+                actor_user_id=owner_user_id,
+                thread_id=thread.id,
+                message="next",
+            )
+        )
+
+    assert captured.value.code == "context_compaction_dead_lettered"
+    assert captured.value.details["recovery_id"] == str(recovery_id)
+    assert repository.created_run_count == 0
+
+
 def test_run_create_contract_uses_legacy_adapter_not_sdk_only() -> None:
     assert AgentRunCreate(
         message="Hello",
@@ -412,6 +445,7 @@ class FakeLedgerRepository:
         self.artifact: Any | None = None
         self.artifact_delete_count = 0
         self.after_commit_callbacks: list[Any] = []
+        self.context_head: Any | None = None
 
     def add_after_commit_callback(self, callback: Any) -> None:
         self.after_commit_callbacks.append(callback)
@@ -470,6 +504,15 @@ class FakeLedgerRepository:
         ):
             return self.active_run
         return None
+
+    async def get_context_head(
+        self,
+        *,
+        thread_id: UUID,
+    ) -> Any | None:
+        if self.thread is None or thread_id != self.thread.id:
+            return None
+        return self.context_head
 
     async def create_run(self, **kwargs: Any) -> Any:
         now = datetime.now(timezone.utc)

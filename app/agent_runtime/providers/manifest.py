@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import json
 from importlib import metadata
@@ -60,6 +61,7 @@ def build_openai_responses_execution_manifest(
             "text_verbosity": text_verbosity,
             "parallel_tool_calls": False,
             "store": store,
+            "truncation": "disabled",
             "include": include,
             "response_format": (
                 dict(request.response_format)
@@ -75,6 +77,10 @@ def build_openai_responses_execution_manifest(
         },
         "request_payload_sha256": _sha256_json(request_payload),
     }
+    if request.runtime_context:
+        manifest["context"]["runtime"] = deepcopy(
+            request.runtime_context
+        )
     manifest["manifest_sha256"] = _sha256_json(manifest)
     return manifest
 

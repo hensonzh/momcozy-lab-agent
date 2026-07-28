@@ -8,7 +8,7 @@ from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta, timezone
 from time import monotonic
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from app.agent_runtime.ledger.repository import (
@@ -55,12 +55,40 @@ class ClaimRepository(Protocol):
     ) -> bool: ...
 
 
+class ContextClaimRepository(Protocol):
+    async def claim_context_compaction_jobs(
+        self,
+        *,
+        claimed_at: datetime,
+        lease_expires_at: datetime,
+        limit: int,
+    ) -> list[Any]: ...
+
+    async def get_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> Any: ...
+
+    async def renew_context_compaction_job_lease(
+        self,
+        *,
+        job_id: UUID,
+        lease_token: UUID,
+        lease_duration_seconds: float,
+    ) -> bool: ...
+
+
 class DueConfirmationExpiryService(Protocol):
     async def expire_due_confirmations(
         self,
         *,
         limit: int,
     ) -> int: ...
+
+
+class ContextCompactionProcessor(Protocol):
+    async def process_claimed_job(self, *, job: Any) -> Any: ...
 
 
 class RunLockLease(Protocol):
@@ -95,6 +123,10 @@ ConfirmationExpiryServiceFactory = Callable[
     [Any],
     DueConfirmationExpiryService,
 ]
+ContextCompactionProcessorFactory = Callable[
+    [Any],
+    ContextCompactionProcessor,
+]
 
 
 class AgentRunWorker:
@@ -116,6 +148,11 @@ class AgentRunWorker:
         ) = None,
         confirmation_expiry_scan_interval_seconds: float = 30,
         confirmation_expiry_batch_size: int = 64,
+        context_compaction_processor_factory: (
+            ContextCompactionProcessorFactory | None
+        ) = None,
+        context_compaction_batch_size: int = 2,
+        context_compaction_concurrency: int = 1,
         monotonic_clock: Callable[[], float] = monotonic,
     ) -> None:
         if batch_size < 1:
@@ -140,6 +177,14 @@ class AgentRunWorker:
             raise ValueError(
                 "confirmation_expiry_batch_size must be positive"
             )
+        if context_compaction_batch_size < 1:
+            raise ValueError(
+                "context_compaction_batch_size must be positive"
+            )
+        if context_compaction_concurrency < 1:
+            raise ValueError(
+                "context_compaction_concurrency must be positive"
+            )
         self.session_factory = session_factory
         self.processor_factory = processor_factory
         self.batch_size = batch_size
@@ -159,10 +204,20 @@ class AgentRunWorker:
         self.confirmation_expiry_batch_size = (
             confirmation_expiry_batch_size
         )
+        self.context_compaction_processor_factory = (
+            context_compaction_processor_factory
+        )
+        self.context_compaction_batch_size = (
+            context_compaction_batch_size
+        )
+        self.context_compaction_concurrency = (
+            context_compaction_concurrency
+        )
         self.monotonic_clock = monotonic_clock
         self._next_confirmation_expiry_scan_at = 0.0
 
     async def run_once(self) -> int:
+        compacted = await self._run_context_compactions_once()
         async with self.session_factory() as session:
             repository = self.repository_factory(session)
             await self._expire_due_confirmations(repository)
@@ -177,9 +232,9 @@ class AgentRunWorker:
                 raise RuntimeError("claimed Agent run is missing a lease token")
             await session.commit()
         if not claims:
-            return 0
+            return compacted
         semaphore = asyncio.Semaphore(self.concurrency)
-        processed = await asyncio.gather(
+        run_batch = asyncio.gather(
             *(
                 self._process_one(
                     run_id=run_id,
@@ -187,9 +242,202 @@ class AgentRunWorker:
                     semaphore=semaphore,
                 )
                 for run_id, lease_token in claims
+            ),
+        )
+        while not run_batch.done():
+            done, _pending = await asyncio.wait(
+                {run_batch},
+                timeout=self.poll_interval_seconds,
+            )
+            if done:
+                break
+            compacted += await self._run_context_compactions_once()
+        processed = await run_batch
+        return compacted + sum(processed)
+
+    async def _run_context_compactions_once(self) -> int:
+        processor_factory = self.context_compaction_processor_factory
+        if processor_factory is None:
+            return 0
+        async with self.session_factory() as session:
+            repository = cast(
+                ContextClaimRepository,
+                self.repository_factory(session),
+            )
+            now = _utcnow()
+            jobs = await repository.claim_context_compaction_jobs(
+                claimed_at=now,
+                lease_expires_at=now
+                + timedelta(
+                    seconds=self.db_lease_duration_seconds
+                ),
+                limit=min(
+                    self.context_compaction_batch_size,
+                    self.context_compaction_concurrency,
+                ),
+            )
+            claims = tuple(
+                (job.id, job.lease_token)
+                for job in jobs
+                if job.lease_token is not None
+            )
+            if len(claims) != len(jobs):
+                raise RuntimeError(
+                    "claimed context job is missing a lease token"
+                )
+            await session.commit()
+        if not claims:
+            return 0
+        semaphore = asyncio.Semaphore(
+            self.context_compaction_concurrency
+        )
+        processed = await asyncio.gather(
+            *(
+                self._process_context_compaction(
+                    job_id=job_id,
+                    lease_token=lease_token,
+                    semaphore=semaphore,
+                )
+                for job_id, lease_token in claims
             )
         )
         return sum(processed)
+
+    async def _process_context_compaction(
+        self,
+        *,
+        job_id: UUID,
+        lease_token: UUID,
+        semaphore: asyncio.Semaphore,
+    ) -> int:
+        async with semaphore:
+            stop_renewal = asyncio.Event()
+            processor_task = asyncio.create_task(
+                self._process_context_compaction_session(
+                    job_id=job_id,
+                    lease_token=lease_token,
+                )
+            )
+            lease_task = asyncio.create_task(
+                self._renew_context_compaction_lease(
+                    job_id=job_id,
+                    lease_token=lease_token,
+                    stop=stop_renewal,
+                )
+            )
+            try:
+                done, _pending = await asyncio.wait(
+                    {processor_task, lease_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if lease_task in done:
+                    await lease_task
+                    raise RunLeaseLostError(
+                        "context compaction lease stopped "
+                        f"unexpectedly: {job_id}"
+                    )
+                await processor_task
+                return 1
+            except RunLeaseLostError:
+                LOGGER.warning(
+                    "Context compaction ownership was lost; "
+                    "abandoning local execution.",
+                    exc_info=True,
+                    extra={"context_job_id": str(job_id)},
+                )
+                return 0
+            finally:
+                stop_renewal.set()
+                for task in (processor_task, lease_task):
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(
+                    processor_task,
+                    lease_task,
+                    return_exceptions=True,
+                )
+
+    async def _process_context_compaction_session(
+        self,
+        *,
+        job_id: UUID,
+        lease_token: UUID,
+    ) -> None:
+        processor_factory = self.context_compaction_processor_factory
+        assert processor_factory is not None
+        async with self.session_factory() as session:
+            repository = cast(
+                ContextClaimRepository,
+                self.repository_factory(session),
+            )
+            job = await repository.get_context_compaction_job(
+                job_id=job_id,
+            )
+            if (
+                job is None
+                or job.status != "running"
+                or job.lease_token != lease_token
+            ):
+                await session.rollback()
+                raise RunLeaseLostError(
+                    f"context compaction lease lost: {job_id}"
+                )
+            try:
+                await processor_factory(
+                    repository
+                ).process_claimed_job(job=job)
+            except Exception:
+                LOGGER.exception(
+                    "Context compaction job attempt failed.",
+                )
+            await session.commit()
+
+    async def _renew_context_compaction_lease(
+        self,
+        *,
+        job_id: UUID,
+        lease_token: UUID,
+        stop: asyncio.Event,
+    ) -> None:
+        while True:
+            try:
+                await asyncio.wait_for(
+                    stop.wait(),
+                    timeout=self.db_lease_renew_interval_seconds,
+                )
+                return
+            except TimeoutError:
+                pass
+            try:
+                async with self.session_factory() as session:
+                    repository = cast(
+                        ContextClaimRepository,
+                        self.repository_factory(session),
+                    )
+                    renewed = (
+                        await repository
+                        .renew_context_compaction_job_lease(
+                            job_id=job_id,
+                            lease_token=lease_token,
+                            lease_duration_seconds=(
+                                self.db_lease_duration_seconds
+                            ),
+                        )
+                    )
+                    if not renewed:
+                        await session.rollback()
+                        raise RunLeaseLostError(
+                            "context compaction lease was lost: "
+                            f"{job_id}"
+                        )
+                    await session.commit()
+            except RunLeaseLostError:
+                raise
+            except Exception as exc:
+                raise RunLeaseLostError(
+                    "context compaction lease renewal failed: "
+                    f"{job_id}"
+                ) from exc
 
     async def _expire_due_confirmations(
         self,

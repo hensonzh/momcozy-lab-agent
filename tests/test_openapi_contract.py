@@ -27,6 +27,11 @@ EXPECTED_PUBLIC_OPERATIONS = frozenset(
         ("post", "/v1/agent/actions/{action_id}/confirm"),
         ("post", "/v1/agent/actions/{action_id}/reject"),
         ("post", "/v1/agent/admin/eval-cases/{case_id}/evaluate"),
+        (
+            "post",
+            "/v1/agent/admin/context-compaction-jobs/"
+            "{job_id}/supersede",
+        ),
         ("post", "/v1/agent/admin/runs/{run_id}/eval-cases"),
         ("post", "/v1/agent/runs"),
         ("post", "/v1/agent/runs/{run_id}/cancel"),

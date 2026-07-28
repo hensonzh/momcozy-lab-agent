@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 from app.api.agent_runtime.router import (
+    get_context_recovery_service,
     get_eval_service,
     get_replay_service,
     require_runtime_admin,
@@ -28,8 +29,12 @@ def test_admin_replay_and_eval_endpoints_require_admin_permission() -> None:
     app = create_app(Settings(app_env="test"))
     replay_service = FakeReplayService(run_id=run_id)
     eval_service = FakeEvalService(run_id=run_id, case_id=case_id)
+    recovery_service = FakeContextRecoveryService()
     app.dependency_overrides[get_replay_service] = lambda: replay_service
     app.dependency_overrides[get_eval_service] = lambda: eval_service
+    app.dependency_overrides[get_context_recovery_service] = (
+        lambda: recovery_service
+    )
     app.state.runtime_authenticator = StaticRuntimeAuthenticator(user)
     client = TestClient(app)
 
@@ -48,11 +53,19 @@ def test_admin_replay_and_eval_endpoints_require_admin_permission() -> None:
         f"/v1/agent/admin/eval-cases/{case_id}/evaluate",
         json={},
     )
+    recovered = client.post(
+        "/v1/agent/admin/context-compaction-jobs/"
+        f"{recovery_service.job_id}/supersede"
+    )
 
     assert denied.status_code == 403
     assert replay.status_code == 200
     assert created.status_code == 201
     assert evaluated.status_code == 200
+    assert recovered.status_code == 200
+    assert recovered.json()["job_id"] == str(
+        recovery_service.replacement_id
+    )
     assert evaluated.json()["passed"] is True
 
 
@@ -68,8 +81,12 @@ def test_runtime_admin_service_key_authenticates_all_operator_endpoints() -> Non
     )
     replay_service = FakeReplayService(run_id=run_id)
     eval_service = FakeEvalService(run_id=run_id, case_id=case_id)
+    recovery_service = FakeContextRecoveryService()
     app.dependency_overrides[get_replay_service] = lambda: replay_service
     app.dependency_overrides[get_eval_service] = lambda: eval_service
+    app.dependency_overrides[get_context_recovery_service] = (
+        lambda: recovery_service
+    )
     client = TestClient(app)
 
     missing = client.get(f"/v1/agent/admin/runs/{run_id}/replay")
@@ -96,6 +113,11 @@ def test_runtime_admin_service_key_authenticates_all_operator_endpoints() -> Non
         headers=headers,
         json={},
     )
+    recovered = client.post(
+        "/v1/agent/admin/context-compaction-jobs/"
+        f"{recovery_service.job_id}/supersede",
+        headers=headers,
+    )
 
     assert missing.status_code == 401
     assert invalid.status_code == 401
@@ -103,6 +125,7 @@ def test_runtime_admin_service_key_authenticates_all_operator_endpoints() -> Non
     assert created.status_code == 201
     assert listed.status_code == 200
     assert evaluated.status_code == 200
+    assert recovered.status_code == 200
     assert replay_service.admin_actor_user_id is None
     assert replay_service.admin_actor_service == "agent-runtime-operator"
     assert eval_service.admin_actor_user_id is None
@@ -184,4 +207,19 @@ class FakeEvalService:
             run_id=self.run_id,
             passed=True,
             failures=[],
+        )
+
+
+class FakeContextRecoveryService:
+    def __init__(self) -> None:
+        self.job_id = uuid4()
+        self.replacement_id = uuid4()
+
+    async def supersede_dead_letter(self, **kwargs: Any) -> Any:
+        assert kwargs["job_id"] == self.job_id
+        return SimpleNamespace(
+            id=self.replacement_id,
+            thread_id=uuid4(),
+            generation=2,
+            status="queued",
         )

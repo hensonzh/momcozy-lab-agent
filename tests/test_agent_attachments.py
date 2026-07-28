@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -17,7 +16,8 @@ def test_model_input_materializes_internal_assets_without_mutating_ledger_items(
     actor_user_id = uuid4()
     image_id = uuid4()
     file_id = uuid4()
-    repository = CachedAssetRepository(
+    repository = CachedAssetRepository()
+    product_client = ResolvingProductClient(
         urls={
             image_id: "https://assets.test/image",
             file_id: "https://assets.test/file",
@@ -25,7 +25,7 @@ def test_model_input_materializes_internal_assets_without_mutating_ledger_items(
     )
     service = AgentAttachmentService(
         repository=repository,  # type: ignore[arg-type]
-        product_client=NeverCalledProductClient(),
+        product_client=product_client,
     )
     input_items = (
         {
@@ -72,10 +72,11 @@ def test_model_input_materializes_internal_assets_without_mutating_ledger_items(
         },
     ]
     assert "asset_id" in str(input_items)
-    assert repository.lookups == [
-        (thread_id, actor_user_id, image_id),
-        (thread_id, actor_user_id, file_id),
+    assert product_client.resolutions == [
+        (actor_user_id, image_id, "model_image"),
+        (actor_user_id, file_id, "model_file"),
     ]
+    assert repository.persisted_urls == []
 
 
 def test_form_submission_is_claimed_from_current_owner_thread_and_validated() -> None:
@@ -406,21 +407,21 @@ def test_form_submission_enforces_total_serialized_size() -> None:
 
 
 class CachedAssetRepository:
+    def __init__(self) -> None:
+        self.persisted_urls: list[str] = []
+
+
+class ResolvingProductClient:
     def __init__(self, *, urls: dict[UUID, str]) -> None:
         self.urls = urls
-        self.lookups: list[tuple[UUID, UUID, UUID]] = []
+        self.resolutions: list[tuple[UUID, UUID, str]] = []
 
-    async def get_image_access(
-        self,
-        *,
-        thread_id: UUID,
-        owner_user_id: UUID,
-        asset_id: UUID,
-    ) -> Any:
-        self.lookups.append((thread_id, owner_user_id, asset_id))
+    async def resolve_agent_file(self, *, command: Any, **_kwargs: Any) -> Any:
+        self.resolutions.append(
+            (command.actor_user_id, command.file_id, command.purpose)
+        )
         return SimpleNamespace(
-            image_url=self.urls[asset_id],
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            model_url=self.urls[command.file_id],
         )
 
 

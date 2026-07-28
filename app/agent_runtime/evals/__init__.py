@@ -12,6 +12,13 @@ from .behavior import (
     load_behavior_suite,
 )
 from .repository import RuntimeEvalRepository
+from .context import (
+    ContextEvalCase,
+    ContextEvalFailure,
+    ContextEvalSuite,
+    evaluate_context_case,
+    load_context_eval_suite,
+)
 from .service import (
     EvalFailure,
     EvalResult,
@@ -25,6 +32,9 @@ __all__ = [
     "BehaviorEvalSuite",
     "BehaviorJudge",
     "BehaviorRunMap",
+    "ContextEvalCase",
+    "ContextEvalFailure",
+    "ContextEvalSuite",
     "EvalFailure",
     "EvalResult",
     "JudgeDecision",
@@ -32,6 +42,8 @@ __all__ = [
     "RuntimeEvalRepository",
     "RuntimeEvalService",
     "evaluate_behavior_case",
+    "evaluate_context_case",
+    "load_context_eval_suite",
     "load_behavior_run_map",
     "load_behavior_suite",
 ]

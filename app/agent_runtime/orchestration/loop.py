@@ -69,6 +69,14 @@ class TransientDeltaPublisher(Protocol):
     ) -> None: ...
 
 
+class ContextCoordinator(Protocol):
+    async def prepare_run(self, *, run: Any) -> None: ...
+
+    async def list_context_records(self, *, run: Any) -> list[Any]: ...
+
+    async def recover_context_overflow(self, *, run: Any) -> bool: ...
+
+
 class AgentLoop:
     """Durable append-only main-agent/specialist tool loop."""
 
@@ -85,6 +93,7 @@ class AgentLoop:
         trusted_arguments_provider: (
             TrustedToolArgumentsProvider | None
         ) = None,
+        context_coordinator: ContextCoordinator | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
@@ -96,6 +105,7 @@ class AgentLoop:
         self.max_turns = max_turns
         self.transient_delta_publisher = transient_delta_publisher
         self.trusted_arguments_provider = trusted_arguments_provider
+        self.context_coordinator = context_coordinator
         self._persistence_lock = asyncio.Lock()
         self._message_id: UUID | None = None
         self._run_id: UUID | None = None
@@ -205,6 +215,7 @@ class AgentLoop:
                     run=run,
                     answer=delegated_answer,
                 )
+            await self._prepare_context(run)
             await self._progress(
                 run,
                 phase="agent.started",
@@ -216,13 +227,35 @@ class AgentLoop:
                 context_records,
                 run_id=run.id,
             )
-            answer = await self._run_agent(
-                run=run,
-                definition=self.agent_catalog.main_agent,
-                emit_deltas=True,
-                as_of_date=as_of_date,
-                branch_id="main",
-            )
+            try:
+                answer = await self._run_agent(
+                    run=run,
+                    definition=self.agent_catalog.main_agent,
+                    emit_deltas=True,
+                    as_of_date=as_of_date,
+                    branch_id="main",
+                )
+            except ApiError as exc:
+                if (
+                    exc.code != "model_context_window_exceeded"
+                    or self.context_coordinator is None
+                ):
+                    raise
+                ready = await self._recover_context_overflow(run)
+                if not ready:
+                    return run
+                context_records = await self._context_records(run)
+                as_of_date = context_as_of_date(
+                    context_records,
+                    run_id=run.id,
+                )
+                answer = await self._run_agent(
+                    run=run,
+                    definition=self.agent_catalog.main_agent,
+                    emit_deltas=True,
+                    as_of_date=as_of_date,
+                    branch_id="main",
+                )
             await self._ensure_active(run)
             return await self._persist_final_and_complete(
                 run=run,
@@ -549,6 +582,9 @@ class AgentLoop:
                     ),
                     on_execution_manifest=(
                         self._execution_manifest_handler(run)
+                    ),
+                    runtime_context=dict(
+                        getattr(run, "context_state", None) or {}
                     ),
                 )
             )
@@ -954,10 +990,41 @@ class AgentLoop:
 
     async def _context_records(self, run: AgentRun) -> list[Any]:
         async with self._persistence_lock:
+            if self.context_coordinator is not None:
+                return (
+                    await self.context_coordinator.list_context_records(
+                        run=run,
+                    )
+                )
             return await self.repository.list_context_items_for_thread(
                 thread_id=run.thread_id,
                 owner_user_id=run.actor_user_id,
             )
+
+    async def _prepare_context(self, run: AgentRun) -> None:
+        if self.context_coordinator is None:
+            return
+        async with self._persistence_lock:
+            await self.context_coordinator.prepare_run(run=run)
+            await self._checkpoint_unlocked()
+
+    async def _recover_context_overflow(
+        self,
+        run: AgentRun,
+    ) -> bool:
+        assert self.context_coordinator is not None
+        async with self._persistence_lock:
+            ready = await self.context_coordinator.recover_context_overflow(
+                run=run,
+            )
+            if ready:
+                await self._checkpoint_unlocked()
+            else:
+                await self._ensure_external_lease()
+                commit = getattr(self.repository, "commit", None)
+                if callable(commit):
+                    await commit()
+            return ready
 
     def _model_tools(
         self,
@@ -1370,6 +1437,12 @@ def _delegated_result_item(
 
 def _retryable(code: str) -> bool:
     return code in {
+        "context_compaction_failed",
+        "context_compaction_timeout",
+        "context_compaction_unavailable",
+        "context_compaction_wait_timeout",
+        "context_token_counter_failed",
+        "context_token_counter_timeout",
         "model_provider_error",
         "model_provider_timeout",
         "product_backend_timeout",

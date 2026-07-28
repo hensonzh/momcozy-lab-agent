@@ -87,6 +87,7 @@ def test_openai_responses_provider_uses_stateless_ledger_input_and_streams_delta
     assert client.kwargs["store"] is False
     assert client.kwargs["include"] == ["reasoning.encrypted_content"]
     assert client.kwargs["parallel_tool_calls"] is False
+    assert client.kwargs["truncation"] == "disabled"
     assert client.kwargs["tools"][0]["name"] == "profile_read"
     assert "strict" not in client.kwargs["tools"][0]
 
@@ -161,6 +162,7 @@ def test_openai_provider_emits_exact_execution_manifest_before_model_call() -> N
         "text_verbosity": "high",
         "parallel_tool_calls": False,
         "store": False,
+        "truncation": "disabled",
         "include": ["reasoning.encrypted_content"],
         "response_format": None,
         "timeout_seconds": 45,
@@ -412,6 +414,35 @@ def test_provider_fails_closed_instead_of_treating_asset_id_as_openai_file_id() 
     assert captured.value.code == "model_asset_unresolved"
 
 
+def test_provider_classifies_openai_context_limit_for_one_safe_runtime_retry() -> None:
+    provider = OpenAIResponsesProvider(
+        client=ContextLimitOpenAIClient(),
+        model="gpt-5.6-terra",
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            provider.respond(
+                ModelRequest(
+                    agent_name="main_agent",
+                    run_id=uuid4(),
+                    thread_id=uuid4(),
+                    actor_user_id=uuid4(),
+                    request_id="context-limit",
+                    instructions="answer",
+                    input_items=(
+                        {"role": "user", "content": "very long"},
+                    ),
+                    tools=(),
+                )
+            )
+        )
+
+    assert captured.value.code == "model_context_window_exceeded"
+    assert captured.value.status == 400
+    assert captured.value.details["retryable"] is True
+
+
 def _collector(values: list[str]) -> Any:
     async def collect(value: str) -> None:
         values.append(value)
@@ -496,6 +527,25 @@ class FakeOpenAIClient:
     def __init__(self, *, function_call: bool = False) -> None:
         self.kwargs: dict[str, Any] = {}
         self.responses = FakeResponses(self, function_call=function_call)
+
+
+class ContextLimitError(Exception):
+    status_code = 400
+    body = {
+        "error": {
+            "code": "context_length_exceeded",
+            "message": "This model's maximum context length was exceeded.",
+        }
+    }
+
+
+class ContextLimitResponses:
+    def stream(self, **_kwargs: Any) -> Any:
+        raise ContextLimitError
+
+
+class ContextLimitOpenAIClient:
+    responses = ContextLimitResponses()
 
 
 class RecordingModelInputResolver:

@@ -84,6 +84,20 @@ class OpenAIResponsesProvider:
             )
             raise
         except Exception as exc:
+            if _is_context_window_error(exc):
+                self._emit_metric(
+                    request=request,
+                    started_at=started_at,
+                    outcome="error",
+                    error_code="model_context_window_exceeded",
+                    level=logging.WARNING,
+                )
+                raise ApiError(
+                    code="model_context_window_exceeded",
+                    message="Model context window exceeded.",
+                    status=400,
+                    details={"retryable": True},
+                ) from exc
             self._emit_metric(
                 request=request,
                 started_at=started_at,
@@ -239,12 +253,53 @@ class OpenAIResponsesProvider:
             "reasoning": {"effort": self.reasoning_effort},
             "text": {"verbosity": self.text_verbosity},
             "store": self.store,
+            "truncation": "disabled",
         }
         if not self.store:
             kwargs["include"] = ["reasoning.encrypted_content"]
         if request.response_format is not None:
             kwargs["text"]["format"] = dict(request.response_format)
         return kwargs
+
+
+def _is_context_window_error(exc: Exception) -> bool:
+    if int(getattr(exc, "status_code", 0) or 0) != 400:
+        return False
+    body = getattr(exc, "body", None)
+    if _is_context_window_payload(body):
+        return True
+    message = str(exc).lower()
+    return (
+        "maximum context length" in message
+        or "context window" in message
+    )
+
+
+def _is_context_window_payload(value: Any) -> bool:
+    if not isinstance(value, dict):
+        dump = getattr(value, "model_dump", None)
+        value = (
+            dump()
+            if callable(dump)
+            else {
+                "code": getattr(value, "code", ""),
+                "message": getattr(value, "message", ""),
+            }
+        )
+    error = value.get("error", value)
+    if not isinstance(error, dict):
+        return False
+    code = str(error.get("code") or "").lower()
+    message = str(error.get("message") or "").lower()
+    return (
+        code
+        in {
+            "context_length_exceeded",
+            "context_window_exceeded",
+        }
+        or "maximum context length" in message
+        or "context window" in message
+    )
 
 
 def _openai_client(*, api_key: str, base_url: str) -> Any:
@@ -299,6 +354,15 @@ async def _consume_stream(
         elif event_type == "response.completed":
             response = _value(event, "response", None)
         elif event_type == "error":
+            if _is_context_window_payload(
+                _value(event, "error", event)
+            ):
+                raise ApiError(
+                    code="model_context_window_exceeded",
+                    message="Model context window exceeded.",
+                    status=400,
+                    details={"retryable": True},
+                )
             raise ApiError(
                 code="model_provider_error",
                 message="Model provider stream failed.",
