@@ -30,6 +30,14 @@ Responses 适配器已移除。SDK 是内层执行引擎，并未接管 durable 
 
 模型指令按“共享基础规则 + 智能体角色 Prompt + 版本化专业 Skill”组合。共享 Tool 可以同时被多个智能体引用，但 contract 和 handler 始终只有一份实现。
 
+### Prompt 与 Skill 分层
+
+- 共享基础 Prompt 只保存跨智能体稳定不变的身份、信任边界、Tool/Action 规则、共同安全底线和回复原则。
+- 每个智能体的 `system_prompt.md` 是完整但抽象的角色契约：定义使命、服务范围、决策顺序、专业判断边界、事实来源、安全风险和回复质量，不嵌入具体状态机命令或参数。
+- 专业智能体的版本化 `SKILL.md` 只保存会随产品工作流演进的操作细节：进入条件、可信状态转换、Tool 调用顺序、关键参数、写入确认和交付约束。Skill 应保持紧凑，避免重复角色知识、产品 reference 或共享安全规则。
+- Capability 的 Tool contract、handler 和版本化 reference 是业务状态、产品事实和副作用的权威实现；Prompt/Skill 不能复制或替代它们。
+- 组合后的最终指令通过快照哈希检测意外漂移；发布级行为场景同时断言委派、Tool、Action、最终回复归属和高风险质量边界。修改任一层时必须显式更新快照并通过行为 eval 校验。
+
 运行时智能体标识与包目录统一为 `main_agent`、`prenatal_agent`、`lactation_agent`、`device_agent`。委派、事件和恢复流程只接受这些名称。
 
 ## 回复
