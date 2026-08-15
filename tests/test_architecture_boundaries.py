@@ -16,7 +16,7 @@ CAPABILITY_IMPLEMENTATION_PACKAGES = (
     "support_ticket",
 )
 RUNTIME_FORBIDDEN_IMPORT_ROOTS = (
-    "app.agents",
+    "app.agent",
     "app.bootstrap",
     "app.capabilities",
 )
@@ -100,7 +100,7 @@ def test_product_backend_http_paths_are_owned_by_single_adapter() -> None:
 
 def test_agent_definitions_do_not_import_capability_implementations() -> None:
     violations: list[str] = []
-    for path in (REPOSITORY_ROOT / "app" / "agents").rglob("*.py"):
+    for path in (REPOSITORY_ROOT / "app" / "agent").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if (
@@ -125,7 +125,7 @@ def test_agent_definitions_do_not_import_capability_implementations() -> None:
     assert violations == []
 
 
-def test_capabilities_do_not_import_agent_definitions() -> None:
+def test_capabilities_do_not_import_agent_package() -> None:
     violations: list[str] = []
     for path in (REPOSITORY_ROOT / "app" / "capabilities").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -133,16 +133,16 @@ def test_capabilities_do_not_import_agent_definitions() -> None:
             if (
                 isinstance(node, ast.Import)
                 and any(
-                    alias.name == "app.agents"
-                    or alias.name.startswith("app.agents.")
+                    alias.name == "app.agent"
+                    or alias.name.startswith("app.agent.")
                     for alias in node.names
                 )
             ) or (
                 isinstance(node, ast.ImportFrom)
                 and node.module is not None
                 and (
-                    node.module == "app.agents"
-                    or node.module.startswith("app.agents.")
+                    node.module == "app.agent"
+                    or node.module.startswith("app.agent.")
                 )
             ):
                 violations.append(

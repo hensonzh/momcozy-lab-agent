@@ -49,7 +49,7 @@ from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
 
 
-def test_capability_registry_matches_agent_allowlists_and_action_boundary() -> None:
+def test_capability_registry_matches_global_catalog_and_action_boundary() -> None:
     registry = runtime_capability_tool_registry()
 
     assert set(registry.names_for_sdk()) == {

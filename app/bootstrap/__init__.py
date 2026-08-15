@@ -1,5 +1,6 @@
 from .agent_runtime import (
-    AGENT_CATALOG,
+    RUNTIME_DEFINITION,
+    TOOL_CATALOG,
     build_action_policy_rules,
     build_action_service,
     build_product_action_applicators,
@@ -11,7 +12,8 @@ from .agent_runtime import (
 )
 
 __all__ = [
-    "AGENT_CATALOG",
+    "RUNTIME_DEFINITION",
+    "TOOL_CATALOG",
     "build_action_policy_rules",
     "build_action_service",
     "build_product_action_applicators",

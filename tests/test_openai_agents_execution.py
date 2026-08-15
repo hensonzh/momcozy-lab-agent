@@ -35,14 +35,14 @@ from app.agent_runtime.orchestration.testing import (
     ScriptedToolCall,
     ScriptedTurn,
 )
-from app.bootstrap import AGENT_CATALOG, build_runtime_tool_registry
+from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
 from app.core.errors import ApiError
 
 
 def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
     model = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="profile-call",
@@ -60,7 +60,6 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
 
     result = asyncio.run(
         engine.execute(
-            starting_agent_name="main_agent",
             branch_id="main",
             input_items=({"role": "user", "content": "读取我的资料"},),
             port=port,
@@ -69,19 +68,19 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
 
     assert result == AgentExecutionResult(
         text="资料已经读取。",
-        agent="main_agent",
+        agent="cozymate",
     )
     assert port.tool_calls == [
         (
-            "main_agent",
+            "cozymate",
             "profile_read",
             "profile-call",
             {"infant_scope": "all"},
         )
     ]
     assert [request.agent_name for request in model.requests] == [
-        "main_agent",
-        "main_agent",
+        "cozymate",
+        "cozymate",
     ]
     assert {
         tool.name for tool in model.requests[0].tools
@@ -96,7 +95,7 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
 def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     model = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final(
                     "图片已收到。",
                     deltas=("图片", "已收到。"),
@@ -108,7 +107,6 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
 
     result = asyncio.run(
         _engine(model).execute(
-            starting_agent_name="main_agent",
             branch_id="main",
             input_items=(
                 {
@@ -149,13 +147,12 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
 
 def test_unpaired_durable_function_context_is_rejected_before_sdk_run() -> None:
     model = ScriptedAgentModel(
-        {"main_agent": [ScriptedTurn.final("不应调用")]}
+        {"cozymate": [ScriptedTurn.final("不应调用")]}
     )
 
     with pytest.raises(ApiError) as captured:
         asyncio.run(
             _engine(model).execute(
-                starting_agent_name="main_agent",
                 branch_id="main",
                 input_items=(
                     {"role": "user", "content": "继续"},
@@ -178,7 +175,7 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     model = ScriptedAgentModel(
-        {"main_agent": [ScriptedTurn.final("完成。")]}
+        {"cozymate": [ScriptedTurn.final("完成。")]}
     )
 
     with caplog.at_level(
@@ -187,7 +184,6 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
     ):
         asyncio.run(
             _engine(model).execute(
-                starting_agent_name="main_agent",
                 branch_id="main",
                 input_items=(
                     {"role": "user", "content": "你好"},
@@ -212,7 +208,7 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
     assert fields["outcome"] == "success"
     assert fields["provider"] == "openai"
     assert fields["model"] == "scripted"
-    assert fields["agent_name"] == "main_agent"
+    assert fields["agent_name"] == "cozymate"
     assert fields["run_id"] == "run-id"
     assert "branch_id" not in fields
 
@@ -235,7 +231,6 @@ def test_streaming_model_call_has_a_total_wall_clock_timeout(
                     ContinuouslyStreamingModel(),
                     timeout_seconds=0.03,
                 ).execute(
-                    starting_agent_name="main_agent",
                     branch_id="main",
                     input_items=(
                         {"role": "user", "content": "持续生成"},
@@ -271,7 +266,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         ),
         model_name="gpt-5.6-terra",
         tool_registry=build_runtime_tool_registry(),
-        agent_catalog=AGENT_CATALOG,
+        runtime=RUNTIME_DEFINITION,
         max_turns=8,
         reasoning_effort="medium",
         text_verbosity="low",
@@ -280,7 +275,6 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
 
     result = asyncio.run(
         engine.execute(
-            starting_agent_name="main_agent",
             branch_id="main",
             input_items=(
                 {"role": "user", "content": "你好"},
@@ -309,7 +303,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         "content": [
             {
                 "type": "input_text",
-                "text": AGENT_CATALOG.main_agent.instructions,
+                "text": RUNTIME_DEFINITION.agent.instructions,
                 "prompt_cache_breakpoint": {"mode": "explicit"},
             }
         ],
@@ -362,7 +356,7 @@ def _engine(
         model=model,
         model_name="scripted",
         tool_registry=build_runtime_tool_registry(),
-        agent_catalog=AGENT_CATALOG,
+        runtime=RUNTIME_DEFINITION,
         max_turns=8,
         timeout_seconds=timeout_seconds,
     )

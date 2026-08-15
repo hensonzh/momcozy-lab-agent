@@ -11,12 +11,6 @@ from app.infrastructure.product_backend import DiaryReadResponse
 from .contracts import DiaryWriteArguments
 
 
-MAIN_AGENT_DIARY_TOOLS = (
-    "diary_read",
-    "diary_mutate",
-)
-
-
 def diary_tool_registry() -> ToolContractRegistry:
     registry = ToolContractRegistry()
     registry.register(

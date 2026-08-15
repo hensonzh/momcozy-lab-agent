@@ -4,21 +4,21 @@ Independent production Agent service owned by the Agent team.
 
 ## Boundary
 
-- The Agent service owns `/v1/agent/*`, Agent definitions, threads, runs,
+- The Agent service owns `/v1/agent/*`, the CozyMate definition, threads, runs,
   append-only messages/events, tools, actions, replay/eval, and
   its workers.
-- `app/agent_runtime/` is the reusable execution core. It receives Agent
-  catalogs, Tool handlers, and Action policies through constructor injection;
-  it never imports `app/agents`, `app/capabilities`, or `app/bootstrap`.
+- `app/agent_runtime/` is the reusable execution core. It receives one runtime
+  definition, Tool handlers, and Action policies through constructor injection;
+  it never imports `app/agent`, `app/capabilities`, or `app/bootstrap`.
 - `app/bootstrap/` is the composition root, while
   `app/api/agent_runtime/` owns the public HTTP delivery layer.
 - Product Backend owns product data and JWT signing. Runtime reaches it only
   through typed `/v1/internal/agent/*` HTTPS APIs using its service identity.
 - Runtime has its own PostgreSQL database and never imports Product Backend
   implementation modules or reads product tables.
-- `app/agents/main_agent/` owns the single Agent definition, stable system
-  prompt, versioned service Skills, Skill loader, and progressive Tool
-  namespace catalog. Reusable Tool implementations live under
+- `app/agent/` owns the CozyMate definition, its single system prompt,
+  versioned service Skills, Skill loader, and the global progressive Tool
+  catalog. Reusable Tool implementations live under
   `app/capabilities/`; each Capability also owns its concrete Action
   applicators and Action policy declarations.
 
@@ -102,7 +102,7 @@ python scripts/run_behavior_eval.py \
 ```
 
 The structural gate checks terminal state, final response events, the fixed
-`main_agent` responder, the exact loaded Skill set, required/forbidden tools,
+`cozymate` responder, the exact loaded Skill set, required/forbidden tools,
 and forbidden actions. Catalog prompts and expected values are never accepted as observed
 trace; every report records the database run UUID. Response-quality rubrics are
 separate: without an injected live-model judge or recorded manual review, the
@@ -130,7 +130,7 @@ tool, and model outcomes/latency. Collection dimensions and incident guidance
 are defined in [observability.md](docs/observability.md).
 
 The current single-agent progressive Skill/Tool loading model is defined
-in [main-agent-design.md](docs/main-agent-design.md).
+in [single-agent-design.md](docs/single-agent-design.md).
 The Context Pipeline v2 100k-token contract, typed low-trust checkpoints,
 next-Run generation gate, audited dead-letter recovery, and durable hard-limit
 resume are defined in

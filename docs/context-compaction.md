@@ -41,7 +41,7 @@ first developer `input_text` block and writes one explicit cache breakpoint on i
 OpenAI injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment
 URLs remain after it. Request-wide caching uses explicit mode with a `30m`
-minimum lifetime. The same filter runs for the single `main_agent` on its
+minimum lifetime. The same filter runs for CozyMate on its
 initial call and every post-Tool model turn.
 
 ## Typed low-trust checkpoints

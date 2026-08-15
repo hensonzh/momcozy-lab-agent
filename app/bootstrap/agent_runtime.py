@@ -17,12 +17,14 @@ from app.agent_runtime.actions.service import (
 )
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
-    AgentCatalog,
+    RuntimeDefinition,
+    ToolCatalog,
 )
 from app.agent_runtime.tools import ToolContractRegistry
 from app.agent_runtime.tools.handlers import ToolHandler
-from app.agents import MAIN_AGENT
-from app.agents.main_agent import (
+from app.agent import (
+    AGENT,
+    EAGER_TOOL_NAMES,
     LOAD_SERVICE_SKILL_TOOL_NAME,
     SERVICE_SKILL_REGISTRY,
     TOOL_NAMESPACE_DEFINITIONS,
@@ -75,9 +77,13 @@ from app.capabilities.runtime import (
 from app.infrastructure.product_backend import ProductBackendClient
 
 
-AGENT_CATALOG = AgentCatalog(
-    agent=MAIN_AGENT,
+TOOL_CATALOG = ToolCatalog(
+    eager_tool_names=EAGER_TOOL_NAMES,
     tool_namespaces=TOOL_NAMESPACE_DEFINITIONS,
+)
+RUNTIME_DEFINITION = RuntimeDefinition(
+    agent=AGENT,
+    tools=TOOL_CATALOG,
 )
 
 
@@ -179,7 +185,7 @@ def build_runtime_tool_registry() -> ToolContractRegistry:
         registry.register(contract)
     for contract in service_skill_tool_registry().list():
         registry.register(contract)
-    _validate_agent_tool_allowlists(registry)
+    _validate_tool_catalog(registry)
     return registry
 
 
@@ -259,30 +265,31 @@ def validate_runtime_composition(
             f"missing_handlers={sorted(registered - handled)}, "
             f"unknown_handlers={sorted(handled - registered)}"
         )
-    expected = set(MAIN_AGENT.tool_names)
+    expected = set(TOOL_CATALOG.tool_names)
     if registered != expected:
         raise ValueError(
-            "runtime tool set/agent allowlist mismatch: "
+            "runtime registry/tool catalog mismatch: "
             f"missing_tools={sorted(expected - registered)}, "
             f"unused_tools={sorted(registered - expected)}"
         )
-    _validate_agent_tool_allowlists(registry)
+    _validate_tool_catalog(registry)
 
 
-def _validate_agent_tool_allowlists(
+def _validate_tool_catalog(
     registry: ToolContractRegistry,
 ) -> None:
     registered = set(registry.names_for_sdk())
-    missing = set(MAIN_AGENT.tool_names) - registered
+    missing = set(TOOL_CATALOG.tool_names) - registered
     if missing:
         raise ValueError(
-            "agent allowlist references unknown tools: "
+            "tool catalog references unknown tools: "
             f"{sorted(missing)}"
         )
 
 
 __all__ = [
-    "AGENT_CATALOG",
+    "RUNTIME_DEFINITION",
+    "TOOL_CATALOG",
     "build_action_policy_rules",
     "build_action_service",
     "build_product_action_applicators",

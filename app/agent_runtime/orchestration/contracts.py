@@ -54,7 +54,6 @@ class AgentExecutionEngine(Protocol):
     async def execute(
         self,
         *,
-        starting_agent_name: str,
         branch_id: str,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
@@ -70,9 +69,6 @@ class AgentDefinition(Protocol):
     @property
     def instructions(self) -> str: ...
 
-    @property
-    def tool_names(self) -> tuple[str, ...]: ...
-
 
 class ToolNamespaceDefinition(Protocol):
     @property
@@ -86,18 +82,25 @@ class ToolNamespaceDefinition(Protocol):
 
 
 @dataclass(frozen=True)
-class AgentCatalog:
-    """Application-supplied definition for the one runtime agent."""
+class ToolCatalog:
+    """Global tools available to the single-agent runtime."""
 
-    agent: AgentDefinition
+    eager_tool_names: tuple[str, ...]
     tool_namespaces: tuple[ToolNamespaceDefinition, ...]
 
     def __post_init__(self) -> None:
-        if not self.agent.name:
-            raise ValueError("agent name is required")
-        allowed = set(self.agent.tool_names)
-        if len(allowed) != len(self.agent.tool_names):
-            raise ValueError("agent tool allowlist contains duplicates")
+        eager = set(self.eager_tool_names)
+        if len(eager) != len(self.eager_tool_names):
+            raise ValueError("eager tool catalog contains duplicates")
+        invalid_eager = {
+            name
+            for name in eager
+            if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
+        }
+        if invalid_eager:
+            raise ValueError(
+                f"invalid eager tool names: {sorted(invalid_eager)}"
+            )
 
         namespace_names: set[str] = set()
         namespaced_tools: set[str] = set()
@@ -123,27 +126,41 @@ class AgentCatalog:
                 raise ValueError(
                     f"tool namespace contains duplicates: {namespace.name}"
                 )
+            invalid_tools = {
+                name
+                for name in local_names
+                if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
+            }
+            if invalid_tools:
+                raise ValueError(
+                    "tool namespace contains invalid names: "
+                    f"{sorted(invalid_tools)}"
+                )
             overlap = namespaced_tools & local_names
             if overlap:
                 raise ValueError(
                     "tools cannot belong to multiple namespaces: "
                     f"{sorted(overlap)}"
                 )
-            unknown = local_names - allowed
-            if unknown:
-                raise ValueError(
-                    f"tool namespace references unknown tools: {sorted(unknown)}"
-                )
             namespace_names.add(namespace.name)
             namespaced_tools.update(local_names)
+        overlap = eager & namespaced_tools
+        if overlap:
+            raise ValueError(
+                "tools cannot be both eager and namespaced: "
+                f"{sorted(overlap)}"
+            )
 
     @property
-    def main_agent(self) -> AgentDefinition:
-        return self.agent
-
-    @property
-    def main_agent_name(self) -> str:
-        return self.agent.name
+    def tool_names(self) -> tuple[str, ...]:
+        return (
+            *self.eager_tool_names,
+            *(
+                tool_name
+                for namespace in self.tool_namespaces
+                for tool_name in namespace.tool_names
+            ),
+        )
 
     @property
     def deferred_tool_names(self) -> frozenset[str]:
@@ -160,11 +177,24 @@ class AgentCatalog:
         return None
 
 
+@dataclass(frozen=True)
+class RuntimeDefinition:
+    agent: AgentDefinition
+    tools: ToolCatalog
+
+    def __post_init__(self) -> None:
+        if not self.agent.name.strip():
+            raise ValueError("agent name is required")
+        if not self.agent.instructions.strip():
+            raise ValueError("agent instructions are required")
+
+
 __all__ = [
-    "AgentCatalog",
     "AgentDefinition",
     "AgentExecutionEngine",
     "AgentExecutionPort",
     "AgentExecutionResult",
+    "RuntimeDefinition",
+    "ToolCatalog",
     "ToolNamespaceDefinition",
 ]

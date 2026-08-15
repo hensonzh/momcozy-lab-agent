@@ -1,32 +1,18 @@
-from app.agents.contracts import ToolNamespaceDefinition
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 
 LOAD_SERVICE_SKILL_TOOL_NAME = "load_service_skill"
+EAGER_TOOL_NAMES = (LOAD_SERVICE_SKILL_TOOL_NAME,)
 
-BUSINESS_TOOL_NAMES = (
-    "profile_read",
-    "profile_update",
-    "plan_read",
-    "plan_mutate",
-    "schedule_timeline_read",
-    "schedule_timeline_mutate",
-    "diary_read",
-    "diary_mutate",
-    "conversation_history_image_read",
-    "pregnancy_intake_manage",
-    "hospital_bag_manage",
-    "hospital_bag_cart_mutate",
-    "milk_analysis_manage",
-    "ibclc_consult_card_create",
-    "devices_guidance_manage",
-    "pump_models_read",
-    "support_ticket_draft_create",
-)
 
-MAIN_TOOL_NAMES = (
-    LOAD_SERVICE_SKILL_TOOL_NAME,
-    *BUSINESS_TOOL_NAMES,
-)
+@dataclass(frozen=True)
+class ToolNamespaceDefinition:
+    name: str
+    description: str
+    tool_names: tuple[str, ...]
+
 
 TOOL_NAMESPACE_DEFINITIONS = (
     ToolNamespaceDefinition(
@@ -82,10 +68,17 @@ TOOL_NAMESPACE_DEFINITIONS = (
     ),
 )
 
+NAMESPACED_TOOL_NAMES = tuple(
+    tool_name
+    for namespace in TOOL_NAMESPACE_DEFINITIONS
+    for tool_name in namespace.tool_names
+)
+
 
 __all__ = [
-    "BUSINESS_TOOL_NAMES",
+    "EAGER_TOOL_NAMES",
     "LOAD_SERVICE_SKILL_TOOL_NAME",
-    "MAIN_TOOL_NAMES",
+    "NAMESPACED_TOOL_NAMES",
     "TOOL_NAMESPACE_DEFINITIONS",
+    "ToolNamespaceDefinition",
 ]

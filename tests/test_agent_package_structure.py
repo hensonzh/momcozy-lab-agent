@@ -2,47 +2,46 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.agents import (
-    AGENT_DEFINITIONS,
-    AGENT_NAMES,
-    MAIN_AGENT,
+from app.agent import (
+    AGENT,
+    AGENT_NAME,
+    EAGER_TOOL_NAMES,
+    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
+    SERVICE_SKILL_REGISTRY,
     AgentDefinition,
 )
-from app.agents.main_agent import (
-    MAIN_TOOL_NAMES,
-    SERVICE_SKILL_REGISTRY,
-)
-from app.agents.shared import (
-    BASE_AGENT_INSTRUCTIONS,
-    load_agent_system_prompt,
-)
+from app.bootstrap import RUNTIME_DEFINITION, TOOL_CATALOG
 
 
-def test_agent_registry_contains_only_the_single_runtime_agent() -> None:
-    assert AGENT_NAMES == ("main_agent",)
-    assert AGENT_DEFINITIONS == {"main_agent": MAIN_AGENT}
-    assert isinstance(MAIN_AGENT, AgentDefinition)
-    assert MAIN_AGENT.tool_names == MAIN_TOOL_NAMES
+def test_runtime_uses_one_product_named_agent() -> None:
+    assert AGENT_NAME == "cozymate"
+    assert isinstance(AGENT, AgentDefinition)
+    assert AGENT.name == AGENT_NAME
+    assert not hasattr(AGENT, "tool_names")
+    assert RUNTIME_DEFINITION.agent is AGENT
+    assert RUNTIME_DEFINITION.tools is TOOL_CATALOG
+    assert TOOL_CATALOG.tool_names == (
+        *EAGER_TOOL_NAMES,
+        *NAMESPACED_TOOL_NAMES,
+    )
 
 
-def test_single_agent_prompt_owns_progressive_loading_boundaries() -> None:
-    prompt = load_agent_system_prompt()
-    assert MAIN_AGENT.instructions.startswith(BASE_AGENT_INSTRUCTIONS)
+def test_single_system_prompt_owns_progressive_loading_boundaries() -> None:
     assert all(
-        marker in prompt
+        marker in AGENT.instructions
         for marker in (
-            "唯一的服务智能体",
+            "Momcozy 唯一的母婴智能陪伴 Agent",
             "load_service_skill",
             "完整 Skill",
             "tool_search",
-            "最终响应者始终是 `main_agent`",
+            "最终回复始终由 CozyMate 形成",
             "自伤",
             "伤害宝宝",
         )
     )
-    assert "委派" not in prompt
-    assert "专业智能体" not in prompt
+    assert "委派" not in AGENT.instructions
+    assert "专业智能体" not in AGENT.instructions
 
 
 def test_versioned_service_skills_are_complete_domain_contracts() -> None:
@@ -75,37 +74,20 @@ def test_versioned_service_skills_are_complete_domain_contracts() -> None:
             assert f"`{tool_name}`" in skill.content
 
 
-def test_retired_agent_source_packages_are_removed() -> None:
-    agents_root = Path(__file__).parents[1] / "app" / "agents"
-    for package_name in (
-        "prenatal_agent",
-        "lactation_agent",
-        "device_agent",
-    ):
-        package = agents_root / package_name
-        assert not any(
-            path.suffix in {".py", ".md"}
-            for path in package.rglob("*")
-            if path.is_file()
-        )
-
-
-def test_main_agent_package_has_canonical_single_agent_files() -> None:
-    main_agent_root = (
-        Path(__file__).parents[1] / "app" / "agents" / "main_agent"
-    )
+def test_agent_package_has_canonical_single_agent_files() -> None:
+    agent_root = Path(__file__).parents[1] / "app" / "agent"
     assert {
-        path.name for path in main_agent_root.iterdir() if path.is_file()
+        path.name for path in agent_root.iterdir() if path.is_file()
     } == {
         "__init__.py",
         "definition.py",
         "skill_registry.py",
         "system_prompt.md",
-        "toolset.py",
+        "tool_catalog.py",
     }
     assert {
-        path.relative_to(main_agent_root / "skills").as_posix()
-        for path in (main_agent_root / "skills").rglob("SKILL.md")
+        path.relative_to(agent_root / "skills").as_posix()
+        for path in (agent_root / "skills").rglob("SKILL.md")
     } == {
         "prenatal/v1/SKILL.md",
         "lactation/v1/SKILL.md",

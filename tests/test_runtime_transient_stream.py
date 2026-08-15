@@ -21,7 +21,7 @@ def test_text_delta_round_trips_through_cross_process_stream_contract() -> None:
             run_id=run_id,
             thread_id=thread_id,
             message_id=message_id,
-            agent_name="main_agent",
+            agent_name="cozymate",
             delta="你好",
         )
     )
@@ -34,7 +34,7 @@ def test_text_delta_round_trips_through_cross_process_stream_contract() -> None:
     assert events[0].payload == {
         "delta": "你好",
         "message_id": str(message_id),
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
     }
     assert redis.expirations
 

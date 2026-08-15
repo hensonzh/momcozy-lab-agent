@@ -2,27 +2,28 @@ from __future__ import annotations
 
 import json
 
-from app.agent_runtime.tools import ToolResult
-from app.agents import AGENT_DEFINITIONS
-from app.agents.main_agent import (
-    BUSINESS_TOOL_NAMES,
+from app.agent import (
+    EAGER_TOOL_NAMES,
     LOAD_SERVICE_SKILL_TOOL_NAME,
+    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
     TOOL_NAMESPACE_DEFINITIONS,
     service_skill_tool_registry,
 )
+from app.agent_runtime.tools import ToolResult
+from app.bootstrap import TOOL_CATALOG
 
 
-def test_single_agent_tool_allowlist_matches_progressive_runtime_contract() -> None:
-    assert AGENT_DEFINITIONS["main_agent"].tool_names == (
-        LOAD_SERVICE_SKILL_TOOL_NAME,
-        *BUSINESS_TOOL_NAMES,
+def test_global_tool_catalog_matches_progressive_runtime_contract() -> None:
+    assert TOOL_CATALOG.tool_names == (
+        *EAGER_TOOL_NAMES,
+        *NAMESPACED_TOOL_NAMES,
     )
     assert {
         tool_name
         for namespace in TOOL_NAMESPACE_DEFINITIONS
         for tool_name in namespace.tool_names
-    } == set(BUSINESS_TOOL_NAMES)
+    } == set(NAMESPACED_TOOL_NAMES)
 
 
 def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:

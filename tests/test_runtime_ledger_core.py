@@ -95,7 +95,7 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
     )
     manifest = {
         "schema_version": "agent_model_execution.v1",
-        "agent_name": "main_agent",
+        "agent_name": "cozymate",
         "branch_id": "main",
     }
     manifest["manifest_sha256"] = _manifest_sha256(manifest)

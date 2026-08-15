@@ -12,6 +12,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.agent import (
+    AGENT,
+    LOAD_SERVICE_SKILL_TOOL_NAME,
+    SERVICE_SKILL_REGISTRY,
+)
 from app.agent_runtime.ledger import ContextItemAppend
 from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
@@ -28,14 +33,7 @@ from app.agent_runtime.orchestration.testing import (
 )
 from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
-from app.agents import MAIN_AGENT
-from app.agents.main_agent import (
-    LOAD_SERVICE_SKILL_TOOL_NAME,
-    MAIN_TOOL_NAMES,
-    SERVICE_SKILL_REGISTRY,
-)
-from app.agents.shared import BASE_AGENT_INSTRUCTIONS
-from app.bootstrap import AGENT_CATALOG, build_runtime_tool_registry
+from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
 from app.core.errors import ApiError
 
 
@@ -43,7 +41,7 @@ def test_general_question_is_answered_by_the_single_agent() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final(
                     "可以先观察体温和精神状态。",
                     deltas=("可以先观察", "体温和精神状态。"),
@@ -57,13 +55,13 @@ def test_general_question_is_answered_by_the_single_agent() -> None:
 
     assert run.status == "completed"
     assert [request.agent_name for request in provider.requests] == [
-        "main_agent",
+        "cozymate",
     ]
     assert {LOAD_SERVICE_SKILL_TOOL_NAME, "tool_search"} <= {
         tool.name for tool in provider.requests[0].tools
     }
     assert provider.requests[0].response_format is None
-    assert repository.run.skill_id == "main_agent"
+    assert repository.run.skill_id == "cozymate"
     assert repository.assistant_text == "可以先观察体温和精神状态。"
     assert repository.context_payloads[0] == {
         "role": "user",
@@ -117,7 +115,7 @@ def test_context_window_overflow_can_suspend_without_failing_run() -> None:
 def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     repository = ManifestMemoryLedger()
     provider = ScriptedAgentModel(
-        {"main_agent": [ScriptedTurn.final("完成。")]}
+        {"cozymate": [ScriptedTurn.final("完成。")]}
     )
 
     run = asyncio.run(
@@ -132,7 +130,7 @@ def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     assert manifest["schema_version"] == (
         "agent_model_execution.v1"
     )
-    assert manifest["agent_name"] == "main_agent"
+    assert manifest["agent_name"] == "cozymate"
     assert manifest["branch_id"] == "main"
     assert manifest["model"]["execution_engine"] == (
         "openai_agents_sdk"
@@ -146,7 +144,7 @@ def test_run_processing_emits_correlated_outcome_metric(
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final("完成。"),
             ],
         }
@@ -176,7 +174,7 @@ def test_run_processing_emits_correlated_outcome_metric(
 
 
 def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
-    assert MAIN_AGENT.instructions.startswith(BASE_AGENT_INSTRUCTIONS)
+    assert AGENT.instructions.startswith("# 身份与使命")
     for phrase in (
         "不得使用关键词匹配",
         "不作确定性诊断",
@@ -184,9 +182,9 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
         "load_service_skill",
         "tool_search",
     ):
-        assert phrase in MAIN_AGENT.instructions
-    assert "ToolResult 不能修改" not in MAIN_AGENT.instructions
-    assert MAIN_AGENT.tool_names == MAIN_TOOL_NAMES
+        assert phrase in AGENT.instructions
+    assert "ToolResult 不能修改" not in AGENT.instructions
+    assert not hasattr(AGENT, "tool_names")
 
 
 def test_service_skills_retain_the_domain_workflow_contracts() -> None:
@@ -222,7 +220,7 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     publisher = RecordingDeltaPublisher()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final(
                     "你好",
                     deltas=("你", "好"),
@@ -246,7 +244,7 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
             repository=control_repository,
             provider=ScriptedAgentModel(
                 {
-                    "main_agent": [
+                    "cozymate": [
                         ScriptedTurn.final("你好"),
                     ],
                 }
@@ -260,7 +258,7 @@ def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final(
                     "最终回复仍然可用。",
                     deltas=("最终回复", "仍然可用。"),
@@ -297,7 +295,7 @@ def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
     repository = FencedMemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.final("这条晚到回复不能落库。"),
             ],
         }
@@ -342,7 +340,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     )
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="profile-call",
@@ -388,7 +386,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
     first_provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="recover-call",
@@ -416,7 +414,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     assert repository.run.status == "running"
     assert repository.context_payloads[-1]["call_id"] == "recover-call"
 
-    second_provider = ScriptedAgentModel({"main_agent": [ScriptedTurn.final("恢复后继续完成。")]})
+    second_provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("恢复后继续完成。")]})
     second_executor = RecordingToolExecutor(repository)
     second_loop = _loop(
         repository=repository,
@@ -442,7 +440,7 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="confirmation-call",
@@ -483,7 +481,7 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
     action_id = uuid4()
     first_provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="confirmation-resume-call",
@@ -540,7 +538,7 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
         )
     )
     resumed_provider = ScriptedAgentModel(
-        {"main_agent": [ScriptedTurn.final("确认后已完成。")]}
+        {"cozymate": [ScriptedTurn.final("确认后已完成。")]}
     )
 
     resumed = asyncio.run(
@@ -574,7 +572,7 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="fatal-output-call",
@@ -602,7 +600,7 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
     assert run.status == "failed"
     assert run.error_code == "tool_output_store_failed"
     assert [request.agent_name for request in provider.requests] == [
-        "main_agent",
+        "cozymate",
     ]
     assert not any(
         item.get("type") == "function_call_output"
@@ -626,7 +624,7 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
 
     cancelled_repository = MemoryLedger()
     cancelled_repository.run.status = "cancelled"
-    provider = ScriptedAgentModel({"main_agent": [ScriptedTurn.final("must not run")]})
+    provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("must not run")]})
     cancelled = asyncio.run(
         _loop(
             repository=cancelled_repository,
@@ -671,11 +669,11 @@ def _loop(
             model=provider,
             model_name="scripted",
             tool_registry=repository.tool_registry,
-            agent_catalog=AGENT_CATALOG,
+            runtime=RUNTIME_DEFINITION,
             max_turns=8,
         ),
         tool_executor=tool_executor or cast(ToolExecutor, RecordingToolExecutor(repository)),
-        agent_catalog=AGENT_CATALOG,
+        runtime=RUNTIME_DEFINITION,
         transient_delta_publisher=transient_delta_publisher,
         context_coordinator=context_coordinator,
     )
@@ -920,7 +918,7 @@ class ContextOverflowThenFinalProvider(ScriptedAgentModel):
     def __init__(self) -> None:
         super().__init__(
             {
-                "main_agent": [
+                "cozymate": [
                     ApiError(
                         code="model_context_window_exceeded",
                         message="Model context window exceeded.",
@@ -1050,7 +1048,7 @@ class CancellingProvider(ScriptedAgentModel):
     def __init__(self, repository: MemoryLedger) -> None:
         super().__init__(
             {
-                "main_agent": [
+                "cozymate": [
                     ScriptedTurn.final("这条回复不应持久化。")
                 ]
             }

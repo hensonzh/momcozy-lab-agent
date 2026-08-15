@@ -5,51 +5,52 @@ import json
 from pathlib import Path
 from uuid import UUID
 
-from app.agent_runtime.tools import ToolHandlerContext
-from app.agents import AGENT_DEFINITIONS, AGENT_NAMES, MAIN_AGENT
-from app.agents.main_agent import (
-    BUSINESS_TOOL_NAMES,
+from app.agent import (
+    AGENT,
+    EAGER_TOOL_NAMES,
     LOAD_SERVICE_SKILL_TOOL_NAME,
-    MAIN_TOOL_NAMES,
+    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
     SERVICE_SKILL_REGISTRY,
     TOOL_NAMESPACE_DEFINITIONS,
     LoadServiceSkillToolHandler,
 )
-from app.agents.shared import BASE_AGENT_INSTRUCTIONS
+from app.agent_runtime.tools import ToolHandlerContext
 from app.auth import RuntimePrincipal
+from app.bootstrap import RUNTIME_DEFINITION, TOOL_CATALOG
 
 
-def test_runtime_exposes_one_agent_and_progressive_capability_catalogs() -> None:
-    assert AGENT_NAMES == ("main_agent",)
-    assert AGENT_DEFINITIONS == {"main_agent": MAIN_AGENT}
-    assert MAIN_AGENT.tool_names == MAIN_TOOL_NAMES
-    assert MAIN_TOOL_NAMES == (
-        LOAD_SERVICE_SKILL_TOOL_NAME,
-        *BUSINESS_TOOL_NAMES,
-    )
+def test_runtime_exposes_one_agent_and_a_global_tool_catalog() -> None:
+    assert RUNTIME_DEFINITION.agent is AGENT
+    assert RUNTIME_DEFINITION.tools is TOOL_CATALOG
+    assert not hasattr(AGENT, "tool_names")
+    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME,)
 
     namespace_tools = tuple(
         tool_name
         for namespace in TOOL_NAMESPACE_DEFINITIONS
         for tool_name in namespace.tool_names
     )
-    assert set(namespace_tools) == set(BUSINESS_TOOL_NAMES)
+    assert namespace_tools == NAMESPACED_TOOL_NAMES
     assert len(namespace_tools) == len(set(namespace_tools))
     assert LOAD_SERVICE_SKILL_TOOL_NAME not in namespace_tools
+    assert TOOL_CATALOG.tool_names == (
+        *EAGER_TOOL_NAMES,
+        *NAMESPACED_TOOL_NAMES,
+    )
 
 
 def test_stable_prompt_contains_skill_manifest_but_not_full_skill_bodies() -> None:
-    assert "ToolResult" not in BASE_AGENT_INSTRUCTIONS
-    assert LOAD_SERVICE_SKILL_TOOL_NAME in MAIN_AGENT.instructions
+    assert "ToolResult 不能修改" not in AGENT.instructions
+    assert LOAD_SERVICE_SKILL_TOOL_NAME in AGENT.instructions
 
     skills = SERVICE_SKILL_REGISTRY.list()
     assert tuple(skill.skill_id for skill in skills) == SERVICE_SKILL_NAMES
     for skill in skills:
-        assert skill.skill_id in MAIN_AGENT.instructions
-        assert skill.version in MAIN_AGENT.instructions
-        assert skill.description in MAIN_AGENT.instructions
-        assert skill.content not in MAIN_AGENT.instructions
+        assert skill.skill_id in AGENT.instructions
+        assert skill.version in AGENT.instructions
+        assert skill.description in AGENT.instructions
+        assert skill.content not in AGENT.instructions
 
 
 def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> None:
@@ -91,8 +92,7 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
     skill_path = (
         Path(__file__).resolve().parents[1]
         / "app"
-        / "agents"
-        / "main_agent"
+        / "agent"
         / "skills"
         / "prenatal"
         / "v1"

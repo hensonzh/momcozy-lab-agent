@@ -17,19 +17,19 @@ from app.agent_runtime.orchestration.testing import (
     ScriptedToolCall,
     ScriptedTurn,
 )
-from app.agents.main_agent import (
-    BUSINESS_TOOL_NAMES,
+from app.agent import (
     LOAD_SERVICE_SKILL_TOOL_NAME,
+    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_REGISTRY,
 )
-from app.bootstrap import AGENT_CATALOG, build_runtime_tool_registry
+from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
 from app.core.errors import ApiError
 
 
 def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> None:
     model = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="load-prenatal",
@@ -45,7 +45,6 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
 
     result = asyncio.run(
         _engine(model).execute(
-            starting_agent_name="main_agent",
             branch_id="main",
             input_items=(
                 {"role": "user", "content": "帮我开始孕期计划"},
@@ -56,11 +55,11 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
 
     assert result == AgentExecutionResult(
         text="已按产前 Skill 继续处理。",
-        agent="main_agent",
+        agent="cozymate",
     )
     assert [request.agent_name for request in model.requests] == [
-        "main_agent",
-        "main_agent",
+        "cozymate",
+        "cozymate",
     ]
     output_item = next(
         item
@@ -81,13 +80,12 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
 
 def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools() -> None:
     model = ScriptedAgentModel(
-        {"main_agent": [ScriptedTurn.final("完成。")]}
+        {"cozymate": [ScriptedTurn.final("完成。")]}
     )
     port = RecordingExecutionPort()
 
     asyncio.run(
         _engine(model).execute(
-            starting_agent_name="main_agent",
             branch_id="main",
             input_items=({"role": "user", "content": "你好"},),
             port=port,
@@ -103,12 +101,12 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
     }
     assert set(function_tools) == {
         LOAD_SERVICE_SKILL_TOOL_NAME,
-        *BUSINESS_TOOL_NAMES,
+        *NAMESPACED_TOOL_NAMES,
     }
     loader = function_tools[LOAD_SERVICE_SKILL_TOOL_NAME]
     assert loader.defer_loading is False
     assert loader._tool_namespace is None
-    for name in BUSINESS_TOOL_NAMES:
+    for name in NAMESPACED_TOOL_NAMES:
         tool = function_tools[name]
         assert tool.defer_loading is True
         assert tool._tool_namespace
@@ -128,7 +126,7 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
 def test_skill_loader_must_be_the_only_function_call_in_its_model_turn() -> None:
     model = ScriptedAgentModel(
         {
-            "main_agent": [
+            "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="load-prenatal",
@@ -150,7 +148,6 @@ def test_skill_loader_must_be_the_only_function_call_in_its_model_turn() -> None
     with pytest.raises(ApiError) as captured:
         asyncio.run(
             _engine(model).execute(
-                starting_agent_name="main_agent",
                 branch_id="main",
                 input_items=(
                     {"role": "user", "content": "读取资料并做孕期计划"},
@@ -168,7 +165,7 @@ def _engine(model: Any) -> OpenAIAgentsExecutionEngine:
         model=model,
         model_name="scripted",
         tool_registry=build_runtime_tool_registry(),
-        agent_catalog=AGENT_CATALOG,
+        runtime=RUNTIME_DEFINITION,
         max_turns=8,
     )
 

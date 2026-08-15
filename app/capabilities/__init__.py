@@ -1,1 +1,1 @@
-"""Reusable business capabilities exposed to Agent toolsets."""
+"""Reusable business capabilities exposed through the runtime tool catalog."""

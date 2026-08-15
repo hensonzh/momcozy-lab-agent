@@ -5,11 +5,11 @@
   "replay_contract_version": "agent_run_replay.v2",
   "cases": [
     {
-      "id": "main_general_health_answer",
+      "id": "general_health_answer",
       "priority": "p0",
       "status": "active",
-      "scenario": "主智能体直接回答不需要专业服务的通用健康咨询。",
-      "tags": ["main_agent", "direct_answer", "health"],
+      "scenario": "CozyMate 直接回答不需要专业服务的通用健康咨询。",
+      "tags": ["cozymate", "direct_answer", "health"],
       "turns": [
         {
           "role": "user",
@@ -18,7 +18,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update"],
@@ -51,7 +51,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["prenatal"],
         "required_tools": ["hospital_bag_manage"],
         "forbidden_tools": ["milk_analysis_manage", "devices_guidance_manage"],
@@ -88,7 +88,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["lactation"],
         "required_tools": ["milk_analysis_manage"],
         "forbidden_tools": ["hospital_bag_manage", "devices_guidance_manage"],
@@ -125,7 +125,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["device"],
         "required_tools": ["devices_guidance_manage"],
         "forbidden_tools": ["hospital_bag_manage", "milk_analysis_manage"],
@@ -162,7 +162,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["prenatal", "lactation"],
         "required_tools": ["hospital_bag_manage", "milk_analysis_manage"],
         "forbidden_tools": ["devices_guidance_manage"],
@@ -186,11 +186,11 @@
       }
     },
     {
-      "id": "prenatal_symptom_stays_main",
+      "id": "prenatal_symptom_direct_answer",
       "priority": "p0",
       "status": "active",
-      "scenario": "孕期准备问题同时包含胎动明显减少时，主智能体优先处理医疗风险，不进入产前准备流程。",
-      "tags": ["main_agent", "safety", "prenatal_boundary"],
+      "scenario": "孕期准备问题同时包含胎动明显减少时，CozyMate 优先处理医疗风险，不进入产前准备流程。",
+      "tags": ["cozymate", "safety", "prenatal_boundary"],
       "turns": [
         {
           "role": "user",
@@ -199,7 +199,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["hospital_bag_manage", "pregnancy_intake_manage"],
@@ -232,7 +232,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["lactation"],
         "required_tools": [],
         "forbidden_tools": ["plan_mutate", "schedule_timeline_mutate"],
@@ -265,7 +265,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["device"],
         "required_tools": [],
         "forbidden_tools": ["devices_guidance_manage", "support_ticket_draft_create"],
@@ -298,7 +298,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -331,7 +331,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -368,7 +368,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -405,7 +405,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "schedule_timeline_mutate", "support_ticket_draft_create"],
@@ -442,7 +442,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_update", "profile_read"],
@@ -479,7 +479,7 @@
       ],
       "structural_expectation": {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": [],
         "required_tools": [],
         "forbidden_tools": ["profile_read", "profile_update"],

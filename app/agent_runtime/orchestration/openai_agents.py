@@ -9,7 +9,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from importlib import metadata
 from time import monotonic
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 from agents import (
     Agent,
@@ -54,10 +54,10 @@ from app.core.errors import ApiError
 from app.core.observability import emit_operation_metric
 
 from .contracts import (
-    AgentCatalog,
     AgentDefinition,
     AgentExecutionPort,
     AgentExecutionResult,
+    RuntimeDefinition,
 )
 
 
@@ -71,10 +71,6 @@ MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION = (
 )
 MODEL_CONTEXT_SCHEMA_VERSION = "openai.responses.input_items.v1"
 MODEL_LOGGER = logging.getLogger("agent_runtime.model")
-
-
-class AgentModelResolver(Protocol):
-    def for_agent(self, agent_name: str) -> Model: ...
 
 
 class _ToolInvocationError(AgentsException):
@@ -182,7 +178,7 @@ class _TotalTimeoutModel(Model):
 @dataclass
 class _ExecutionState:
     port: AgentExecutionPort
-    catalog: AgentCatalog
+    runtime: RuntimeDefinition
     root_branch_id: str
     runtime_context: dict[str, Any]
     observation_context: dict[str, str]
@@ -194,10 +190,10 @@ class OpenAIAgentsExecutionEngine:
     def __init__(
         self,
         *,
-        model: Model | AgentModelResolver,
+        model: Model,
         model_name: str,
         tool_registry: ToolContractRegistry,
-        agent_catalog: AgentCatalog,
+        runtime: RuntimeDefinition,
         max_turns: int = 10,
         reasoning_effort: str = "low",
         text_verbosity: str = "low",
@@ -212,7 +208,7 @@ class OpenAIAgentsExecutionEngine:
         self.model = model
         self.model_name = model_name
         self.tool_registry = tool_registry
-        self.agent_catalog = agent_catalog
+        self.runtime = runtime
         self.max_turns = max_turns
         self.reasoning_effort = reasoning_effort
         self.text_verbosity = text_verbosity
@@ -223,21 +219,16 @@ class OpenAIAgentsExecutionEngine:
     async def execute(
         self,
         *,
-        starting_agent_name: str,
         branch_id: str,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
         runtime_context: dict[str, Any] | None = None,
         observation_context: dict[str, str] | None = None,
     ) -> AgentExecutionResult:
-        if starting_agent_name != self.agent_catalog.main_agent_name:
-            raise ValueError(
-                f"unknown starting agent: {starting_agent_name}"
-            )
         _validate_stateless_function_context(input_items)
         state = _ExecutionState(
             port=port,
-            catalog=self.agent_catalog,
+            runtime=self.runtime,
             root_branch_id=branch_id,
             runtime_context=deepcopy(runtime_context or {}),
             observation_context=dict(observation_context or {}),
@@ -275,7 +266,7 @@ class OpenAIAgentsExecutionEngine:
                     and event.data.delta
                 ):
                     await port.publish_text_delta(
-                        agent_name=starting_agent_name,
+                        agent_name=self.runtime.agent.name,
                         delta=event.data.delta,
                     )
             run_loop_error = result.run_loop_exception
@@ -292,7 +283,7 @@ class OpenAIAgentsExecutionEngine:
                 )
             return AgentExecutionResult(
                 text=text,
-                agent=self.agent_catalog.main_agent_name,
+                agent=self.runtime.agent.name,
             )
         except ApiError as exc:
             hooks.emit_pending_model_failures(error_code=exc.code)
@@ -375,7 +366,7 @@ class OpenAIAgentsExecutionEngine:
             raise
 
     def _build_agent(self) -> Agent[_ExecutionState]:
-        definition = self.agent_catalog.main_agent
+        definition = self.runtime.agent
         return self._agent(
             definition=definition,
             tools=self._agent_tools(definition),
@@ -391,7 +382,10 @@ class OpenAIAgentsExecutionEngine:
             name=definition.name,
             instructions=definition.instructions,
             tools=tools,
-            model=self._model_for_agent(definition.name),
+            model=_TotalTimeoutModel(
+                inner_model=self.model,
+                timeout_seconds=self.timeout_seconds,
+            ),
             model_settings=ModelSettings(
                 parallel_tool_calls=False,
                 truncation="disabled",
@@ -411,17 +405,6 @@ class OpenAIAgentsExecutionEngine:
             tool_use_behavior="run_llm_again",
         )
 
-    def _model_for_agent(self, agent_name: str) -> Model:
-        resolver = getattr(self.model, "for_agent", None)
-        if callable(resolver):
-            model = cast(Model, resolver(agent_name))
-        else:
-            model = cast(Model, self.model)
-        return _TotalTimeoutModel(
-            inner_model=model,
-            timeout_seconds=self.timeout_seconds,
-        )
-
     def _agent_tools(
         self,
         definition: AgentDefinition,
@@ -429,22 +412,22 @@ class OpenAIAgentsExecutionEngine:
         contracts = {
             contract.name: contract
             for contract in self.tool_registry.list()
-            if contract.name in definition.tool_names
+            if contract.name in self.runtime.tools.tool_names
         }
-        missing = set(definition.tool_names) - contracts.keys()
+        missing = set(self.runtime.tools.tool_names) - contracts.keys()
         if missing:
             raise ValueError(
-                f"agent allowlist references unknown tools: {sorted(missing)}"
+                f"tool catalog references unknown tools: {sorted(missing)}"
             )
 
-        deferred = self.agent_catalog.deferred_tool_names
+        deferred = self.runtime.tools.deferred_tool_names
         tools: list[Tool] = [
             self._business_tool(
                 agent_name=definition.name,
                 contract=contracts[tool_name],
                 defer_loading=False,
             )
-            for tool_name in definition.tool_names
+            for tool_name in self.runtime.tools.eager_tool_names
             if tool_name not in deferred
         ]
         if deferred:
@@ -456,7 +439,7 @@ class OpenAIAgentsExecutionEngine:
                     execution="server",
                 )
             )
-        for namespace in self.agent_catalog.tool_namespaces:
+        for namespace in self.runtime.tools.tool_namespaces:
             namespaced = [
                 self._business_tool(
                     agent_name=definition.name,
@@ -581,7 +564,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         manifest = _execution_manifest(
             agent_name=agent.name,
             branch_id=branch_id,
-            instructions=self.state.catalog.main_agent.instructions,
+            instructions=self.state.runtime.agent.instructions,
             input_items=tuple(
                 _json_item(item) for item in input_items
             ),
@@ -653,10 +636,8 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         ]
         if unknown:
             raise ApiError(
-                code="agent_tool_not_allowed",
-                message=(
-                    "Agent requested a tool outside its allowlist."
-                ),
+                code="tool_not_available",
+                message="Requested tool is not in the runtime catalog.",
                 status=502,
                 details={
                     "agent_name": agent.name,
@@ -1022,8 +1003,8 @@ def _model_behavior_error(exc: ModelBehaviorError) -> ApiError:
         or "disabled" in message
     ):
         return ApiError(
-            code="agent_tool_not_allowed",
-            message="Agent requested a tool outside its allowlist.",
+            code="tool_not_available",
+            message="Requested tool is not in the runtime catalog.",
             status=502,
         )
     return ApiError(

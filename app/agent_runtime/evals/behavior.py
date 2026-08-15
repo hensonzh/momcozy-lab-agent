@@ -79,9 +79,9 @@ class StructuralExpectation(_StrictModel):
 
     @model_validator(mode="after")
     def validate_contract_names(self) -> StructuralExpectation:
-        if self.responding_agent != "main_agent":
+        if self.responding_agent != "cozymate":
             raise ValueError(
-                "single-agent behavior must respond as main_agent"
+                "single-agent behavior must respond as cozymate"
             )
         unknown_skills = {
             str(item) for item in self.exact_loaded_skills

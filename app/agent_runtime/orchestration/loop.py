@@ -28,10 +28,9 @@ from app.core.observability import (
 )
 
 from .contracts import (
-    AgentCatalog,
-    AgentDefinition,
     AgentExecutionEngine,
     AgentExecutionPort,
+    RuntimeDefinition,
 )
 
 
@@ -99,7 +98,7 @@ class AgentLoop:
         repository: RuntimeLedgerRepository,
         execution_engine: AgentExecutionEngine,
         tool_executor: ToolExecutor,
-        agent_catalog: AgentCatalog,
+        runtime: RuntimeDefinition,
         transient_delta_publisher: TransientDeltaPublisher | None = None,
         trusted_arguments_provider: (
             TrustedToolArgumentsProvider | None
@@ -109,7 +108,7 @@ class AgentLoop:
         self.repository = repository
         self.execution_engine = execution_engine
         self.tool_executor = tool_executor
-        self.agent_catalog = agent_catalog
+        self.runtime = runtime
         self.transient_delta_publisher = transient_delta_publisher
         self.trusted_arguments_provider = trusted_arguments_provider
         self.context_coordinator = context_coordinator
@@ -219,7 +218,7 @@ class AgentLoop:
                 run,
                 phase="agent.started",
                 label="正在理解你的需求…",
-                agent_name=self.agent_catalog.main_agent_name,
+                agent_name=self.runtime.agent.name,
             )
             context_records = await self._context_records(run)
             as_of_date = context_as_of_date(
@@ -229,7 +228,6 @@ class AgentLoop:
             try:
                 answer = await self._run_agent(
                     run=run,
-                    definition=self.agent_catalog.main_agent,
                     emit_deltas=True,
                     as_of_date=as_of_date,
                     branch_id="main",
@@ -250,7 +248,6 @@ class AgentLoop:
                 )
                 answer = await self._run_agent(
                     run=run,
-                    definition=self.agent_catalog.main_agent,
                     emit_deltas=True,
                     as_of_date=as_of_date,
                     branch_id="main",
@@ -327,7 +324,7 @@ class AgentLoop:
             if not run.skill_id:
                 await self.repository.set_run_skill_id(
                     run=run,
-                    skill_id=self.agent_catalog.main_agent_name,
+                    skill_id=self.runtime.agent.name,
                 )
             await self._checkpoint_unlocked()
 
@@ -335,17 +332,17 @@ class AgentLoop:
         self,
         *,
         run: AgentRun,
-        definition: AgentDefinition,
         emit_deltas: bool,
         as_of_date: date | None,
         initial_input_items: tuple[dict[str, Any], ...] | None = None,
         branch_id: str = "main",
     ) -> AgentAnswer:
+        agent_name = self.runtime.agent.name
         context_records = await self._context_records(run)
         branch_items = _restore_agent_input(
             context_records,
             run_id=run.id,
-            agent_name=definition.name,
+            agent_name=agent_name,
             branch_id=branch_id,
             initial_input_items=initial_input_items,
         )
@@ -353,13 +350,12 @@ class AgentLoop:
         pending = _pending_calls(
             context_records,
             run_id=run.id,
-            agent_name=definition.name,
+            agent_name=agent_name,
             branch_id=branch_id,
         )
         if pending:
             direct = await self._execute_calls(
                 run=run,
-                definition=definition,
                 calls=pending,
                 as_of_date=as_of_date,
                 branch_items=branch_items,
@@ -370,12 +366,11 @@ class AgentLoop:
             branch_items = _restore_agent_input(
                 context_records,
                 run_id=run.id,
-                agent_name=definition.name,
+                agent_name=agent_name,
                 branch_id=branch_id,
                 initial_input_items=initial_input_items,
             )
         result = await self.execution_engine.execute(
-            starting_agent_name=definition.name,
             branch_id=branch_id,
             input_items=tuple(
                 dict(item) for item in branch_items
@@ -405,20 +400,19 @@ class AgentLoop:
         self,
         *,
         run: AgentRun,
-        definition: AgentDefinition,
         calls: tuple[_PendingToolCall, ...],
         as_of_date: date | None,
         branch_items: list[dict[str, Any]],
     ) -> AgentAnswer | None:
-        allowed = frozenset(definition.tool_names)
+        available = frozenset(self.runtime.tools.tool_names)
         for call in calls:
-            if call.name not in allowed:
+            if call.name not in available:
                 raise ApiError(
-                    code="agent_tool_not_allowed",
-                    message="Agent requested a tool outside its allowlist.",
+                    code="tool_not_available",
+                    message="Requested tool is not in the runtime catalog.",
                     status=502,
                     details={
-                        "agent_name": definition.name,
+                        "agent_name": self.runtime.agent.name,
                         "tool_name": call.name,
                     },
                 )

@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 from agents.models.openai_responses import OpenAIResponsesModel
 
 from app.bootstrap import (
-    AGENT_CATALOG,
+    RUNTIME_DEFINITION,
     build_action_service,
     build_product_action_applicators,
     build_runtime_tool_handlers,
@@ -122,7 +122,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 ),
                 model_name=settings.openai_model,
                 tool_registry=registry,
-                agent_catalog=AGENT_CATALOG,
+                runtime=RUNTIME_DEFINITION,
                 max_turns=settings.agent_max_turns,
                 reasoning_effort=(
                     settings.openai_reasoning_effort
@@ -218,7 +218,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                         repository=repository,
                         execution_engine=execution_engine,
                         tool_executor=executor,
-                        agent_catalog=AGENT_CATALOG,
+                        runtime=RUNTIME_DEFINITION,
                         transient_delta_publisher=transient_stream,
                         trusted_arguments_provider=(
                             TrustedToolArgumentsProvider(

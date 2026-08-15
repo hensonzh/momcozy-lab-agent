@@ -4,7 +4,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
+from typing import Literal, cast
 
 from app.agent_runtime.tools import (
     ToolContract,
@@ -12,14 +12,19 @@ from app.agent_runtime.tools import (
     ToolHandlerContext,
     ToolResult,
 )
-from app.agents.contracts import SERVICE_SKILL_NAMES, ServiceSkillName
 from app.core.errors import ApiError
 
-from .toolset import LOAD_SERVICE_SKILL_TOOL_NAME
+from .tool_catalog import LOAD_SERVICE_SKILL_TOOL_NAME
 
 
 SERVICE_SKILL_SCHEMA_VERSION = "momcozy.service_skill.v1"
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
+ServiceSkillName = Literal["prenatal", "lactation", "device"]
+SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = (
+    "prenatal",
+    "lactation",
+    "device",
+)
 
 
 @dataclass(frozen=True)
@@ -233,9 +238,11 @@ SERVICE_SKILL_REGISTRY = ServiceSkillRegistry()
 
 __all__ = [
     "SERVICE_SKILL_REGISTRY",
+    "SERVICE_SKILL_NAMES",
     "SERVICE_SKILL_SCHEMA_VERSION",
     "LoadServiceSkillToolHandler",
     "ServiceSkill",
+    "ServiceSkillName",
     "ServiceSkillRegistry",
     "service_skill_tool_registry",
 ]

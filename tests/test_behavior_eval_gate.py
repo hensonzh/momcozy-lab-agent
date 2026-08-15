@@ -20,7 +20,7 @@ from app.agent_runtime.evals.behavior import (
     evaluate_behavior_case,
     load_behavior_suite,
 )
-from app.agents import AGENT_DEFINITIONS
+from app.bootstrap import TOOL_CATALOG
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -35,12 +35,12 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     assert suite.schema_version == "momcozy.behavior_eval_suite.v2"
     assert suite.replay_contract_version == "agent_run_replay.v2"
     assert {case.id for case in suite.cases} == {
-        "main_general_health_answer",
+        "general_health_answer",
         "prenatal_skill_workflow",
         "lactation_skill_workflow",
         "device_skill_workflow",
         "multi_skill_integrated_response",
-        "prenatal_symptom_stays_main",
+        "prenatal_symptom_direct_answer",
         "lactation_plan_boundary",
         "device_electrical_hazard",
         "unknown_out_of_scope",
@@ -51,11 +51,7 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         "unauthorized_profile_request",
     }
     assert all(case.quality_rubric is not None for case in suite.cases)
-    assert KNOWN_TOOL_NAMES == frozenset(
-        tool_name
-        for definition in AGENT_DEFINITIONS.values()
-        for tool_name in definition.tool_names
-    )
+    assert KNOWN_TOOL_NAMES == frozenset(TOOL_CATALOG.tool_names)
 
 
 def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> None:
@@ -164,7 +160,7 @@ def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_ev
     case_payload = _suite_payload()["cases"][0]
     case_payload["structural_expectation"] = {
         "terminal_status": "completed",
-        "responding_agent": "main_agent",
+        "responding_agent": "cozymate",
         "exact_loaded_skills": ["prenatal", "lactation"],
         "required_tools": ["hospital_bag_manage"],
         "forbidden_tools": ["profile_update"],
@@ -368,7 +364,7 @@ def test_behavior_eval_cli_fails_before_database_when_run_map_is_incomplete(
             {
                 "schema_version": "momcozy.behavior_eval_run_map.v1",
                 "runs": {
-                    "main_general_health_answer": str(uuid4()),
+                    "general_health_answer": str(uuid4()),
                 },
             }
         ),
@@ -447,11 +443,11 @@ def _suite_payload() -> dict[str, Any]:
         "replay_contract_version": "agent_run_replay.v2",
         "cases": [
             {
-                "id": "main_general_health_answer",
+                "id": "general_health_answer",
                 "priority": "p0",
                 "status": "active",
-                "scenario": "主智能体直接回答通用健康问题",
-                "tags": ["main_agent", "direct_answer"],
+                "scenario": "CozyMate 直接回答通用健康问题",
+                "tags": ["cozymate", "direct_answer"],
                 "turns": [
                     {
                         "role": "user",
@@ -460,7 +456,7 @@ def _suite_payload() -> dict[str, Any]:
                 ],
                 "structural_expectation": {
                     "terminal_status": "completed",
-                    "responding_agent": "main_agent",
+                    "responding_agent": "cozymate",
                     "exact_loaded_skills": [],
                     "required_tools": [],
                     "forbidden_tools": ["profile_update"],
@@ -510,7 +506,7 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
                 "type": "message.completed",
                 "payload": {
                     "message_id": str(uuid4()),
-                    "responding_agent": "main_agent",
+                    "responding_agent": "cozymate",
                     "text": "请继续观察体温和精神状态，如出现危险信号及时就医。",
                 },
             },
@@ -518,7 +514,7 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
                 "event_id": str(uuid4()),
                 "sequence": 3,
                 "type": "run.completed",
-                "payload": {"responding_agent": "main_agent"},
+                "payload": {"responding_agent": "cozymate"},
             },
         ],
         "tool_calls": [],

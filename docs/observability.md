@@ -25,7 +25,7 @@ while the durable execution manifest and replay remain the diagnostic source
 of truth. This avoids exporting Prompt, user content, or Tool payloads through
 an independent tracing path.
 
-`AGENT_MODEL_TIMEOUT_SECONDS` bounds one complete model call for every Agent,
+`AGENT_MODEL_TIMEOUT_SECONDS` bounds every complete CozyMate model call,
 including the entire streamed response and provider SDK retries. A deadline
 breach emits `agent_runtime_model` with `outcome="timeout"` and
 `error_code="model_provider_timeout"`; external cancellation remains an

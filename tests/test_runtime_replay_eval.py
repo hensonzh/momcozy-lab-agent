@@ -21,7 +21,7 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
 
     assert bundle["schema_version"] == "agent_run_replay.v2"
     assert bundle["run"]["runtime_pattern"] == "proprietary_runtime"
-    assert bundle["run"]["skill_id"] == "main_agent"
+    assert bundle["run"]["skill_id"] == "cozymate"
     assert bundle["execution_manifest"] == repository.run.execution_manifest
     assert bundle["context_state"] == repository.run.context_state
     assert bundle["context_checkpoint"]["checkpoint"] == {
@@ -132,7 +132,7 @@ class FakeReplayRepository:
             status="completed",
             runtime_pattern="proprietary_runtime",
             runtime_version="momcozy-agent-v5",
-            skill_id="main_agent",
+            skill_id="cozymate",
             request_id="request",
             trace_id="trace",
             error_code="",

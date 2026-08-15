@@ -109,7 +109,7 @@ class ScriptedModelRequest:
     response_format: None = None
 
 
-class ScriptedAgentModel:
+class ScriptedAgentModel(Model):
     """Deterministic Agents SDK model used by runtime and replay tests."""
 
     def __init__(
@@ -119,14 +119,16 @@ class ScriptedAgentModel:
             Sequence[ScriptedTurn | BaseException],
         ],
     ) -> None:
-        self._scripts = {
-            name: list(turns) for name, turns in scripts.items()
-        }
+        if len(scripts) > 1:
+            raise ValueError("single-agent scripts accept at most one identity")
+        if scripts:
+            self.agent_name, turns = next(iter(scripts.items()))
+            self._turns = list(turns)
+        else:
+            self.agent_name = "cozymate"
+            self._turns = []
         self._lock = asyncio.Lock()
         self.requests: list[ScriptedModelRequest] = []
-
-    def for_agent(self, agent_name: str) -> Model:
-        return _BoundScriptedModel(owner=self, agent_name=agent_name)
 
     async def next_response(
         self,
@@ -148,15 +150,14 @@ class ScriptedAgentModel:
                     model_settings=model_settings,
                 )
             )
-            turns = self._scripts.get(agent_name)
-            if not turns:
+            if not self._turns:
                 raise ApiError(
                     code="scripted_model_exhausted",
                     message="Scripted Agent model has no remaining response.",
                     status=500,
                     details={"agent_name": agent_name},
                 )
-            scripted = turns.pop(0)
+            scripted = self._turns.pop(0)
         if isinstance(scripted, BaseException):
             raise scripted
         response_id = scripted.response_id or (
@@ -167,17 +168,6 @@ class ScriptedAgentModel:
             usage=Usage(),
             response_id=response_id,
         )
-
-
-class _BoundScriptedModel(Model):
-    def __init__(
-        self,
-        *,
-        owner: ScriptedAgentModel,
-        agent_name: str,
-    ) -> None:
-        self.owner = owner
-        self.agent_name = agent_name
 
     async def get_response(
         self,
@@ -195,7 +185,7 @@ class _BoundScriptedModel(Model):
     ) -> ModelResponse:
         del output_schema, handoffs, tracing
         del previous_response_id, conversation_id, prompt
-        _turn, response = await self.owner.next_response(
+        _turn, response = await self.next_response(
             agent_name=self.agent_name,
             instructions=system_instructions,
             input_items=input,
@@ -220,7 +210,7 @@ class _BoundScriptedModel(Model):
     ) -> AsyncIterator[ResponseStreamEvent]:
         del output_schema, handoffs, tracing
         del previous_response_id, conversation_id, prompt
-        turn, model_response = await self.owner.next_response(
+        turn, model_response = await self.next_response(
             agent_name=self.agent_name,
             instructions=system_instructions,
             input_items=input,
