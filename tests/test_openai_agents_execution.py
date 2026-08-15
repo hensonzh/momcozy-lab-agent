@@ -28,7 +28,6 @@ from openai.types.responses.response_prompt_param import (
 
 from app.agent_runtime.orchestration import (
     AgentExecutionResult,
-    DelegationResult,
     OpenAIAgentsExecutionEngine,
 )
 from app.agent_runtime.orchestration.testing import (
@@ -48,6 +47,7 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
                     ScriptedToolCall(
                         call_id="profile-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={"infant_scope": "all"},
                     )
                 ),
@@ -85,169 +85,12 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
     ]
     assert {
         tool.name for tool in model.requests[0].tools
-    } >= {"profile_read", "prenatal_agent", "lactation_agent", "device_agent"}
+    } >= {"load_service_skill", "tool_search", "profile_read"}
     assert any(
         item.get("type") == "function_call_output"
         and item.get("call_id") == "profile-call"
         for item in model.requests[1].input_items
     )
-
-
-def test_specialist_receives_main_agents_prior_tool_context() -> None:
-    model = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="profile-call",
-                        name="profile_read",
-                        arguments={"infant_scope": "all"},
-                    )
-                ),
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="prenatal-call",
-                        name="prenatal_agent",
-                        arguments={
-                            "request": "结合资料准备待产事项"
-                        },
-                    )
-                ),
-            ],
-            "prenatal_agent": [
-                ScriptedTurn.final("已结合资料完成。"),
-            ],
-        }
-    )
-    port = RecordingExecutionPort()
-
-    result = asyncio.run(
-        _engine(model).execute(
-            starting_agent_name="main_agent",
-            branch_id="main",
-            input_items=(
-                {"role": "user", "content": "读取资料后帮我规划"},
-            ),
-            port=port,
-        )
-    )
-
-    assert result == AgentExecutionResult(
-        text="已结合资料完成。",
-        agent="prenatal_agent",
-    )
-    specialist_input = model.requests[2].input_items
-    assert any(
-        item.get("type") == "function_call"
-        and item.get("call_id") == "profile-call"
-        for item in specialist_input
-    )
-    assert any(
-        item.get("type") == "function_call_output"
-        and item.get("call_id") == "profile-call"
-        for item in specialist_input
-    )
-
-
-def test_specialists_are_sdk_agent_tools_run_in_order_with_last_reply() -> None:
-    model = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="prenatal-call",
-                        name="prenatal_agent",
-                        arguments={"request": "准备待产包"},
-                    ),
-                    ScriptedToolCall(
-                        call_id="lactation-call",
-                        name="lactation_agent",
-                        arguments={"request": "结合前序结果安排泌乳"},
-                    ),
-                )
-            ],
-            "prenatal_agent": [
-                ScriptedTurn.final(
-                    "先准备证件。",
-                    deltas=("不应外发",),
-                )
-            ],
-            "lactation_agent": [
-                ScriptedTurn.final(
-                    "再观察奶量。",
-                    deltas=("再观察", "奶量。"),
-                )
-            ],
-        }
-    )
-    port = RecordingExecutionPort()
-
-    result = asyncio.run(
-        _engine(model).execute(
-            starting_agent_name="main_agent",
-            branch_id="main",
-            input_items=({"role": "user", "content": "帮我规划"},),
-            port=port,
-        )
-    )
-
-    assert result == AgentExecutionResult(
-        text="再观察奶量。",
-        agent="lactation_agent",
-    )
-    assert [request.agent_name for request in model.requests] == [
-        "main_agent",
-        "prenatal_agent",
-        "lactation_agent",
-    ]
-    assert "先准备证件" in str(model.requests[2].input_items)
-    assert [item.agent_name for item in port.delegation_results] == [
-        "prenatal_agent",
-        "lactation_agent",
-    ]
-    assert port.completed_delegations == [
-        ("prenatal_agent", "lactation_agent")
-    ]
-    assert port.delta_events == [
-        ("lactation_agent", "再观察"),
-        ("lactation_agent", "奶量。"),
-    ]
-
-
-def test_mixed_delegation_is_rejected_before_any_tool_executes() -> None:
-    model = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="delegate-call",
-                        name="prenatal_agent",
-                        arguments={"request": "准备待产包"},
-                    ),
-                    ScriptedToolCall(
-                        call_id="profile-call",
-                        name="profile_read",
-                        arguments={},
-                    ),
-                )
-            ]
-        }
-    )
-    port = RecordingExecutionPort()
-
-    with pytest.raises(ApiError) as captured:
-        asyncio.run(
-            _engine(model).execute(
-                starting_agent_name="main_agent",
-                branch_id="main",
-                input_items=({"role": "user", "content": "帮我规划"},),
-                port=port,
-            )
-        )
-
-    assert captured.value.code == "agent_delegation_invalid"
-    assert port.tool_calls == []
-    assert port.delegation_results == []
 
 
 def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
@@ -419,45 +262,6 @@ def test_streaming_model_call_has_a_total_wall_clock_timeout(
     assert fields["error_code"] == "model_provider_timeout"
 
 
-def test_specialist_model_call_uses_the_same_total_timeout() -> None:
-    main_model = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="prenatal-call",
-                        name="prenatal_agent",
-                        arguments={"request": "持续生成待产建议"},
-                    )
-                )
-            ]
-        }
-    )
-    model = PerAgentModelResolver(
-        main_model=main_model,
-        specialist_model=ContinuouslyStreamingModel(),
-    )
-
-    with pytest.raises(ApiError) as captured:
-        asyncio.run(
-            asyncio.wait_for(
-                _engine(model, timeout_seconds=0.03).execute(
-                    starting_agent_name="main_agent",
-                    branch_id="main",
-                    input_items=(
-                        {"role": "user", "content": "准备待产建议"},
-                    ),
-                    port=RecordingExecutionPort(),
-                ),
-                timeout=0.5,
-            )
-        )
-
-    assert captured.value.code == "model_provider_timeout"
-    assert captured.value.status == 504
-    assert captured.value.details == {"retryable": True}
-
-
 def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     client = RecordingOpenAIClient()
     engine = OpenAIAgentsExecutionEngine(
@@ -489,7 +293,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     request = client.responses.kwargs
     assert request["model"] == "gpt-5.6-terra"
     assert request["stream"] is True
-    assert request["parallel_tool_calls"] is True
+    assert request["parallel_tool_calls"] is False
     assert request["truncation"] == "disabled"
     assert request["store"] is False
     assert request["reasoning"].effort == "medium"
@@ -514,23 +318,38 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         "role": "user",
         "content": "你好",
     }
-    assert {
-        tool["name"] for tool in request["tools"]
-    } >= {
-        "profile_read",
-        "prenatal_agent",
-        "lactation_agent",
-        "device_agent",
-    }
-    prenatal_tool = next(
-        tool
+    assert any(
+        tool["type"] == "tool_search"
         for tool in request["tools"]
-        if tool["name"] == "prenatal_agent"
     )
-    assert prenatal_tool["parameters"] == (
-        AGENT_CATALOG.delegation_tools[
-            "prenatal_agent"
-        ].input_schema
+    eager_function_tools = {
+        tool["name"]: tool
+        for tool in request["tools"]
+        if tool["type"] == "function"
+    }
+    assert set(eager_function_tools) == {"load_service_skill"}
+    namespaces = {
+        tool["name"]: tool
+        for tool in request["tools"]
+        if tool["type"] == "namespace"
+    }
+    assert set(namespaces) == {
+        "profile",
+        "planning",
+        "diary",
+        "attachments",
+        "prenatal",
+        "lactation",
+        "device",
+    }
+    assert {
+        tool["name"]
+        for tool in namespaces["profile"]["tools"]
+    } == {"profile_read", "profile_update"}
+    assert all(
+        tool["defer_loading"] is True
+        for namespace in namespaces.values()
+        for tool in namespace["tools"]
     )
 
 
@@ -607,26 +426,9 @@ class ContinuouslyStreamingModel(Model):
             )
 
 
-@dataclass(frozen=True)
-class PerAgentModelResolver:
-    main_model: ScriptedAgentModel
-    specialist_model: Model
-
-    def for_agent(self, agent_name: str) -> Model:
-        if agent_name == "main_agent":
-            return self.main_model.for_agent(agent_name)
-        return self.specialist_model
-
-
 @dataclass
 class RecordingExecutionPort:
     tool_calls: list[tuple[str, str, str, dict[str, Any]]] = field(
-        default_factory=list
-    )
-    delegation_results: list[DelegationResult] = field(
-        default_factory=list
-    )
-    completed_delegations: list[tuple[str, ...]] = field(
         default_factory=list
     )
     manifests: list[dict[str, Any]] = field(default_factory=list)
@@ -680,32 +482,6 @@ class RecordingExecutionPort:
     ) -> None:
         self.deltas.append(delta)
         self.delta_events.append((agent_name, delta))
-
-    async def on_delegation_started(
-        self,
-        *,
-        call_id: str,
-        index: int,
-        agent_name: str,
-    ) -> None:
-        return None
-
-    async def persist_delegation_result(
-        self,
-        *,
-        result: DelegationResult,
-    ) -> None:
-        self.delegation_results.append(result)
-
-    async def complete_delegation(
-        self,
-        *,
-        results: tuple[DelegationResult, ...],
-    ) -> None:
-        self.completed_delegations.append(
-            tuple(item.agent_name for item in results)
-        )
-
 
 @dataclass
 class MaterializingExecutionPort(RecordingExecutionPort):

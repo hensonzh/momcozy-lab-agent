@@ -6,14 +6,12 @@ from .actions import (
 )
 from .handlers import ProfileReadToolHandler, ProfileUpdateToolHandler
 from .registry import (
-    LACTATION_AGENT_PROFILE_TOOLS,
-    MAIN_AGENT_PROFILE_TOOLS,
+    PROFILE_TOOL_NAMES,
     profile_tool_registry,
 )
 
 __all__ = [
-    "LACTATION_AGENT_PROFILE_TOOLS",
-    "MAIN_AGENT_PROFILE_TOOLS",
+    "PROFILE_TOOL_NAMES",
     "PROFILE_ACTION_POLICY_RULES",
     "PROFILE_CURRENT_INFANTS_REPLACE_ACTION",
     "PROFILE_UPDATE_ACTION",

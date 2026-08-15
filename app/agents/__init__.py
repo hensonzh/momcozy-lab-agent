@@ -1,28 +1,23 @@
-"""Agent-owned definitions, prompts, skills, and toolsets."""
+"""Single-agent definition, progressive skills, and tool namespaces."""
 
 from .contracts import (
     AGENT_NAMES,
-    SPECIALIST_AGENT_NAMES,
+    SERVICE_SKILL_NAMES,
     AgentDefinition,
     AgentName,
-    SpecialistName,
+    ServiceSkillName,
+    ToolNamespaceDefinition,
 )
-from .device_agent import DEVICE_AGENT
-from .lactation_agent import LACTATION_AGENT
 from .main_agent import MAIN_AGENT
-from .prenatal_agent import PRENATAL_AGENT
-from .registry import AGENT_DEFINITIONS, SPECIALIST_NAMES
+from .registry import AGENT_DEFINITIONS
 
 __all__ = [
     "AGENT_DEFINITIONS",
     "AGENT_NAMES",
-    "DEVICE_AGENT",
-    "LACTATION_AGENT",
     "MAIN_AGENT",
-    "PRENATAL_AGENT",
-    "SPECIALIST_AGENT_NAMES",
-    "SPECIALIST_NAMES",
+    "SERVICE_SKILL_NAMES",
     "AgentDefinition",
     "AgentName",
-    "SpecialistName",
+    "ServiceSkillName",
+    "ToolNamespaceDefinition",
 ]

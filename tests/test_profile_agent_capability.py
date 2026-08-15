@@ -14,8 +14,7 @@ from app.agent_runtime.actions import (
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.tools import ToolHandlerContext, ToolResult
 from app.capabilities.profile import (
-    LACTATION_AGENT_PROFILE_TOOLS,
-    MAIN_AGENT_PROFILE_TOOLS,
+    PROFILE_TOOL_NAMES,
     ProfileReadToolHandler,
     ProfileUpdateActionApplicator,
     ProfileUpdateToolHandler,
@@ -29,12 +28,11 @@ from app.infrastructure.product_backend import (
 )
 
 
-def test_profile_tools_are_shared_by_main_and_lactation_static_allowlists() -> None:
+def test_profile_tool_registry_exposes_the_canonical_tool_names() -> None:
     registry = profile_tool_registry()
 
-    assert MAIN_AGENT_PROFILE_TOOLS == ("profile_read", "profile_update")
-    assert LACTATION_AGENT_PROFILE_TOOLS == MAIN_AGENT_PROFILE_TOOLS
-    assert registry.names_for_sdk() == MAIN_AGENT_PROFILE_TOOLS
+    assert PROFILE_TOOL_NAMES == ("profile_read", "profile_update")
+    assert registry.names_for_sdk() == PROFILE_TOOL_NAMES
     assert registry.get("profile_read").effect_scope == "none"
     assert registry.get("profile_update").action_types == (
         "profile.update",

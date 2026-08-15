@@ -89,7 +89,7 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
         thread_id=uuid4(),
         actor_user_id=uuid4(),
         runtime_pattern="proprietary_runtime",
-        runtime_version="momcozy-agent-v4",
+        runtime_version="momcozy-agent-v5",
         request_id="request",
         trace_id="trace",
     )
@@ -119,7 +119,7 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
     assert run.execution_manifest == {
         "schema_version": "agent_run_execution_manifest.v1",
         "runtime_pattern": "proprietary_runtime",
-        "runtime_version": "momcozy-agent-v4",
+        "runtime_version": "momcozy-agent-v5",
         "invocations": [
             {
                 "sequence": 1,
@@ -136,7 +136,7 @@ def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
         thread_id=uuid4(),
         actor_user_id=uuid4(),
         runtime_pattern="proprietary_runtime",
-        runtime_version="momcozy-agent-v4",
+        runtime_version="momcozy-agent-v5",
         request_id="request",
         trace_id="trace",
     )

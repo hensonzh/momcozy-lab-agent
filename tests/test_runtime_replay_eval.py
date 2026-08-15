@@ -131,7 +131,7 @@ class FakeReplayRepository:
             actor_user_id=uuid4(),
             status="completed",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v4",
+            runtime_version="momcozy-agent-v5",
             skill_id="main_agent",
             request_id="request",
             trace_id="trace",
@@ -140,7 +140,7 @@ class FakeReplayRepository:
             execution_manifest={
                 "schema_version": "agent_run_execution_manifest.v1",
                 "runtime_pattern": "proprietary_runtime",
-                "runtime_version": "momcozy-agent-v4",
+                "runtime_version": "momcozy-agent-v5",
                 "invocations": [
                     {
                         "sequence": 1,

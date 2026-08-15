@@ -4,7 +4,7 @@ from app.core.errors import ApiError
 
 
 PROPRIETARY_RUNTIME_PATTERN = "proprietary_runtime"
-DEFAULT_RUNTIME_VERSION = "momcozy-agent-v4"
+DEFAULT_RUNTIME_VERSION = "momcozy-agent-v5"
 
 
 def validate_runtime(*, version: str, pattern: str) -> None:

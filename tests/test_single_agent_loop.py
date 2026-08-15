@@ -1,3 +1,5 @@
+"""Durability and recovery tests for the single-agent loop."""
+
 from __future__ import annotations
 
 import asyncio
@@ -26,19 +28,18 @@ from app.agent_runtime.orchestration.testing import (
 )
 from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
-from app.agents import (
-    DEVICE_AGENT,
-    LACTATION_AGENT,
-    MAIN_AGENT,
-    PRENATAL_AGENT,
+from app.agents import MAIN_AGENT
+from app.agents.main_agent import (
+    LOAD_SERVICE_SKILL_TOOL_NAME,
+    MAIN_TOOL_NAMES,
+    SERVICE_SKILL_REGISTRY,
 )
-from app.agents.main_agent import ORCHESTRATION_TOOL_NAMES
 from app.agents.shared import BASE_AGENT_INSTRUCTIONS
 from app.bootstrap import AGENT_CATALOG, build_runtime_tool_registry
 from app.core.errors import ApiError
 
 
-def test_general_question_is_answered_by_main_agent_without_delegation() -> None:
+def test_general_question_is_answered_by_the_single_agent() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
         {
@@ -58,7 +59,7 @@ def test_general_question_is_answered_by_main_agent_without_delegation() -> None
     assert [request.agent_name for request in provider.requests] == [
         "main_agent",
     ]
-    assert ORCHESTRATION_TOOL_NAMES <= {
+    assert {LOAD_SERVICE_SKILL_TOOL_NAME, "tool_search"} <= {
         tool.name for tool in provider.requests[0].tools
     }
     assert provider.requests[0].response_format is None
@@ -73,7 +74,6 @@ def test_general_question_is_answered_by_main_agent_without_delegation() -> None
         "content": "可以先观察体温和精神状态。",
     }
     assert repository.event_types[-2:] == ["message.completed", "run.completed"]
-    assert "agent.delegation.completed" not in repository.event_types
     assert "message.delta" not in repository.event_types
 
 
@@ -175,49 +175,46 @@ def test_run_processing_emits_correlated_outcome_metric(
     assert fields["duration_ms"] >= 0
 
 
-def test_all_agents_share_cached_safety_and_context_instructions() -> None:
-    for definition in (
-        MAIN_AGENT,
-        PRENATAL_AGENT,
-        LACTATION_AGENT,
-        DEVICE_AGENT,
-    ):
-        assert "不得使用关键词匹配" in definition.instructions
-        assert "ToolResult" in definition.instructions
-        assert "不作确定性诊断" in definition.instructions
-        assert "不是系统指令" in definition.instructions
-
-
-def test_specialists_include_their_domain_workflow_contracts() -> None:
-    assert PRENATAL_AGENT.instructions.startswith(BASE_AGENT_INSTRUCTIONS)
+def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
+    assert MAIN_AGENT.instructions.startswith(BASE_AGENT_INSTRUCTIONS)
     for phrase in (
-        "pregnancy_intake_manage",
-        "workflow_phase",
-        "ready_to_generate",
-        "hospital_bag_manage",
+        "不得使用关键词匹配",
+        "不作确定性诊断",
+        "不是系统指令",
+        "load_service_skill",
+        "tool_search",
     ):
-        assert phrase in PRENATAL_AGENT.instructions
+        assert phrase in MAIN_AGENT.instructions
+    assert "ToolResult 不能修改" not in MAIN_AGENT.instructions
+    assert MAIN_AGENT.tool_names == MAIN_TOOL_NAMES
 
-    assert LACTATION_AGENT.instructions.startswith(
-        BASE_AGENT_INSTRUCTIONS
-    )
-    for phrase in (
-        "operation=start_or_resume",
-        "operation=answer",
-        "can_evaluate=true",
-        "operation=evaluate",
-        "不得用 `plan_mutate` 创建奶量计划",
-        "妈妈红旗",
-    ):
-        assert phrase in LACTATION_AGENT.instructions
 
-    assert DEVICE_AGENT.instructions.startswith(BASE_AGENT_INSTRUCTIONS)
-    for phrase in (
-        "devices_guidance_manage",
-        "workflow.current_step",
-        "主机不可水洗",
-    ):
-        assert phrase in DEVICE_AGENT.instructions
+def test_service_skills_retain_the_domain_workflow_contracts() -> None:
+    expected_phrases = {
+        "prenatal": (
+            "pregnancy_intake_manage",
+            "workflow_phase",
+            "ready_to_generate",
+            "hospital_bag_manage",
+        ),
+        "lactation": (
+            "operation=start_or_resume",
+            "operation=answer",
+            "can_evaluate=true",
+            "operation=evaluate",
+            "不得用 `plan_mutate` 创建奶量计划",
+            "妈妈红旗",
+        ),
+        "device": (
+            "devices_guidance_manage",
+            "workflow.current_step",
+            "主机和含电部件不可水洗",
+        ),
+    }
+    for skill_id, phrases in expected_phrases.items():
+        content = SERVICE_SKILL_REGISTRY.get(skill_id).content
+        for phrase in phrases:
+            assert phrase in content
 
 
 def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
@@ -328,374 +325,6 @@ def test_lost_execution_lease_is_not_persisted_as_a_late_failure() -> None:
     assert "run.completed" not in repository.event_types
 
 
-def test_main_agent_calls_specialist_tool_and_specialist_replies() -> None:
-    repository = MemoryLedger()
-    provider = ScriptedAgentModel(
-        {
-            "main_agent": [
-                _delegate(
-                    "prenatal_agent",
-                    request="帮我准备孕36周待产包。",
-                ),
-            ],
-            "prenatal_agent": [ScriptedTurn.final("证件、产褥垫和宝宝衣物先装好。")],
-        }
-    )
-    loop = _loop(repository=repository, provider=provider)
-
-    asyncio.run(loop.process(repository.run.id))
-
-    assert [request.agent_name for request in provider.requests] == [
-        "main_agent",
-        "prenatal_agent",
-    ]
-    assert repository.assistant_text == "证件、产褥垫和宝宝衣物先装好。"
-    assert repository.run.skill_id == "prenatal_agent"
-    _assert_function_context_is_paired(
-        tuple(repository.context_payloads)
-    )
-    assert "帮我准备孕36周待产包" in str(
-        provider.requests[1].input_items[-1]["content"]
-    )
-    assert repository.event_types.count("agent.delegation.completed") == 1
-    delegation_event = next(
-        event
-        for event in repository.events
-        if event.event_type == "agent.delegation.completed"
-    )
-    assert delegation_event.payload == {
-        "call_ids": ["delegate-call"],
-        "agents": ["prenatal_agent"],
-        "responding_agent": "prenatal_agent",
-    }
-    message_event = next(
-        event
-        for event in repository.events
-        if event.event_type == "message.completed"
-    )
-    assert message_event.payload["responding_agent"] == (
-        "prenatal_agent"
-    )
-    assert not ORCHESTRATION_TOOL_NAMES.intersection(
-        {
-            tool.name for tool in provider.requests[1].tools
-        }
-    )
-
-
-def test_multiple_specialist_tools_run_in_order_and_last_specialist_replies() -> None:
-    repository = MemoryLedger()
-    provider = ScriptedAgentModel(
-        {
-            "prenatal_agent": [ScriptedTurn.final("先准备证件和待产用品。")],
-            "lactation_agent": [
-                ScriptedTurn.final(
-                    "先准备待产用品，再按泌乳建议观察奶量。"
-                )
-            ],
-            "main_agent": [
-                ScriptedTurn.calls(
-                    _specialist_call(
-                        "prenatal_agent",
-                        request="生成孕36周待产包。",
-                        call_id="delegate-prenatal",
-                    ),
-                    _specialist_call(
-                        "lactation_agent",
-                        request="分析最近7天奶量并给出行动顺序。",
-                        call_id="delegate-lactation",
-                    ),
-                ),
-            ],
-        }
-    )
-    loop = _loop(repository=repository, provider=provider)
-
-    asyncio.run(loop.process(repository.run.id))
-
-    assert [request.agent_name for request in provider.requests] == [
-        "main_agent",
-        "prenatal_agent",
-        "lactation_agent",
-    ]
-    assert repository.assistant_text == "先准备待产用品，再按泌乳建议观察奶量。"
-    assert repository.run.skill_id == "lactation_agent"
-    lactation_request = provider.requests[2]
-    assert any(
-        item.get("role") == "developer"
-        and "先准备证件和待产用品" in str(item.get("content") or "")
-        for item in lactation_request.input_items
-    )
-    assert "分析最近7天奶量" in str(
-        lactation_request.input_items[-1]["content"]
-    )
-
-
-def test_restart_restores_full_ordered_specialist_batch() -> None:
-    repository = MemoryLedger()
-    first_provider = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    _specialist_call(
-                        "prenatal_agent",
-                        request="先整理待产事项。",
-                        call_id="delegate-prenatal",
-                    ),
-                    _specialist_call(
-                        "lactation_agent",
-                        request="结合前序结果分析奶量。",
-                        call_id="delegate-lactation",
-                    ),
-                ),
-            ],
-            "prenatal_agent": [
-                ScriptedTurn.final("已整理待产用品。"),
-            ],
-            "lactation_agent": [SimulatedProcessDeath()],
-        }
-    )
-
-    with pytest.raises(SimulatedProcessDeath):
-        asyncio.run(
-            _loop(
-                repository=repository,
-                provider=first_provider,
-            ).process(repository.run.id)
-        )
-
-    assert repository.run.status == "running"
-    first_outputs = [
-        item
-        for item in repository.context_payloads
-        if item.get("type") == "function_call_output"
-    ]
-    assert first_outputs == []
-
-    second_provider = ScriptedAgentModel(
-        {
-            "lactation_agent": [
-                ScriptedTurn.final("结合待产安排，继续观察奶量。"),
-            ],
-        }
-    )
-    run = asyncio.run(
-        _loop(
-            repository=repository,
-            provider=second_provider,
-        ).process(repository.run.id)
-    )
-
-    assert run.status == "completed"
-    assert [
-        request.agent_name for request in second_provider.requests
-    ] == ["lactation_agent"]
-    assert any(
-        item.get("role") == "developer"
-        and "已整理待产用品" in str(item.get("content") or "")
-        for item in second_provider.requests[0].input_items
-    )
-    outputs = [
-        item
-        for item in repository.context_payloads
-        if item.get("type") == "function_call_output"
-    ]
-    assert [item["call_id"] for item in outputs] == [
-        "delegate-prenatal",
-        "delegate-lactation",
-    ]
-    delegation_event = next(
-        event
-        for event in repository.events
-        if event.event_type == "agent.delegation.completed"
-    )
-    assert delegation_event.payload == {
-        "call_ids": [
-            "delegate-prenatal",
-            "delegate-lactation",
-        ],
-        "agents": [
-            "prenatal_agent",
-            "lactation_agent",
-        ],
-        "responding_agent": "lactation_agent",
-    }
-
-
-def test_main_agent_cannot_mix_delegation_with_business_tools() -> None:
-    repository = MemoryLedger()
-    provider = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="delegate-call",
-                        name="prenatal_agent",
-                        arguments={"request": "生成待产包。"},
-                    ),
-                    ScriptedToolCall(
-                        call_id="profile-call",
-                        name="profile_read",
-                        arguments={},
-                    ),
-                ),
-            ],
-        }
-    )
-    executor = RecordingToolExecutor(repository)
-
-    run = asyncio.run(
-        _loop(
-            repository=repository,
-            provider=provider,
-            tool_executor=cast(ToolExecutor, executor),
-        ).process(repository.run.id)
-    )
-
-    assert run.status == "failed"
-    assert run.error_code == "agent_delegation_invalid"
-    assert executor.calls == []
-    assert "agent.delegation.completed" not in repository.event_types
-
-
-def test_main_agent_cannot_call_the_same_specialist_tool_twice() -> None:
-    repository = MemoryLedger()
-    provider = ScriptedAgentModel(
-        {
-            "main_agent": [
-                ScriptedTurn.calls(
-                    _specialist_call(
-                        "prenatal_agent",
-                        request="第一次请求。",
-                        call_id="first-delegate-call",
-                    ),
-                    _specialist_call(
-                        "prenatal_agent",
-                        request="第二次请求。",
-                        call_id="second-delegate-call",
-                    ),
-                ),
-            ],
-        }
-    )
-
-    run = asyncio.run(
-        _loop(repository=repository, provider=provider).process(
-            repository.run.id
-        )
-    )
-
-    assert run.status == "failed"
-    assert run.error_code == "agent_delegation_invalid"
-    assert [
-        request.agent_name for request in provider.requests
-    ] == ["main_agent"]
-    assert "agent.delegation.completed" not in repository.event_types
-
-
-def test_ordered_agents_keep_tool_context_on_their_own_branches() -> None:
-    repository = MemoryLedger()
-    provider = ScriptedAgentModel(
-        {
-            "prenatal_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="prenatal-tool-call",
-                        name="plan_read",
-                        arguments={"scope": "current"},
-                    )
-                ),
-                ScriptedTurn.final("产前结果"),
-            ],
-            "lactation_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="lactation-tool-call",
-                        name="milk_analysis_manage",
-                        arguments={
-                            "operation": "review",
-                            "days": 7,
-                        },
-                    )
-                ),
-                ScriptedTurn.final("综合产前和泌乳结果。"),
-            ],
-            "main_agent": [
-                ScriptedTurn.calls(
-                    _specialist_call(
-                        "prenatal_agent",
-                        request="处理产前事项。",
-                        call_id="delegate-prenatal",
-                    ),
-                    _specialist_call(
-                        "lactation_agent",
-                        request="结合前序结果处理泌乳事项。",
-                        call_id="delegate-lactation",
-                    ),
-                ),
-            ],
-        }
-    )
-    executor = RecordingToolExecutor(repository)
-    loop = _loop(
-        repository=repository,
-        provider=provider,
-        tool_executor=cast(ToolExecutor, executor),
-    )
-
-    run = asyncio.run(loop.process(repository.run.id))
-
-    assert run.status == "completed"
-    assert repository.assistant_text == "综合产前和泌乳结果。"
-    assert [request.agent_name for request in provider.requests] == [
-        "main_agent",
-        "prenatal_agent",
-        "prenatal_agent",
-        "lactation_agent",
-        "lactation_agent",
-    ]
-    prenatal_requests = [
-        request
-        for request in provider.requests
-        if request.agent_name == "prenatal_agent"
-    ]
-    lactation_requests = [
-        request
-        for request in provider.requests
-        if request.agent_name == "lactation_agent"
-    ]
-    assert len(prenatal_requests) == 2
-    assert len(lactation_requests) == 2
-
-    assert _call_ids(prenatal_requests[0].input_items) == set()
-    assert _call_ids(prenatal_requests[1].input_items) == {
-        "prenatal-tool-call"
-    }
-    assert _call_ids(lactation_requests[0].input_items) == set()
-    assert _call_ids(lactation_requests[1].input_items) == {
-        "lactation-tool-call"
-    }
-    global_call_ids = _call_ids(tuple(repository.context_payloads))
-    assert global_call_ids == {
-        "delegate-prenatal",
-        "delegate-lactation",
-        "prenatal-tool-call",
-        "lactation-tool-call",
-    }
-    assert executor.calls == [
-        (
-            "plan_read",
-            "prenatal-tool-call",
-            {"scope": "current"},
-        ),
-        (
-            "milk_analysis_manage",
-            "lactation-tool-call",
-            {"operation": "review", "days": 7},
-        ),
-    ]
-
-
 def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     repository = MemoryLedger()
     repository.context[0].sequence = 2
@@ -718,6 +347,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
                     ScriptedToolCall(
                         call_id="profile-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={"infant_scope": "all"},
                     )
                 ),
@@ -744,6 +374,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
         "type": "function_call",
         "call_id": "profile-call",
         "name": "profile_read",
+        "namespace": "profile",
         "arguments": '{"infant_scope":"all"}',
     }
     assert repository.context_payloads[3] == {
@@ -762,6 +393,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
                     ScriptedToolCall(
                         call_id="recover-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={},
                     )
                 )
@@ -806,123 +438,6 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     assert repository.run.status == "completed"
 
 
-def test_restart_recovers_pending_specialist_call_on_its_causal_branch() -> None:
-    repository = MemoryLedger()
-    first_provider = ScriptedAgentModel(
-        {
-            "main_agent": [
-                _delegate(
-                    "prenatal_agent",
-                    request="恢复后继续处理产前事项。",
-                )
-            ],
-            "prenatal_agent": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="recover-prenatal-tool",
-                        name="plan_read",
-                        arguments={"scope": "current"},
-                    )
-                )
-            ],
-        }
-    )
-    first_loop = _loop(
-        repository=repository,
-        provider=first_provider,
-        tool_executor=cast(
-            ToolExecutor,
-            RecordingToolExecutor(
-                repository,
-                crash_before_execute=True,
-            ),
-        ),
-    )
-
-    with pytest.raises(SimulatedProcessDeath):
-        asyncio.run(first_loop.process(repository.run.id))
-
-    assert repository.run.status == "running"
-    assert _call_ids(tuple(repository.context_payloads)) == {
-        "delegate-call",
-        "recover-prenatal-tool",
-    }
-
-    second_provider = ScriptedAgentModel(
-        {
-            "prenatal_agent": [
-                ScriptedTurn.final("恢复后完成产前结果。"),
-            ],
-        }
-    )
-    second_executor = RecordingToolExecutor(repository)
-    second_loop = _loop(
-        repository=repository,
-        provider=second_provider,
-        tool_executor=cast(ToolExecutor, second_executor),
-    )
-
-    run = asyncio.run(second_loop.process(repository.run.id))
-
-    assert run.status == "completed"
-    assert second_executor.calls == [
-        (
-            "plan_read",
-            "recover-prenatal-tool",
-            {"scope": "current"},
-        )
-    ]
-    assert [request.agent_name for request in second_provider.requests] == [
-        "prenatal_agent",
-    ]
-    assert repository.run.skill_id == "prenatal_agent"
-    recovered_input = second_provider.requests[0].input_items
-    _assert_function_context_is_paired(recovered_input)
-    assert _call_ids(recovered_input) == {"recover-prenatal-tool"}
-    assert repository.assistant_text == "恢复后完成产前结果。"
-
-
-def test_agent_definitions_use_fixed_domain_allowlists() -> None:
-    assert MAIN_AGENT.tool_names == (
-        "prenatal_agent",
-        "lactation_agent",
-        "device_agent",
-        "profile_read",
-        "profile_update",
-        "plan_read",
-        "plan_mutate",
-        "schedule_timeline_read",
-        "schedule_timeline_mutate",
-        "diary_read",
-        "diary_mutate",
-        "conversation_history_image_read",
-    )
-    assert PRENATAL_AGENT.tool_names == (
-        "plan_read",
-        "plan_mutate",
-        "schedule_timeline_read",
-        "schedule_timeline_mutate",
-        "pregnancy_intake_manage",
-        "hospital_bag_manage",
-        "hospital_bag_cart_mutate",
-    )
-    assert LACTATION_AGENT.tool_names == (
-        "profile_read",
-        "profile_update",
-        "plan_read",
-        "plan_mutate",
-        "schedule_timeline_read",
-        "schedule_timeline_mutate",
-        "milk_analysis_manage",
-        "ibclc_consult_card_create",
-    )
-    assert DEVICE_AGENT.tool_names == (
-        "devices_guidance_manage",
-        "pump_models_read",
-        "support_ticket_draft_create",
-    )
-
-
 def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
@@ -932,6 +447,7 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
                     ScriptedToolCall(
                         call_id="confirmation-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={},
                     )
                 )
@@ -972,6 +488,7 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
                     ScriptedToolCall(
                         call_id="confirmation-resume-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={},
                     )
                 )
@@ -1062,6 +579,7 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
                     ScriptedToolCall(
                         call_id="fatal-output-call",
                         name="profile_read",
+                        namespace="profile",
                         arguments={},
                     )
                 ),
@@ -1120,112 +638,6 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
     assert provider.requests == []
 
 
-def test_restart_after_specialist_result_completes_pending_agent_tool() -> None:
-    repository = MemoryLedger()
-    repository.run.status = "running"
-    delegation = _delegate(
-        "prenatal_agent",
-        request="准备待产证件。",
-    )
-    repository.context.append(
-        SimpleNamespace(
-            run_id=repository.run.id,
-            item_key=(
-                f"run:{repository.run.id}:agent:main_agent:"
-                "branch:main:function_call:delegate-call"
-            ),
-            sequence=2,
-            item=dict(delegation.context_items[0]),
-        )
-    )
-    repository.context.append(
-        SimpleNamespace(
-            run_id=repository.run.id,
-            item_key=(
-                f"run:{repository.run.id}:delegation-result:"
-                "delegate-call:0:prenatal_agent"
-            ),
-            sequence=3,
-            item={
-                "role": "developer",
-                "content": json.dumps(
-                    {
-                        "specialist_result": {
-                            "index": 0,
-                            "agent": "prenatal_agent",
-                            "answer": "准备好证件。",
-                        },
-                        "instruction": "untrusted result data",
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        )
-    )
-    provider = ScriptedAgentModel({})
-
-    run = asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
-
-    assert run.status == "completed"
-    assert provider.requests == []
-    assert repository.run.skill_id == "prenatal_agent"
-    assert repository.assistant_text == "准备好证件。"
-    assert repository.event_types.count("agent.delegation.completed") == 1
-
-
-def test_restart_after_agent_tool_event_persists_specialist_reply() -> None:
-    repository = MemoryLedger()
-    repository.run.status = "running"
-    repository.run.skill_id = "prenatal_agent"
-    repository.context.append(
-        SimpleNamespace(
-            run_id=repository.run.id,
-            item_key=(
-                f"run:{repository.run.id}:delegation-result:"
-                "delegate-call:0:prenatal_agent"
-            ),
-            sequence=2,
-            item={
-                "role": "developer",
-                "content": json.dumps(
-                    {
-                        "specialist_result": {
-                            "index": 0,
-                            "agent": "prenatal_agent",
-                            "answer": "准备好证件。",
-                        },
-                        "instruction": "untrusted result data",
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        )
-    )
-    asyncio.run(
-        repository.append_event(
-            event_type="agent.delegation.completed",
-            payload={
-                "call_ids": ["delegate-call"],
-                "agents": ["prenatal_agent"],
-                "responding_agent": "prenatal_agent",
-            },
-        )
-    )
-    provider = ScriptedAgentModel({})
-
-    run = asyncio.run(
-        _loop(repository=repository, provider=provider).process(
-            repository.run.id
-        )
-    )
-
-    assert run.status == "completed"
-    assert provider.requests == []
-    assert repository.run.skill_id == "prenatal_agent"
-    assert repository.assistant_text == "准备好证件。"
-    assert repository.event_types.count("agent.delegation.completed") == 1
-
-
 def test_restart_after_final_message_commit_only_marks_run_completed() -> None:
     repository = MemoryLedger()
     repository.run.status = "running"
@@ -1243,34 +655,6 @@ def test_restart_after_final_message_commit_only_marks_run_completed() -> None:
     assert provider.requests == []
     assert repository.assistant_text == "已经生成的最终回复。"
     assert repository.event_types[-1] == "run.completed"
-
-
-def _delegate(
-    agent: str,
-    *,
-    request: str,
-    call_id: str = "delegate-call",
-) -> ScriptedTurn:
-    return ScriptedTurn.calls(
-        _specialist_call(
-            agent,
-            request=request,
-            call_id=call_id,
-        )
-    )
-
-
-def _specialist_call(
-    agent: str,
-    *,
-    request: str,
-    call_id: str,
-) -> ScriptedToolCall:
-    return ScriptedToolCall(
-        call_id=call_id,
-        name=agent,
-        arguments={"request": request},
-    )
 
 
 def _loop(
@@ -1357,7 +741,7 @@ class MemoryLedger:
             actor_user_id=owner,
             status="queued",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v4",
+            runtime_version="momcozy-agent-v5",
             skill_id="",
             request_id="request-id",
             trace_id="trace-id",

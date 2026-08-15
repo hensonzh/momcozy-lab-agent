@@ -12,8 +12,7 @@ from app.capabilities.model_input_schemas import input_schema_for_tool
 from app.infrastructure.product_backend import ProfileReadResponse
 
 
-MAIN_AGENT_PROFILE_TOOLS = ("profile_read", "profile_update")
-LACTATION_AGENT_PROFILE_TOOLS = MAIN_AGENT_PROFILE_TOOLS
+PROFILE_TOOL_NAMES = ("profile_read", "profile_update")
 
 
 def profile_tool_registry() -> ToolContractRegistry:

@@ -305,7 +305,7 @@ class FakeAgentService:
             actor_user_id=owner_user_id,
             status="queued",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v4",
+            runtime_version="momcozy-agent-v5",
             skill_id="",
             request_id="request-id",
             trace_id="request-id",

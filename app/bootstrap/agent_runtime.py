@@ -18,17 +18,16 @@ from app.agent_runtime.actions.service import (
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
     AgentCatalog,
-    AgentDefinition as RuntimeAgentDefinition,
-    DelegationToolDefinition,
 )
 from app.agent_runtime.tools import ToolContractRegistry
 from app.agent_runtime.tools.handlers import ToolHandler
-from app.agents import AGENT_DEFINITIONS, MAIN_AGENT, SPECIALIST_AGENT_NAMES
+from app.agents import MAIN_AGENT
 from app.agents.main_agent import (
-    ORCHESTRATION_TOOL_NAMES,
-    SPECIALIST_TOOL_DESCRIPTIONS,
-    SPECIALIST_TOOL_INPUT_SCHEMA,
-    parse_specialist_tool_call,
+    LOAD_SERVICE_SKILL_TOOL_NAME,
+    SERVICE_SKILL_REGISTRY,
+    TOOL_NAMESPACE_DEFINITIONS,
+    LoadServiceSkillToolHandler,
+    service_skill_tool_registry,
 )
 from app.capabilities.diary import (
     DIARY_ACTION_POLICY_RULES,
@@ -76,24 +75,9 @@ from app.capabilities.runtime import (
 from app.infrastructure.product_backend import ProductBackendClient
 
 
-_RUNTIME_AGENT_DEFINITIONS: dict[str, RuntimeAgentDefinition] = {
-    str(name): definition
-    for name, definition in AGENT_DEFINITIONS.items()
-}
-
 AGENT_CATALOG = AgentCatalog(
-    definitions=_RUNTIME_AGENT_DEFINITIONS,
-    main_agent_name=MAIN_AGENT.name,
-    delegated_agent_names=frozenset(SPECIALIST_AGENT_NAMES),
-    delegation_tools={
-        tool_name: DelegationToolDefinition(
-            name=tool_name,
-            description=SPECIALIST_TOOL_DESCRIPTIONS[tool_name],
-            input_schema=dict(SPECIALIST_TOOL_INPUT_SCHEMA),
-        )
-        for tool_name in SPECIALIST_AGENT_NAMES
-    },
-    parse_delegation_tool=parse_specialist_tool_call,
+    agent=MAIN_AGENT,
+    tool_namespaces=TOOL_NAMESPACE_DEFINITIONS,
 )
 
 
@@ -193,6 +177,8 @@ def build_runtime_tool_registry() -> ToolContractRegistry:
     registry = build_product_tool_registry()
     for contract in runtime_capability_tool_registry().list():
         registry.register(contract)
+    for contract in service_skill_tool_registry().list():
+        registry.register(contract)
     _validate_agent_tool_allowlists(registry)
     return registry
 
@@ -249,6 +235,9 @@ def build_runtime_tool_handlers(
     if overlap:
         raise ValueError(f"duplicate tool handlers: {sorted(overlap)}")
     handlers.update(native_handlers)
+    handlers[LOAD_SERVICE_SKILL_TOOL_NAME] = LoadServiceSkillToolHandler(
+        registry=SERVICE_SKILL_REGISTRY
+    )
     return handlers
 
 
@@ -270,11 +259,7 @@ def validate_runtime_composition(
             f"missing_handlers={sorted(registered - handled)}, "
             f"unknown_handlers={sorted(handled - registered)}"
         )
-    expected = {
-        tool_name
-        for definition in AGENT_DEFINITIONS.values()
-        for tool_name in definition.tool_names
-    } - ORCHESTRATION_TOOL_NAMES
+    expected = set(MAIN_AGENT.tool_names)
     if registered != expected:
         raise ValueError(
             "runtime tool set/agent allowlist mismatch: "
@@ -288,22 +273,11 @@ def _validate_agent_tool_allowlists(
     registry: ToolContractRegistry,
 ) -> None:
     registered = set(registry.names_for_sdk())
-    missing = {
-        definition.name: sorted(
-            set(definition.tool_names)
-            - registered
-            - ORCHESTRATION_TOOL_NAMES
-        )
-        for definition in AGENT_DEFINITIONS.values()
-        if (
-            set(definition.tool_names)
-            - registered
-            - ORCHESTRATION_TOOL_NAMES
-        )
-    }
+    missing = set(MAIN_AGENT.tool_names) - registered
     if missing:
         raise ValueError(
-            f"agent allowlists reference unknown tools: {missing}"
+            "agent allowlist references unknown tools: "
+            f"{sorted(missing)}"
         )
 
 

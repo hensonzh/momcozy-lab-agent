@@ -1,7 +1,7 @@
 # Context Pipeline v2
 
 Context Pipeline v2 is a subsystem inside the existing `proprietary_runtime`
-Runtime (`momcozy-agent-v4`). The durable pipeline remains outside the OpenAI
+Runtime (`momcozy-agent-v5`). The durable pipeline remains outside the OpenAI
 Agents SDK execution engine. It preserves the append-only ledger and the
 Run/tool/action loop while making long-thread context reproducible, low-trust,
 recoverable, and safe for attachments.
@@ -41,8 +41,8 @@ first developer `input_text` block and writes one explicit cache breakpoint on i
 OpenAI injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment
 URLs remain after it. Request-wide caching uses explicit mode with a `30m`
-minimum lifetime. The same filter runs for `main_agent`, specialist
-agent-as-tool calls, and every post-Tool model turn.
+minimum lifetime. The same filter runs for the single `main_agent` on its
+initial call and every post-Tool model turn.
 
 ## Typed low-trust checkpoints
 

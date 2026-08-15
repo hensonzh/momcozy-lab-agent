@@ -48,7 +48,7 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
 
     assert run.status == "queued"
     assert run.runtime_pattern == "proprietary_runtime"
-    assert run.runtime_version == "momcozy-agent-v4"
+    assert run.runtime_version == "momcozy-agent-v5"
     assert repository.message_content == {
         "text": "Review my pumping pattern",
         "attachments": [],

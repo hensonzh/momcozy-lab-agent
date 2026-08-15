@@ -21,26 +21,25 @@ from app.agent_runtime.evals.behavior import (
     load_behavior_suite,
 )
 from app.agents import AGENT_DEFINITIONS
-from app.agents.main_agent import ORCHESTRATION_TOOL_NAMES
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = (
-    REPOSITORY_ROOT / "evals" / "behavior" / "v1" / "scenarios.json"
+    REPOSITORY_ROOT / "evals" / "behavior" / "v2" / "scenarios.json"
 )
 
 
 def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> None:
     suite = load_behavior_suite(CATALOG_PATH)
 
-    assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
+    assert suite.schema_version == "momcozy.behavior_eval_suite.v2"
     assert suite.replay_contract_version == "agent_run_replay.v2"
     assert {case.id for case in suite.cases} == {
         "main_general_health_answer",
-        "prenatal_single_specialist",
-        "lactation_single_specialist",
-        "device_single_specialist",
-        "multi_specialist_direct_response",
+        "prenatal_skill_workflow",
+        "lactation_skill_workflow",
+        "device_skill_workflow",
+        "multi_skill_integrated_response",
         "prenatal_symptom_stays_main",
         "lactation_plan_boundary",
         "device_electrical_hazard",
@@ -56,7 +55,7 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         tool_name
         for definition in AGENT_DEFINITIONS.values()
         for tool_name in definition.tool_names
-    ) - ORCHESTRATION_TOOL_NAMES
+    )
 
 
 def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> None:
@@ -66,7 +65,7 @@ def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> 
         BehaviorEvalSuite.model_validate(payload)
 
     payload = _suite_payload()
-    payload["schema_version"] = "momcozy.behavior_eval_suite.v2"
+    payload["schema_version"] = "momcozy.behavior_eval_suite.v1"
     with pytest.raises(ValidationError):
         BehaviorEvalSuite.model_validate(payload)
 
@@ -161,12 +160,12 @@ def test_user_message_event_cannot_masquerade_as_final_assistant_response() -> N
     }
 
 
-def test_structural_engine_checks_exact_specialists_tools_actions_and_final_event() -> None:
+def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_event() -> None:
     case_payload = _suite_payload()["cases"][0]
     case_payload["structural_expectation"] = {
         "terminal_status": "completed",
         "responding_agent": "main_agent",
-        "exact_specialists": ["prenatal_agent", "lactation_agent"],
+        "exact_loaded_skills": ["prenatal", "lactation"],
         "required_tools": ["hospital_bag_manage"],
         "forbidden_tools": ["profile_update"],
         "forbid_actions": True,
@@ -180,11 +179,15 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
     ).cases[0]
     run_id = uuid4()
     bundle = _replay_bundle(run_id=run_id)
-    bundle["events"].insert(
-        1,
-        _delegation_event("prenatal_agent"),
-    )
+    loader_tool_id = str(uuid4())
+    bundle["events"].insert(1, _skill_event("prenatal", loader_tool_id))
     bundle["tool_calls"] = [
+        {
+            "id": loader_tool_id,
+            "call_id": "load-prenatal",
+            "tool_name": "load_service_skill",
+            "status": "completed",
+        },
         {
             "id": str(uuid4()),
             "call_id": "call-1",
@@ -212,7 +215,7 @@ def test_structural_engine_checks_exact_specialists_tools_actions_and_final_even
 
     assertions = {failure.assertion for failure in result.failures}
     assert assertions >= {
-        "delegation.exact_specialists",
+        "skill.exact_loaded_skills",
         "tool.required",
         "tool.forbidden",
         "action.none",
@@ -223,11 +226,18 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
     bundle = _replay_bundle(run_id=run_id)
+    loader_tool_id = str(uuid4())
     bundle["events"].insert(
         1,
-        _delegation_event("unknown_agent"),
+        _skill_event("unknown_skill", loader_tool_id),
     )
     bundle["tool_calls"] = [
+        {
+            "id": loader_tool_id,
+            "call_id": "load-unknown",
+            "tool_name": "load_service_skill",
+            "status": "completed",
+        },
         {
             "id": str(uuid4()),
             "call_id": "unknown-call",
@@ -247,7 +257,7 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     )
 
     assertions = {failure.assertion for failure in result.failures}
-    assert "trace.specialist_name" in assertions
+    assert "trace.skill_id" in assertions
     assert "trace.tool_name" in assertions
 
 
@@ -431,7 +441,7 @@ class RecordingJudge:
 
 def _suite_payload() -> dict[str, Any]:
     return {
-        "schema_version": "momcozy.behavior_eval_suite.v1",
+        "schema_version": "momcozy.behavior_eval_suite.v2",
         "suite_id": "test-suite",
         "description": "test",
         "replay_contract_version": "agent_run_replay.v2",
@@ -451,7 +461,7 @@ def _suite_payload() -> dict[str, Any]:
                 "structural_expectation": {
                     "terminal_status": "completed",
                     "responding_agent": "main_agent",
-                    "exact_specialists": [],
+                    "exact_loaded_skills": [],
                     "required_tools": [],
                     "forbidden_tools": ["profile_update"],
                     "forbid_actions": True,
@@ -516,17 +526,15 @@ def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
     }
 
 
-def _delegation_event(*agents: str) -> dict[str, Any]:
+def _skill_event(skill_id: str, tool_call_id: str) -> dict[str, Any]:
     return {
         "event_id": str(uuid4()),
         "sequence": 2,
-        "type": "agent.delegation.completed",
+        "type": "skill.loaded",
         "payload": {
-            "call_ids": [
-                f"delegate-call-{index}"
-                for index, _agent in enumerate(agents)
-            ],
-            "agents": list(agents),
-            "responding_agent": agents[-1],
+            "skill_id": skill_id,
+            "version": "v1",
+            "content_sha256": "a" * 64,
+            "tool_call_id": tool_call_id,
         },
     }

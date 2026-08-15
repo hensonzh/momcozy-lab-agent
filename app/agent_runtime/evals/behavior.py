@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-BEHAVIOR_SUITE_SCHEMA_VERSION = "momcozy.behavior_eval_suite.v1"
+BEHAVIOR_SUITE_SCHEMA_VERSION = "momcozy.behavior_eval_suite.v2"
 BEHAVIOR_RUN_MAP_SCHEMA_VERSION = "momcozy.behavior_eval_run_map.v1"
 BEHAVIOR_REPORT_SCHEMA_VERSION = "momcozy.behavior_eval_report.v1"
 RUNTIME_REPLAY_SCHEMA_VERSION = "agent_run_replay.v2"
@@ -32,6 +32,7 @@ KNOWN_TOOL_NAMES = frozenset(
         "hospital_bag_cart_mutate",
         "hospital_bag_manage",
         "ibclc_consult_card_create",
+        "load_service_skill",
         "milk_analysis_manage",
         "plan_mutate",
         "plan_read",
@@ -44,9 +45,7 @@ KNOWN_TOOL_NAMES = frozenset(
         "support_ticket_draft_create",
     }
 )
-SPECIALIST_NAMES = frozenset(
-    {"prenatal_agent", "lactation_agent", "device_agent"}
-)
+SERVICE_SKILL_NAMES = frozenset({"prenatal", "lactation", "device"})
 
 
 class _StrictModel(BaseModel):
@@ -61,14 +60,14 @@ class BehaviorTurn(_StrictModel):
 class StructuralExpectation(_StrictModel):
     terminal_status: TerminalStatus
     responding_agent: str
-    exact_specialists: tuple[str, ...]
+    exact_loaded_skills: tuple[str, ...]
     required_tools: tuple[str, ...]
     forbidden_tools: tuple[str, ...]
     forbid_actions: bool
     require_final_response_event: bool
 
     @field_validator(
-        "exact_specialists",
+        "exact_loaded_skills",
         "required_tools",
         "forbidden_tools",
     )
@@ -80,12 +79,16 @@ class StructuralExpectation(_StrictModel):
 
     @model_validator(mode="after")
     def validate_contract_names(self) -> StructuralExpectation:
-        unknown_specialists = {
-            str(item) for item in self.exact_specialists
-        }.difference(SPECIALIST_NAMES)
-        if unknown_specialists:
+        if self.responding_agent != "main_agent":
             raise ValueError(
-                f"unknown specialist agents: {sorted(unknown_specialists)}"
+                "single-agent behavior must respond as main_agent"
+            )
+        unknown_skills = {
+            str(item) for item in self.exact_loaded_skills
+        }.difference(SERVICE_SKILL_NAMES)
+        if unknown_skills:
+            raise ValueError(
+                f"unknown service skills: {sorted(unknown_skills)}"
             )
         unknown_tools = (
             set(self.required_tools) | set(self.forbidden_tools)
@@ -151,7 +154,7 @@ class BehaviorEvalCase(_StrictModel):
 
 
 class BehaviorEvalSuite(_StrictModel):
-    schema_version: Literal["momcozy.behavior_eval_suite.v1"]
+    schema_version: Literal["momcozy.behavior_eval_suite.v2"]
     suite_id: str = Field(
         pattern=r"^[a-z][a-z0-9_-]*$",
         min_length=1,
@@ -418,81 +421,115 @@ def _evaluate_structure(
             observed=responding_agent,
         )
 
-    delegation_events = [
+    skill_events = [
         event
         for event in events
-        if event.get("type") == "agent.delegation.completed"
+        if event.get("type") == "skill.loaded"
     ]
-    expected_delegation_events = 1 if expected.exact_specialists else 0
-    if len(delegation_events) != expected_delegation_events:
+    loaded_skills: list[str] = []
+    malformed_skill_events: list[dict[str, Any]] = []
+    for event in skill_events:
+        payload = event.get("payload")
+        skill_id = (
+            payload.get("skill_id")
+            if isinstance(payload, dict)
+            else None
+        )
+        version = (
+            payload.get("version")
+            if isinstance(payload, dict)
+            else None
+        )
+        content_sha256 = (
+            payload.get("content_sha256")
+            if isinstance(payload, dict)
+            else None
+        )
+        tool_call_id = (
+            payload.get("tool_call_id")
+            if isinstance(payload, dict)
+            else None
+        )
+        if (
+            not isinstance(skill_id, str)
+            or not skill_id
+            or not isinstance(version, str)
+            or not version
+            or not isinstance(content_sha256, str)
+            or len(content_sha256) != 64
+            or not isinstance(tool_call_id, str)
+            or not tool_call_id
+        ):
+            malformed_skill_events.append(event)
+            continue
+        loaded_skills.append(skill_id)
+    if malformed_skill_events:
         _failure(
             failures,
             category="trace_contract_violation",
-            assertion="trace.delegation_event",
-            expected=expected_delegation_events,
-            observed=len(delegation_events),
+            assertion="trace.skill_event_envelope",
+            expected=(
+                "skill_id, version, content_sha256, and tool_call_id "
+                "on every skill.loaded event"
+            ),
+            observed=malformed_skill_events,
         )
-    delegation_payload = (
-        delegation_events[0].get("payload")
-        if len(delegation_events) == 1
-        else None
-    )
-    raw_delegated_agents = (
-        delegation_payload.get("agents")
-        if isinstance(delegation_payload, dict)
-        else None
-    )
-    delegated_agents = (
-        [str(agent_name) for agent_name in raw_delegated_agents]
-        if isinstance(raw_delegated_agents, list)
-        else []
-    )
-    unknown_started = sorted(
+    unknown_skills = sorted(
         {
-            str(agent_name)
-            for agent_name in delegated_agents
-            if agent_name not in SPECIALIST_NAMES
+            skill_id
+            for skill_id in loaded_skills
+            if skill_id not in SERVICE_SKILL_NAMES
         }
     )
-    if unknown_started:
+    if unknown_skills:
         _failure(
             failures,
             category="trace_contract_violation",
-            assertion="trace.specialist_name",
-            expected=sorted(SPECIALIST_NAMES),
-            observed=unknown_started,
+            assertion="trace.skill_id",
+            expected=sorted(SERVICE_SKILL_NAMES),
+            observed=unknown_skills,
         )
-    specialists = tuple(
-        agent_name
-        for agent_name in delegated_agents
-        if agent_name in SPECIALIST_NAMES
+    known_loaded_skills = tuple(
+        skill_id
+        for skill_id in loaded_skills
+        if skill_id in SERVICE_SKILL_NAMES
     )
-    delegated_responding_agent = (
-        str(delegation_payload.get("responding_agent") or "")
-        if isinstance(delegation_payload, dict)
-        else ""
-    )
-    if delegation_events and (
-        not specialists
-        or delegated_responding_agent != specialists[-1]
-        or delegated_responding_agent != responding_agent
-    ):
+    if len(known_loaded_skills) != len(set(known_loaded_skills)):
         _failure(
             failures,
-            category="event_contract_violation",
-            assertion="delegation.responding_agent",
-            expected=(
-                specialists[-1] if specialists else None
-            ),
-            observed=delegated_responding_agent,
+            category="skill_loading_mismatch",
+            assertion="skill.loaded_once_per_version",
+            expected="unique service skill loads",
+            observed=list(known_loaded_skills),
         )
-    if specialists != expected.exact_specialists:
+    if known_loaded_skills != expected.exact_loaded_skills:
         _failure(
             failures,
-            category="delegation_mismatch",
-            assertion="delegation.exact_specialists",
-            expected=list(expected.exact_specialists),
-            observed=list(specialists),
+            category="skill_loading_mismatch",
+            assertion="skill.exact_loaded_skills",
+            expected=list(expected.exact_loaded_skills),
+            observed=list(known_loaded_skills),
+        )
+    loader_tool_call_ids = {
+        str(item.get("id"))
+        for item in tool_calls
+        if item.get("tool_name") == "load_service_skill"
+        and item.get("id")
+    }
+    unbound_skill_events = [
+        event
+        for event in skill_events
+        if isinstance(event.get("payload"), dict)
+        and str(event["payload"].get("tool_call_id") or "")
+        not in loader_tool_call_ids
+    ]
+    if unbound_skill_events:
+        _failure(
+            failures,
+            category="trace_contract_violation",
+            assertion="skill.loader_tool_call",
+            expected=sorted(loader_tool_call_ids),
+            observed=unbound_skill_events,
         )
 
     observed_tools = {

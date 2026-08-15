@@ -1,1 +1,1 @@
-"""Shared implementation primitives for specialist capability packages."""
+"""Shared implementation primitives for domain capability packages."""

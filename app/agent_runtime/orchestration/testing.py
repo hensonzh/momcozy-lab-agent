@@ -34,6 +34,7 @@ class ScriptedToolCall:
     call_id: str
     name: str
     arguments: dict[str, Any]
+    namespace: str = ""
     provider_item_id: str = ""
     status: (
         Literal["in_progress", "completed", "incomplete"] | Literal[""]
@@ -64,6 +65,8 @@ class ScriptedTurn:
             }
             if call.provider_item_id:
                 item["id"] = call.provider_item_id
+            if call.namespace:
+                item["namespace"] = call.namespace
             if call.status:
                 item["status"] = call.status
             items.append(item)
@@ -312,6 +315,7 @@ def _output_items(
                 call_id=call.call_id,
                 id=call.provider_item_id or None,
                 name=call.name,
+                namespace=call.namespace or None,
                 status=call.status or None,
                 type="function_call",
             )

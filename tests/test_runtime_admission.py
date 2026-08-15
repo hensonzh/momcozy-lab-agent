@@ -174,10 +174,10 @@ def test_admission_releasing_processor_releases_only_terminal_runs(
         actor_user_id=uuid4(),
         status=status,
     )
-    delegate = StubProcessor(run=run)
+    wrapped_processor = StubProcessor(run=run)
     admission = StubAdmission()
     processor = AdmissionReleasingProcessor(
-        processor=delegate,
+        processor=wrapped_processor,
         admission=admission,
     )
     lease_token = uuid4()
@@ -191,7 +191,7 @@ def test_admission_releasing_processor_releases_only_terminal_runs(
     )
 
     assert result is run
-    assert delegate.kwargs == {
+    assert wrapped_processor.kwargs == {
         "lease_token": lease_token,
         "lease_guard": _always_true,
     }

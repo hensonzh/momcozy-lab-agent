@@ -4,9 +4,7 @@ from .contracts import (
     AgentExecutionEngine,
     AgentExecutionPort,
     AgentExecutionResult,
-    DelegationResult,
-    DelegationToolDefinition,
-    DelegationToolParser,
+    ToolNamespaceDefinition,
 )
 from .loop import AgentLoop, TransientDeltaPublisher
 from .openai_agents import OpenAIAgentsExecutionEngine
@@ -18,9 +16,7 @@ __all__ = [
     "AgentExecutionPort",
     "AgentExecutionResult",
     "AgentLoop",
-    "DelegationResult",
-    "DelegationToolDefinition",
-    "DelegationToolParser",
     "OpenAIAgentsExecutionEngine",
+    "ToolNamespaceDefinition",
     "TransientDeltaPublisher",
 ]
