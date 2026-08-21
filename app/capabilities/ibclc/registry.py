@@ -17,7 +17,6 @@ def ibclc_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="ibclc_consult_card_create",
-            domain="lactation",
             description=(
                 "创建 IBCLC 咨询入口卡片。"
                 "当用户明确要求联系顾问，或明确同意上一轮的 IBCLC 咨询建议时使用。"
@@ -48,9 +47,6 @@ def ibclc_tool_registry() -> ToolContractRegistry:
                 required=("trusted_current_user_text",),
             ),
             output_schema=object_output_schema(),
-            effect_scope="agent_internal",
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=10,
         )
     )

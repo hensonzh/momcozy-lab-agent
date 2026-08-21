@@ -112,16 +112,16 @@ class TrustedToolArgumentsProvider:
         if tool_name in {
             "profile_read",
             "schedule_timeline_read",
-            "milk_analysis_manage",
+            "get_lactation_summary",
+            "get_lactation_records",
+            "get_feeding_summary",
+            "get_feeding_records",
+            "get_growth_summary",
+            "get_growth_records",
         }:
             return {
                 "runtime_timezone": timezone_name,
                 "runtime_local_date": local_date,
-                **(
-                    {"trusted_current_user_text": user_text}
-                    if tool_name == "milk_analysis_manage"
-                    else {}
-                ),
             }
         if tool_name == "profile_update":
             trusted: dict[str, Any] = {

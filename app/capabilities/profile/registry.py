@@ -20,23 +20,18 @@ def profile_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="profile_read",
-            domain="profiles",
             description=(
                 "读取当前用户的妈妈资料和宝宝资料，不包含奶量产出和摄入记录或完整病史。"
                 "当回答母婴资料问题、进行奶量分析需要基础背景，或更新前需要定位宝宝时使用。"
             ),
             input_schema=input_schema_for_tool("profile_read"),
             output_schema=ProfileReadResponse.model_json_schema(),
-            effect_scope="none",
-            blocking_policy="must_wait",
-            result_dependency="next_tool_call",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="profile_update",
-            domain="profiles",
             description=(
                 "更新妈妈的称呼、年龄、孕产和喂养基础资料，以及已有宝宝的出生资料和当前分娩关联；"
                 "不更新奶量或生长记录。当用户在对话中提供需要持久化的新资料、"
@@ -77,13 +72,10 @@ def profile_tool_registry() -> ToolContractRegistry:
                 required=("runtime_local_date",),
             ),
             output_schema=deepcopy(_PROFILE_WRITE_OUTPUT_SCHEMA),
-            effect_scope="user_resource",
             action_types=(
                 "profile.update",
                 "profile.current_infants.replace",
             ),
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=10,
         )
     )

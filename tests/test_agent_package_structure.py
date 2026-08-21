@@ -51,7 +51,9 @@ def test_versioned_service_skills_are_complete_domain_contracts() -> None:
             "hospital_bag_manage",
         ),
         "lactation": (
-            "milk_analysis_manage",
+            "get_lactation_summary",
+            "get_feeding_summary",
+            "get_growth_summary",
             "schedule_timeline_mutate",
         ),
         "device": (

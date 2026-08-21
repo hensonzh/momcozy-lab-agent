@@ -41,7 +41,6 @@ def plans_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="plan_read",
-            domain="plans",
             description=(
                 "读取当前用户当前有效的计划列表或指定计划详情，不读取计划内日程。"
                 "当需要查看或回答已有计划问题、修改前获取最新版本，或删除前定位目标计划时使用。"
@@ -57,16 +56,12 @@ def plans_tool_registry() -> ToolContractRegistry:
                     }
                 },
             },
-            effect_scope="none",
-            blocking_policy="must_wait",
-            result_dependency="next_tool_call",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="plan_mutate",
-            domain="plans",
             description=(
                 "创建孕期计划，更新已有计划的标题或摘要，或删除整个计划；"
                 "不修改计划内单项日程。当孕期资料采集已满足计划生成条件，"
@@ -93,21 +88,17 @@ def plans_tool_registry() -> ToolContractRegistry:
                 },
             ),
             output_schema=_OBJECT_OUTPUT_SCHEMA,
-            effect_scope="user_resource",
             action_types=(
                 "pregnancy.plan.create",
                 "plans.plan.update",
                 "plans.plan.delete",
             ),
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=15,
         )
     )
     registry.register(
         ToolContract(
             name="schedule_timeline_read",
-            domain="schedule_timeline",
             description=(
                 "读取当前用户指定日期范围内的跨领域计划与日程，并关联喂养、"
                 "吸奶和宝宝生长实际记录。当需要查看过去、今天或未来的安排和执行情况，"
@@ -132,16 +123,12 @@ def plans_tool_registry() -> ToolContractRegistry:
                 required=("runtime_timezone",),
             ),
             output_schema=ScheduleTimelineReadResponse.model_json_schema(),
-            effect_scope="none",
-            blocking_policy="must_wait",
-            result_dependency="next_tool_call",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="schedule_timeline_mutate",
-            domain="schedule_timeline",
             description=(
                 "创建、更新、删除或调整跨领域日程，管理喂养、吸奶和宝宝生长实际记录，"
                 "并支持奶量计划的冲突感知批量重排。当需要根据用户本轮已表达的意图安排、"
@@ -173,10 +160,7 @@ def plans_tool_registry() -> ToolContractRegistry:
                 required=("runtime_source",),
             ),
             output_schema=_OBJECT_OUTPUT_SCHEMA,
-            effect_scope="user_resource",
             action_types=_SCHEDULE_ACTIONS,
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=15,
         )
     )

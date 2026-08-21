@@ -75,7 +75,7 @@ Export a replay, optionally evaluating a stored case:
 python scripts/run_replay_eval.py --run-id <run-uuid> [--eval-case-id <case-uuid>]
 ```
 
-Replay v2 includes the run's ordered model-execution manifest: Prompt identity
+Replay v3 includes the run's ordered model-execution manifest: Prompt identity
 and content hashes, Tool schemas and hashes, Agents SDK/OpenAI SDK versions,
 model settings, and ordered Context-item/request hashes. The manifest does not
 copy Prompt or user content; user-derived Context content remains governed by
@@ -103,8 +103,9 @@ python scripts/run_behavior_eval.py \
 
 The structural gate checks terminal state, final response events, the fixed
 `cozymate` responder, the exact loaded Skill set, required/forbidden tools,
-and forbidden actions. Catalog prompts and expected values are never accepted as observed
-trace; every report records the database run UUID. Response-quality rubrics are
+forbidden actions, and deterministic safety decisions. Catalog prompts and
+expected values are never accepted as observed trace; every report records the
+database run UUID. Response-quality rubrics are
 separate: without an injected live-model judge or recorded manual review, the
 report is `review_required` (exit code 2), not a full pass. Exit code 1 means a
 structural or input failure. A judge is only accepted when its replay export

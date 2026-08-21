@@ -770,6 +770,10 @@
             "title": "Actor User Id",
             "type": "string"
           },
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
           "cancelled_at": {
             "anyOf": [
               {
@@ -827,10 +831,6 @@
             "title": "Runtime Version",
             "type": "string"
           },
-          "skill_id": {
-            "title": "Skill Id",
-            "type": "string"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -864,7 +864,7 @@
           "status",
           "runtime_pattern",
           "runtime_version",
-          "skill_id",
+          "agent_name",
           "request_id",
           "trace_id",
           "error_code"

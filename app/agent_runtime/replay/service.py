@@ -26,7 +26,7 @@ from app.core.errors import ApiError
 from .repository import RuntimeReplayRepository
 
 
-REPLAY_SCHEMA_VERSION = "agent_run_replay.v2"
+REPLAY_SCHEMA_VERSION = "agent_run_replay.v3"
 SENSITIVE_KEYS = frozenset(
     {
         "authorization",
@@ -197,7 +197,7 @@ def _run(run: AgentRun) -> dict[str, Any]:
         "status": run.status,
         "runtime_pattern": run.runtime_pattern,
         "runtime_version": run.runtime_version,
-        "skill_id": run.skill_id,
+        "agent_name": run.agent_name,
         "request_id": run.request_id,
         "trace_id": run.trace_id,
         "error_code": run.error_code,

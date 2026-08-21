@@ -94,9 +94,8 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
         trace_id="trace",
     )
     manifest = {
-        "schema_version": "agent_model_execution.v1",
+        "schema_version": "agent_model_execution.v2",
         "agent_name": "cozymate",
-        "branch_id": "main",
     }
     manifest["manifest_sha256"] = _manifest_sha256(manifest)
     session = RecordingSession()
@@ -117,7 +116,7 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
 
     assert first == replayed
     assert run.execution_manifest == {
-        "schema_version": "agent_run_execution_manifest.v1",
+        "schema_version": "agent_run_execution_manifest.v2",
         "runtime_pattern": "proprietary_runtime",
         "runtime_version": "momcozy-agent-v5",
         "invocations": [
@@ -150,7 +149,7 @@ def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
             repository.record_model_execution_manifest(
                 run=run,
                 manifest={
-                    "schema_version": "agent_model_execution.v1",
+                    "schema_version": "agent_model_execution.v2",
                     "manifest_sha256": "a" * 64,
                 },
             )

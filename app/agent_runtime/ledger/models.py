@@ -85,7 +85,7 @@ class AgentRun(Base):
         ),
         Index("ix_agent_runs_request_id", "request_id"),
         Index("ix_agent_runs_trace_id", "trace_id"),
-        Index("ix_agent_runs_skill_id", "skill_id"),
+        Index("ix_agent_runs_agent_name", "agent_name"),
         Index(
             "uq_agent_runs_thread_active",
             "thread_id",
@@ -105,7 +105,7 @@ class AgentRun(Base):
         nullable=False,
     )
     runtime_version: Mapped[str] = mapped_column(String(80), default="", server_default="", nullable=False)
-    skill_id: Mapped[str] = mapped_column(
+    agent_name: Mapped[str] = mapped_column(
         String(64),
         default="",
         server_default="",

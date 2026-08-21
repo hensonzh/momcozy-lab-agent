@@ -164,7 +164,7 @@ class FakeReplayService:
         self.admin_actor_user_id = kwargs["admin_actor_user_id"]
         self.admin_actor_service = kwargs["admin_actor_service"]
         return {
-            "schema_version": "agent_run_replay.v2",
+            "schema_version": "agent_run_replay.v3",
             "run": {"id": str(self.run_id), "status": "completed"},
         }
 

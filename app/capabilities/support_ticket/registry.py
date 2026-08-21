@@ -17,7 +17,6 @@ def support_ticket_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="support_ticket_draft_create",
-            domain="support",
             description=(
                 "创建可编辑的 Momcozy 售后工单草稿，不提交正式工单。"
                 "当用户本轮明确同意整理售后工单，且已提供可概括的问题事实时使用。"
@@ -40,9 +39,6 @@ def support_ticket_tool_registry() -> ToolContractRegistry:
                 required=("trusted_current_user_text",),
             ),
             output_schema=object_output_schema(),
-            effect_scope="agent_internal",
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=10,
         )
     )

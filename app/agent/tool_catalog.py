@@ -51,9 +51,14 @@ TOOL_NAMESPACE_DEFINITIONS = (
     ),
     ToolNamespaceDefinition(
         name="lactation",
-        description="泌乳分析流程与 IBCLC 咨询入口能力。",
+        description="泌乳、喂养和生长事实查询与 IBCLC 咨询入口能力。",
         tool_names=(
-            "milk_analysis_manage",
+            "get_lactation_summary",
+            "get_lactation_records",
+            "get_feeding_summary",
+            "get_feeding_records",
+            "get_growth_summary",
+            "get_growth_records",
             "ibclc_consult_card_create",
         ),
     ),

@@ -78,13 +78,13 @@ def test_plan_read_selects_current_or_detail() -> None:
         )
     )
 
-    assert current.to_observation()["mode"] == "list"
-    assert current.to_observation()["counts"] == {
+    assert current.canonical_output["mode"] == "list"
+    assert current.canonical_output["counts"] == {
         "plans": 0,
         "tasks": 0,
     }
-    assert detail.to_observation()["mode"] == "detail"
-    assert detail.to_observation()["plan"]["id"] == str(backend.plan_id)
+    assert detail.canonical_output["mode"] == "detail"
+    assert detail.canonical_output["plan"]["id"] == str(backend.plan_id)
 
 
 @pytest.mark.parametrize(
@@ -159,7 +159,7 @@ def test_plan_mutate_normalizes_plan_lifecycle_actions(
     assert proposer.proposal.target_id == (
         str(plan_id) if target_id == "__plan__" else target_id
     )
-    assert result.to_observation()["action_type"] == action_type
+    assert result.canonical_output["action_type"] == action_type
 
 
 def test_schedule_timeline_read_and_execution_mutation() -> None:
@@ -192,13 +192,13 @@ def test_schedule_timeline_read_and_execution_mutation() -> None:
         )
     )
 
-    assert read.to_observation()["domains"] == ["lactation"]
+    assert read.canonical_output["domains"] == ["lactation"]
     assert proposer.proposal is not None
     assert proposer.proposal.action_type == (
         "records.pumping_record.create"
     )
     assert proposer.proposal.target_type == "pumping_record"
-    assert mutate.to_observation()["entry_type"] == "execution"
+    assert mutate.canonical_output["entry_type"] == "execution"
 
 
 def test_batch_reschedule_reads_complete_timeline_and_proposes_fresh_updates() -> None:
@@ -232,7 +232,7 @@ def test_batch_reschedule_reads_complete_timeline_and_proposes_fresh_updates() -
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert backend.timeline_query is not None
     assert backend.timeline_query.states == ["pending"]
@@ -292,7 +292,7 @@ def test_batch_reschedule_returns_explicit_no_change_without_action() -> None:
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert result["status"] == "milk_schedule_no_changes"
     assert result["updated_count"] == 0

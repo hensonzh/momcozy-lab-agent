@@ -17,8 +17,6 @@ from .contracts import (
     DiaryReadResponse,
     LactationRecordApplyRequest,
     LactationRecordApplyResponse,
-    MilkAnalysisSnapshotRequest,
-    MilkAnalysisSnapshotResponse,
     ProfileReadRequest,
     ProfileReadResponse,
     ProfileUpdateApplyRequest,
@@ -154,27 +152,6 @@ class ProductBackendClient:
         if result.action_id != command.action_id:
             raise _invalid_response()
         return result
-
-    async def read_milk_analysis_snapshot(
-        self,
-        *,
-        query: MilkAnalysisSnapshotRequest,
-        request_id: str,
-    ) -> MilkAnalysisSnapshotResponse:
-        params = {
-            key: str(value)
-            for key, value in query.model_dump(
-                mode="json",
-                exclude_none=True,
-            ).items()
-        }
-        return await self._request_model(
-            "GET",
-            "/v1/internal/agent/lactation/milk-analysis-snapshot",
-            response_model=MilkAnalysisSnapshotResponse,
-            params=params,
-            request_id=request_id,
-        )
 
     async def apply_lactation_record(
         self,

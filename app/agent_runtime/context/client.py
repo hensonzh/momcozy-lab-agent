@@ -243,7 +243,7 @@ class NormalizedClientContext:
             **self.model_data,
         }
         return {
-            "role": "developer",
+            "role": "user",
             "content": (
                 CLIENT_CONTEXT_ITEM_PREFIX
                 + json.dumps(

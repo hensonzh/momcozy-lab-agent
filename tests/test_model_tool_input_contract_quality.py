@@ -193,7 +193,7 @@ def test_profile_update_rejects_values_that_only_match_a_shallow_any_of(
                 "target_date": "2026-07-27",
             },
         ),
-        ("milk_analysis_manage", {"operation": "evaluate", "days": 7}),
+        ("get_lactation_summary", {"timezone": "Asia/Shanghai"}),
         (
             "diary_read",
             {"entry_date": "2026-07-26", "start_date": "2026-07-01"},
@@ -260,7 +260,7 @@ def test_operation_specific_contracts_reject_irrelevant_or_incomplete_inputs(
                 "record_id": "10000000-0000-4000-8000-000000000001",
             },
         ),
-        ("milk_analysis_manage", {"operation": "evaluate"}),
+        ("get_lactation_summary", {"days": 7}),
         ("diary_read", {}),
         ("diary_read", {"entry_date": "2026-07-26"}),
         (
@@ -521,12 +521,14 @@ def test_input_descriptions_state_defaults_units_sources_and_enum_meanings() -> 
     ):
         assert token in timeline_read["domains"]["description"]
 
-    milk_review = registry.get("milk_analysis_manage").input_schema["anyOf"][0]["properties"]
-    assert "包含当前自然日" in milk_review["days"]["description"]
-    milk_answers = registry.get("milk_analysis_manage").input_schema["anyOf"][2]["properties"]
-    answer_field = milk_answers["observed_answers"]["items"]["properties"]["field"]
-    for enum_value in answer_field["enum"]:
-        assert f"{enum_value}=" in answer_field["description"]
+    lactation_days = registry.get("get_lactation_summary").input_schema[
+        "properties"
+    ]["days"]
+    assert "包含今天" in lactation_days["description"]
+    feeding_infant = registry.get("get_feeding_summary").input_schema[
+        "properties"
+    ]["infant_id"]
+    assert "profile_read" in feeding_infant["description"]
 
     diary_range = registry.get("diary_read").input_schema["anyOf"][1]["properties"]
     assert "不设置最早日期限制" in diary_range["start_date"]["description"]

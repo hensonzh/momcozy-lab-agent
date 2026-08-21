@@ -60,7 +60,6 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
 
     result = asyncio.run(
         engine.execute(
-            branch_id="main",
             input_items=({"role": "user", "content": "读取我的资料"},),
             port=port,
         )
@@ -107,7 +106,6 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
 
     result = asyncio.run(
         _engine(model).execute(
-            branch_id="main",
             input_items=(
                 {
                     "role": "user",
@@ -143,6 +141,21 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     assert "internal-asset" not in str(manifest)
     assert len(manifest["request_payload_sha256"]) == 64
     assert len(manifest["manifest_sha256"]) == 64
+    assert len(port.model_budget_requests) == 1
+    budget_input, budget_tools = port.model_budget_requests[0]
+    assert budget_input[0]["role"] == "developer"
+    assert (
+        budget_input[0]["content"][0]["text"]
+        == RUNTIME_DEFINITION.agent.instructions
+    )
+    assert "https://assets.test/image" in str(budget_input[1])
+    assert "internal-asset" not in str(budget_input)
+    assert any(tool.get("type") == "tool_search" for tool in budget_tools)
+    assert any(
+        tool.get("type") == "function"
+        and tool.get("name") == "load_service_skill"
+        for tool in budget_tools
+    )
 
 
 def test_unpaired_durable_function_context_is_rejected_before_sdk_run() -> None:
@@ -153,7 +166,6 @@ def test_unpaired_durable_function_context_is_rejected_before_sdk_run() -> None:
     with pytest.raises(ApiError) as captured:
         asyncio.run(
             _engine(model).execute(
-                branch_id="main",
                 input_items=(
                     {"role": "user", "content": "继续"},
                     {
@@ -184,7 +196,6 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
     ):
         asyncio.run(
             _engine(model).execute(
-                branch_id="main",
                 input_items=(
                     {"role": "user", "content": "你好"},
                 ),
@@ -231,7 +242,6 @@ def test_streaming_model_call_has_a_total_wall_clock_timeout(
                     ContinuouslyStreamingModel(),
                     timeout_seconds=0.03,
                 ).execute(
-                    branch_id="main",
                     input_items=(
                         {"role": "user", "content": "持续生成"},
                     ),
@@ -275,7 +285,6 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
 
     result = asyncio.run(
         engine.execute(
-            branch_id="main",
             input_items=(
                 {"role": "user", "content": "你好"},
             ),
@@ -430,6 +439,12 @@ class RecordingExecutionPort:
     delta_events: list[tuple[str, str]] = field(
         default_factory=list
     )
+    model_budget_requests: list[
+        tuple[
+            tuple[dict[str, Any], ...],
+            tuple[dict[str, Any], ...],
+        ]
+    ] = field(default_factory=list)
 
     async def resolve_model_input(
         self,
@@ -437,6 +452,14 @@ class RecordingExecutionPort:
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]:
         return input_items
+
+    async def ensure_model_request_fits(
+        self,
+        *,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None:
+        self.model_budget_requests.append((input_items, tools))
 
     async def invoke_tool(
         self,
@@ -455,7 +478,6 @@ class RecordingExecutionPort:
         self,
         *,
         agent_name: str,
-        branch_id: str,
         response_id: str,
         output_items: tuple[dict[str, Any], ...],
     ) -> None:

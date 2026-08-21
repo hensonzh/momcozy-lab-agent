@@ -69,7 +69,7 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=32), server_default='queued', nullable=False),
     sa.Column('runtime_pattern', sa.String(length=64), server_default='proprietary_runtime', nullable=False),
     sa.Column('runtime_version', sa.String(length=80), server_default='', nullable=False),
-    sa.Column('skill_id', sa.String(length=64), server_default='', nullable=False),
+    sa.Column('agent_name', sa.String(length=64), server_default='', nullable=False),
     sa.Column('request_id', sa.String(length=80), server_default='', nullable=False),
     sa.Column('trace_id', sa.String(length=120), server_default='', nullable=False),
     sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
@@ -90,7 +90,7 @@ def upgrade() -> None:
     op.create_index('ix_agent_runs_actor_status_started', 'agent_runs', ['actor_user_id', 'status', 'started_at'], unique=False)
     op.create_index('ix_agent_runs_request_id', 'agent_runs', ['request_id'], unique=False)
     op.create_index('ix_agent_runs_runnable_lease', 'agent_runs', ['status', 'locked_until', 'created_at', 'id'], unique=False, postgresql_where=sa.text("status IN ('queued', 'running')"))
-    op.create_index('ix_agent_runs_skill_id', 'agent_runs', ['skill_id'], unique=False)
+    op.create_index('ix_agent_runs_agent_name', 'agent_runs', ['agent_name'], unique=False)
     op.create_index('ix_agent_runs_thread_started', 'agent_runs', ['thread_id', 'started_at'], unique=False)
     op.create_index('ix_agent_runs_trace_id', 'agent_runs', ['trace_id'], unique=False)
     op.create_index('uq_agent_runs_thread_active', 'agent_runs', ['thread_id'], unique=True, postgresql_where=sa.text("status IN ('queued', 'running', 'waiting_for_confirmation')"))
@@ -414,7 +414,7 @@ def downgrade() -> None:
     op.drop_index('uq_agent_runs_thread_active', table_name='agent_runs', postgresql_where=sa.text("status IN ('queued', 'running', 'waiting_for_confirmation')"))
     op.drop_index('ix_agent_runs_trace_id', table_name='agent_runs')
     op.drop_index('ix_agent_runs_thread_started', table_name='agent_runs')
-    op.drop_index('ix_agent_runs_skill_id', table_name='agent_runs')
+    op.drop_index('ix_agent_runs_agent_name', table_name='agent_runs')
     op.drop_index('ix_agent_runs_runnable_lease', table_name='agent_runs', postgresql_where=sa.text("status IN ('queued', 'running')"))
     op.drop_index('ix_agent_runs_request_id', table_name='agent_runs')
     op.drop_index('ix_agent_runs_actor_status_started', table_name='agent_runs')

@@ -19,9 +19,9 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
 
     bundle = asyncio.run(service.export_run_bundle(run_id=run_id))
 
-    assert bundle["schema_version"] == "agent_run_replay.v2"
+    assert bundle["schema_version"] == "agent_run_replay.v3"
     assert bundle["run"]["runtime_pattern"] == "proprietary_runtime"
-    assert bundle["run"]["skill_id"] == "cozymate"
+    assert bundle["run"]["agent_name"] == "cozymate"
     assert bundle["execution_manifest"] == repository.run.execution_manifest
     assert bundle["context_state"] == repository.run.context_state
     assert bundle["context_checkpoint"]["checkpoint"] == {
@@ -132,13 +132,13 @@ class FakeReplayRepository:
             status="completed",
             runtime_pattern="proprietary_runtime",
             runtime_version="momcozy-agent-v5",
-            skill_id="cozymate",
+            agent_name="cozymate",
             request_id="request",
             trace_id="trace",
             error_code="",
             error_details={},
             execution_manifest={
-                "schema_version": "agent_run_execution_manifest.v1",
+                "schema_version": "agent_run_execution_manifest.v2",
                 "runtime_pattern": "proprietary_runtime",
                 "runtime_version": "momcozy-agent-v5",
                 "invocations": [

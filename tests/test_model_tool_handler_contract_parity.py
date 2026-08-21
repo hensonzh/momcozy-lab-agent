@@ -48,7 +48,7 @@ def test_device_handler_accepts_model_visible_resource_kind() -> None:
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert result["status"] == "content_ready"
     assert repository.artifacts[-1].artifact_type == (
@@ -79,7 +79,7 @@ def test_schedule_handler_accepts_completed_lactation_shape() -> None:
                 trusted_args={"runtime_source": "agent"},
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert result["write_succeeded"] is True
     assert proposer.proposal is not None

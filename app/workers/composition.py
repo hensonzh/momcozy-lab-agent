@@ -174,6 +174,9 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     summary_max_tokens=(
                         settings.agent_context_summary_max_tokens
                     ),
+                    response_reserve_tokens=(
+                        settings.agent_context_response_reserve_tokens
+                    ),
                     max_attempts=(
                         settings.agent_context_compaction_max_attempts
                     ),

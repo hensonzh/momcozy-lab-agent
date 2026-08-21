@@ -30,9 +30,7 @@ def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:
     contract = service_skill_tool_registry().get(
         LOAD_SERVICE_SKILL_TOOL_NAME
     )
-    assert contract.effect_scope == "agent_internal"
-    assert contract.blocking_policy == "must_wait"
-    assert contract.result_dependency == "next_tool_call"
+    assert contract.model_output_max_bytes is None
     assert contract.input_schema["required"] == ["skill_id"]
     assert contract.input_schema["properties"]["skill_id"]["enum"] == list(
         SERVICE_SKILL_NAMES
@@ -52,8 +50,9 @@ def test_tool_result_has_one_canonical_business_output() -> None:
     result = ToolResult.json(value)
 
     assert result.canonical_output == value
+    assert result.model_output == value
     function_output = result.to_function_call_output()
     assert isinstance(function_output, str)
     assert json.loads(function_output) == value
-    assert result.to_observation() == value
+    assert not hasattr(result, "to_observation")
     assert not hasattr(result, "audit_output")

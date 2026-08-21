@@ -68,3 +68,4 @@ def test_application_source_contains_no_multi_agent_naming_scaffolding() -> None
         "tool" + "set",
     ):
         assert retired not in source
+    assert "branch_id" not in source

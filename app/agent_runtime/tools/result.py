@@ -37,9 +37,10 @@ FunctionCallOutput: TypeAlias = str | list[dict[str, Any]]
 
 @dataclass(frozen=True)
 class ToolResult:
-    """One canonical business result plus optional media content blocks."""
+    """A persisted canonical result and the explicit result shown to the model."""
 
     canonical_output: dict[str, Any]
+    model_output: dict[str, Any]
     supplemental_content: tuple[ToolMediaOutput, ...] = ()
     deferred_events: tuple[dict[str, Any], ...] = ()
 
@@ -48,37 +49,64 @@ class ToolResult:
         cls,
         value: dict[str, Any],
         *,
+        model_output: dict[str, Any] | None = None,
         supplemental_content: tuple[ToolMediaOutput, ...] = (),
         deferred_events: tuple[dict[str, Any], ...] = (),
     ) -> ToolResult:
         return cls(
             canonical_output=deepcopy(value),
+            model_output=deepcopy(
+                value if model_output is None else model_output
+            ),
             supplemental_content=supplemental_content,
             deferred_events=tuple(deepcopy(deferred_events)),
         )
 
-    def to_function_call_output(self) -> FunctionCallOutput:
-        primary = self._serialized_canonical_output()
+    def to_function_call_output(
+        self,
+        *,
+        max_bytes: int | None = None,
+    ) -> FunctionCallOutput:
+        primary = self._serialized_model_output()
         if not self.supplemental_content:
-            return primary
-        return [
-            {"type": "input_text", "text": primary},
-            *(
-                _serialize_media_block(block)
-                for block in self.supplemental_content
-            ),
-        ]
+            output: FunctionCallOutput = primary
+        else:
+            output = [
+                {"type": "input_text", "text": primary},
+                *(
+                    _serialize_media_block(block)
+                    for block in self.supplemental_content
+                ),
+            ]
+        if (
+            max_bytes is not None
+            and _function_output_bytes(output) > max_bytes
+        ):
+            raise ValueError(
+                "Tool model output exceeds its declared byte limit."
+            )
+        return output
 
-    def to_observation(self) -> dict[str, Any]:
-        return deepcopy(self.canonical_output)
-
-    def _serialized_canonical_output(self) -> str:
+    def _serialized_model_output(self) -> str:
         return json.dumps(
-            self.canonical_output,
+            self.model_output,
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
         )
+
+
+def _function_output_bytes(output: FunctionCallOutput) -> int:
+    if isinstance(output, str):
+        return len(output.encode("utf-8"))
+    return len(
+        json.dumps(
+            output,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    )
 
 
 def _serialize_media_block(block: ToolMediaOutput) -> dict[str, Any]:

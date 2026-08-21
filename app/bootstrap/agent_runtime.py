@@ -45,10 +45,15 @@ from app.capabilities.hospital_bag import (
     HospitalBagCartActionApplicator,
 )
 from app.capabilities.lactation_analysis import (
+    GetFeedingRecordsToolHandler,
+    GetFeedingSummaryToolHandler,
+    GetGrowthRecordsToolHandler,
+    GetGrowthSummaryToolHandler,
+    GetLactationRecordsToolHandler,
+    GetLactationSummaryToolHandler,
     LACTATION_ACTION_POLICY_RULES,
     LACTATION_RECORD_ACTION_TYPES,
     LactationRecordActionApplicator,
-    MilkAnalysisToolHandler,
     lactation_analysis_tool_registry,
 )
 from app.capabilities.plans import (
@@ -193,7 +198,6 @@ def build_product_tool_handlers(
     *,
     client: ProductBackendClient,
     action_service: RuntimeActionService,
-    repository: RuntimeLedgerRepository | None = None,
 ) -> dict[str, ToolHandler]:
     return {
         "profile_read": ProfileReadToolHandler(client=client),
@@ -215,9 +219,23 @@ def build_product_tool_handlers(
             action_proposer=action_service,
             client=client,
         ),
-        "milk_analysis_manage": MilkAnalysisToolHandler(
-            client=client,
-            repository=repository,
+        "get_lactation_summary": GetLactationSummaryToolHandler(
+            client=client
+        ),
+        "get_lactation_records": GetLactationRecordsToolHandler(
+            client=client
+        ),
+        "get_feeding_summary": GetFeedingSummaryToolHandler(
+            client=client
+        ),
+        "get_feeding_records": GetFeedingRecordsToolHandler(
+            client=client
+        ),
+        "get_growth_summary": GetGrowthSummaryToolHandler(
+            client=client
+        ),
+        "get_growth_records": GetGrowthRecordsToolHandler(
+            client=client
         ),
     }
 
@@ -231,7 +249,6 @@ def build_runtime_tool_handlers(
     handlers = build_product_tool_handlers(
         client=client,
         action_service=action_service,
-        repository=repository,
     )
     native_handlers = runtime_capability_tool_handlers(
         repository=repository,

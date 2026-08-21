@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent_runtime.audit import IdempotencyService
+from app.agent_runtime.context.client import CLIENT_CONTEXT_ITEM_PREFIX
 from app.api.agent_runtime.schemas import AgentRunCreate
 from app.agent_runtime.runs.service import AgentRuntimeService
 from app.core.errors import ApiError
@@ -59,7 +60,10 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
             "message_sent_at": "2026-07-26T16:30:00+00:00",
         },
     }
-    assert repository.context_items[0].item["role"] == "developer"
+    assert repository.context_items[0].item["role"] == "user"
+    assert repository.context_items[0].item["content"].startswith(
+        CLIENT_CONTEXT_ITEM_PREFIX
+    )
     assert '"as_of_date":"2026-07-27"' in repository.context_items[0].item[
         "content"
     ]

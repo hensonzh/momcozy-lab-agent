@@ -35,6 +35,7 @@ from agents.items import (
     TResponseStreamEvent,
 )
 from agents.models.interface import Model, ModelTracing
+from agents.models.openai_responses import Converter
 from agents.retry import ModelRetryAdvice, ModelRetryAdviceRequest
 from agents.run_config import CallModelData, ModelInputData
 from agents.run_context import RunContextWrapper
@@ -67,7 +68,7 @@ PROMPT_CACHE_OPTIONS = {
 }
 PROMPT_CACHE_BREAKPOINT = {"mode": "explicit"}
 MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION = (
-    "agent_model_execution.v1"
+    "agent_model_execution.v2"
 )
 MODEL_CONTEXT_SCHEMA_VERSION = "openai.responses.input_items.v1"
 MODEL_LOGGER = logging.getLogger("agent_runtime.model")
@@ -179,7 +180,7 @@ class _TotalTimeoutModel(Model):
 class _ExecutionState:
     port: AgentExecutionPort
     runtime: RuntimeDefinition
-    root_branch_id: str
+    model_name: str
     runtime_context: dict[str, Any]
     observation_context: dict[str, str]
 
@@ -219,7 +220,6 @@ class OpenAIAgentsExecutionEngine:
     async def execute(
         self,
         *,
-        branch_id: str,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
         runtime_context: dict[str, Any] | None = None,
@@ -229,7 +229,7 @@ class OpenAIAgentsExecutionEngine:
         state = _ExecutionState(
             port=port,
             runtime=self.runtime,
-            root_branch_id=branch_id,
+            model_name=self.model_name,
             runtime_context=deepcopy(runtime_context or {}),
             observation_context=dict(observation_context or {}),
         )
@@ -531,6 +531,27 @@ class OpenAIAgentsExecutionEngine:
                 *(deepcopy(item) for item in resolved),
             ],
         )
+        converted_tools = Converter.convert_tools(
+            list(data.agent.tools),
+            [],
+            model=state.model_name,
+            tool_choice=data.agent.model_settings.tool_choice,
+        ).tools
+        ensure_fits = getattr(
+            state.port,
+            "ensure_model_request_fits",
+            None,
+        )
+        if callable(ensure_fits):
+            await ensure_fits(
+                input_items=tuple(
+                    _json_item(item) for item in input_items
+                ),
+                tools=tuple(
+                    deepcopy(cast(dict[str, Any], tool))
+                    for tool in converted_tools
+                ),
+            )
         return ModelInputData(
             input=input_items,
             instructions=None,
@@ -547,7 +568,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         self.engine = engine
         self.state = state
         self._model_calls: list[
-            tuple[str, str, float]
+            tuple[str, float]
         ] = []
 
     async def on_llm_start(
@@ -557,13 +578,11 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         system_prompt: str | None,
         input_items: list[TResponseInputItem],
     ) -> None:
-        branch_id = self.state.root_branch_id
         self._model_calls.append(
-            (agent.name, branch_id, monotonic())
+            (agent.name, monotonic())
         )
         manifest = _execution_manifest(
             agent_name=agent.name,
-            branch_id=branch_id,
             instructions=self.state.runtime.agent.instructions,
             input_items=tuple(
                 _json_item(item) for item in input_items
@@ -596,7 +615,6 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
             if isinstance(item, ResponseFunctionToolCall)
         )
         self._validate_calls(agent=agent, calls=calls)
-        branch_id = self.state.root_branch_id
         has_calls = bool(calls)
         output_items = tuple(
             _json_item(item)
@@ -608,13 +626,11 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         )
         await self.state.port.persist_model_output(
             agent_name=agent.name,
-            branch_id=branch_id,
             response_id=response.response_id or "",
             output_items=output_items,
         )
         self._emit_model_metric(
             agent_name=agent.name,
-            branch_id=branch_id,
             outcome="success",
         )
 
@@ -644,25 +660,6 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
                     "tool_name": unknown[0],
                 },
             )
-        agent_internal_calls = [
-            call
-            for call in calls
-            if self.engine.tool_registry.get(
-                call.name
-            ).effect_scope
-            == "agent_internal"
-        ]
-        if agent_internal_calls and len(calls) != 1:
-            raise ApiError(
-                code="agent_tool_sequence_invalid",
-                message=(
-                    "Agent-internal loading tools must complete before "
-                    "any other function call."
-                ),
-                status=502,
-                details={"tool_name": agent_internal_calls[0].name},
-            )
-
     def emit_pending_model_failures(
         self,
         *,
@@ -670,7 +667,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         outcome: str = "error",
     ) -> None:
         while self._model_calls:
-            agent_name, _branch_id, started_at = (
+            agent_name, started_at = (
                 self._model_calls.pop(0)
             )
             self._emit_model_metric_at(
@@ -684,23 +681,21 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         self,
         *,
         agent_name: str,
-        branch_id: str,
         outcome: str,
         error_code: str = "",
     ) -> None:
         match_index = next(
             (
                 index
-                for index, (candidate_agent, candidate_branch, _)
+                for index, (candidate_agent, _)
                 in enumerate(self._model_calls)
                 if candidate_agent == agent_name
-                and candidate_branch == branch_id
             ),
             None,
         )
         if match_index is None:
             return
-        _agent, _branch, started_at = self._model_calls.pop(
+        _agent, started_at = self._model_calls.pop(
             match_index
         )
         self._emit_model_metric_at(
@@ -759,7 +754,6 @@ def _stable_prefix_item(instructions: str) -> dict[str, Any]:
 def _execution_manifest(
     *,
     agent_name: str,
-    branch_id: str,
     instructions: str,
     input_items: tuple[dict[str, Any], ...],
     tools: tuple[Tool, ...],
@@ -823,7 +817,6 @@ def _execution_manifest(
             MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
         ),
         "agent_name": agent_name,
-        "branch_id": branch_id,
         "prompt": {
             "id": agent_name,
             "sha256": _sha256_text(instructions),

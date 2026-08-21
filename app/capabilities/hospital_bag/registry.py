@@ -46,7 +46,6 @@ def hospital_bag_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="hospital_bag_manage",
-            domain="hospital_bag",
             description=(
                 "收集待产包所需信息，并在信息完整后生成清单。"
                 "当用户的待产包目标需要启动或恢复资料采集、基于完整可信信息生成清单，"
@@ -72,16 +71,12 @@ def hospital_bag_tool_registry() -> ToolContractRegistry:
                 },
             ),
             output_schema=object_output_schema(),
-            effect_scope="agent_internal",
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=15,
         )
     )
     registry.register(
         ToolContract(
             name="hospital_bag_cart_mutate",
-            domain="hospital_bag",
             description=(
                 "修改当前用户已有的待产包购物车。"
                 "当需要根据用户已表达的预算或商品调整意图，优化预算、移除或恢复默认商品、"
@@ -99,10 +94,7 @@ def hospital_bag_tool_registry() -> ToolContractRegistry:
                 },
             ),
             output_schema=deepcopy(_CART_ACTION_OUTPUT_SCHEMA),
-            effect_scope="user_resource",
             action_types=("hospital_bag.cart.update",),
-            blocking_policy="must_wait",
-            result_dependency="final_response",
             timeout_seconds=15,
         )
     )

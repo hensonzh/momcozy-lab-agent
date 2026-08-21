@@ -248,6 +248,7 @@ class ContextTokenCounter(Protocol):
         self,
         *,
         input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...] = (),
     ) -> Any: ...
 
 
@@ -277,6 +278,7 @@ class ContextCompactionService:
         model: str,
         threshold_tokens: int = 100_000,
         summary_max_tokens: int = 2_000,
+        response_reserve_tokens: int = 8_000,
         max_attempts: int = 3,
     ) -> None:
         if threshold_tokens < 1:
@@ -287,6 +289,13 @@ class ContextCompactionService:
             raise ValueError(
                 "summary_max_tokens must be below threshold_tokens"
             )
+        if (
+            response_reserve_tokens < 1
+            or response_reserve_tokens >= threshold_tokens
+        ):
+            raise ValueError(
+                "response_reserve_tokens must be positive and below threshold_tokens"
+            )
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
         self.repository = repository
@@ -296,6 +305,7 @@ class ContextCompactionService:
         self.model = model
         self.threshold_tokens = threshold_tokens
         self.summary_max_tokens = summary_max_tokens
+        self.response_reserve_tokens = response_reserve_tokens
         self.max_attempts = max_attempts
 
     async def prepare_run(self, *, run: Any) -> None:
@@ -434,6 +444,53 @@ class ContextCompactionService:
                 request_id=run.request_id,
             ),
         )
+
+    async def ensure_model_request_fits(
+        self,
+        *,
+        run: Any,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None:
+        started_at = monotonic()
+        count = await self.token_counter.count(
+            input_items=input_items,
+            tools=tools,
+        )
+        total_reserved_tokens = (
+            int(count.input_tokens) + self.response_reserve_tokens
+        )
+        within_budget = total_reserved_tokens <= self.threshold_tokens
+        emit_operation_metric(
+            LOGGER,
+            metric_name="agent_runtime_model_request_budget",
+            operation="context.model_request_budget",
+            outcome="within_budget" if within_budget else "exceeded",
+            started_at=started_at,
+            dimensions={
+                "provider": "openai",
+                "model": self.model,
+                "run_id": str(run.id),
+                "thread_id": str(run.thread_id),
+                "count": int(count.input_tokens),
+            },
+            error_code=(
+                "" if within_budget else "model_context_budget_exceeded"
+            ),
+            level=logging.INFO if within_budget else logging.WARNING,
+        )
+        if not within_budget:
+            raise ApiError(
+                code="model_context_budget_exceeded",
+                message="Model request exceeds the configured context budget.",
+                status=400,
+                details={
+                    "input_tokens": int(count.input_tokens),
+                    "response_reserve_tokens": self.response_reserve_tokens,
+                    "request_budget_tokens": self.threshold_tokens,
+                    "retryable": True,
+                },
+            )
 
     async def recover_context_overflow(self, *, run: Any) -> bool:
         """Durably suspend the Run until one checkpoint generation is ready."""

@@ -33,7 +33,6 @@ def test_profile_tool_registry_exposes_the_canonical_tool_names() -> None:
 
     assert PROFILE_TOOL_NAMES == ("profile_read", "profile_update")
     assert registry.names_for_sdk() == PROFILE_TOOL_NAMES
-    assert registry.get("profile_read").effect_scope == "none"
     assert registry.get("profile_update").action_types == (
         "profile.update",
         "profile.current_infants.replace",
@@ -67,7 +66,7 @@ def test_profile_read_calls_product_backend_with_trusted_actor_and_returns_tool_
     assert backend.read_query.infant_scope == "all"
     assert backend.read_query.as_of_date == date(2026, 7, 26)
     assert backend.read_request_id == "req-profile-tool"
-    assert result.to_observation() == _profile_response(infant_scope="all")
+    assert result.canonical_output == _profile_response(infant_scope="all")
 
 
 def test_profile_read_rejects_unknown_model_arguments_before_http_call() -> None:
@@ -135,7 +134,7 @@ def test_profile_update_creates_action_proposal_without_calling_product_backend(
         ],
         "reference_date": "2026-07-26",
     }
-    assert result.to_observation() == {
+    assert result.canonical_output == {
         "action_id": str(proposer.action_id),
         "action_status": "proposed",
         "action_type": "profile.update",

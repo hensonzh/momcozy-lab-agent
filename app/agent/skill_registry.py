@@ -146,7 +146,6 @@ def service_skill_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name=LOAD_SERVICE_SKILL_TOOL_NAME,
-            domain="agent_skills",
             description=(
                 "加载一个版本化服务 Skill，并以普通工具结果返回完整 SKILL.md。"
                 "当当前请求需要孕期、泌乳或设备专业工作流且同版本 Skill 尚未进入上下文时使用。"
@@ -192,9 +191,7 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                     },
                 },
             },
-            effect_scope="agent_internal",
-            blocking_policy="must_wait",
-            result_dependency="next_tool_call",
+            model_output_max_bytes=None,
             timeout_seconds=5,
         )
     )

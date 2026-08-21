@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import json
 from pathlib import Path
 import subprocess
@@ -25,19 +26,21 @@ from app.bootstrap import TOOL_CATALOG
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = (
-    REPOSITORY_ROOT / "evals" / "behavior" / "v2" / "scenarios.json"
+    REPOSITORY_ROOT / "evals" / "behavior" / "v3" / "scenarios.json"
 )
 
 
 def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> None:
     suite = load_behavior_suite(CATALOG_PATH)
 
-    assert suite.schema_version == "momcozy.behavior_eval_suite.v2"
-    assert suite.replay_contract_version == "agent_run_replay.v2"
+    assert suite.schema_version == "momcozy.behavior_eval_suite.v3"
+    assert suite.replay_contract_version == "agent_run_replay.v3"
     assert {case.id for case in suite.cases} == {
         "general_health_answer",
         "prenatal_skill_workflow",
         "lactation_skill_workflow",
+        "lactation_pumping_record_drilldown",
+        "lactation_infant_feeding_focus",
         "device_skill_workflow",
         "multi_skill_integrated_response",
         "prenatal_symptom_direct_answer",
@@ -257,6 +260,73 @@ def test_structural_engine_rejects_unknown_runtime_contract_names() -> None:
     assert "trace.tool_name" in assertions
 
 
+def test_structural_engine_requires_durable_safety_escalation_trace() -> None:
+    payload = _suite_payload()
+    payload["cases"][0]["structural_expectation"][
+        "safety_decision"
+    ] = "escalate"
+    case = BehaviorEvalSuite.model_validate(payload).cases[0]
+    run_id = uuid4()
+    missing = _replay_bundle(run_id=run_id)
+
+    missing_result = asyncio.run(
+        evaluate_behavior_case(
+            case=case,
+            observed=ObservedReplay.from_runtime_database(
+                run_id=run_id,
+                bundle=missing,
+            ),
+        )
+    )
+    safety_event = {
+        "event_id": str(uuid4()),
+        "sequence": 2,
+        "type": "safety.decision",
+        "payload": {
+            "category": "medical_emergency",
+            "decision": "escalate",
+            "policy_version": "momcozy.runtime_safety.v1",
+            "rule_id": "medical_emergency.v1",
+            "severity": "critical",
+        },
+    }
+    observed = _replay_bundle(run_id=run_id)
+    observed["events"].insert(1, safety_event)
+    for index, event in enumerate(observed["events"], start=1):
+        event["sequence"] = index
+    passing_result = asyncio.run(
+        evaluate_behavior_case(
+            case=case,
+            observed=ObservedReplay.from_runtime_database(
+                run_id=run_id,
+                bundle=observed,
+            ),
+        )
+    )
+    model_called = deepcopy(observed)
+    model_called["execution_manifest"] = {
+        "schema_version": "agent_run_execution_manifest.v2",
+        "executions": [{"agent_name": "cozymate"}],
+    }
+    model_called_result = asyncio.run(
+        evaluate_behavior_case(
+            case=case,
+            observed=ObservedReplay.from_runtime_database(
+                run_id=run_id,
+                bundle=model_called,
+            ),
+        )
+    )
+
+    assert "safety.decision" in {
+        failure.assertion for failure in missing_result.failures
+    }
+    assert passing_result.structural_pass is True
+    assert "safety.no_model_after_escalation" in {
+        failure.assertion for failure in model_called_result.failures
+    }
+
+
 def test_injected_quality_judge_controls_review_result() -> None:
     run_id = uuid4()
     case = BehaviorEvalSuite.model_validate(_suite_payload()).cases[0]
@@ -333,8 +403,6 @@ def test_behavior_eval_cli_validates_catalog_and_writes_json_and_junit(
         [
             sys.executable,
             "scripts/run_behavior_eval.py",
-            "--suite",
-            str(CATALOG_PATH),
             "--validate-only",
             "--output-json",
             str(json_output),
@@ -437,10 +505,10 @@ class RecordingJudge:
 
 def _suite_payload() -> dict[str, Any]:
     return {
-        "schema_version": "momcozy.behavior_eval_suite.v2",
+        "schema_version": "momcozy.behavior_eval_suite.v3",
         "suite_id": "test-suite",
         "description": "test",
-        "replay_contract_version": "agent_run_replay.v2",
+        "replay_contract_version": "agent_run_replay.v3",
         "cases": [
             {
                 "id": "general_health_answer",
@@ -488,7 +556,7 @@ def _observed_replay(*, run_id: UUID) -> ObservedReplay:
 
 def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
     return {
-        "schema_version": "agent_run_replay.v2",
+        "schema_version": "agent_run_replay.v3",
         "run": {
             "id": str(run_id),
             "status": "completed",

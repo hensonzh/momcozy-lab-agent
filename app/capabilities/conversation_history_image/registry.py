@@ -19,7 +19,6 @@ def conversation_history_image_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="conversation_history_image_read",
-            domain="images",
             description=(
                 "将当前对话历史中由智能体展示过的一张图片重新载入模型上下文。"
                 "当本轮请求依赖该历史图片、但模型无法直接查看其内容时使用。"
@@ -42,9 +41,6 @@ def conversation_history_image_tool_registry() -> ToolContractRegistry:
                 required=("visible_image_urls",),
             ),
             output_schema=object_output_schema(),
-            effect_scope="none",
-            blocking_policy="must_wait",
-            result_dependency="next_tool_call",
             timeout_seconds=10,
         )
     )

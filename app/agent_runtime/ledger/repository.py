@@ -190,13 +190,13 @@ class RuntimeLedgerRepository:
         )
         return cast(AgentRun | None, await self.session.scalar(statement))
 
-    async def set_run_skill_id(
+    async def set_run_agent_name(
         self,
         *,
         run: AgentRun,
-        skill_id: str,
+        agent_name: str,
     ) -> AgentRun:
-        run.skill_id = skill_id
+        run.agent_name = agent_name
         await self.session.flush()
         return run
 
@@ -208,7 +208,7 @@ class RuntimeLedgerRepository:
     ) -> dict[str, Any]:
         manifest_hash = str(manifest.get("manifest_sha256") or "")
         if (
-            manifest.get("schema_version") != "agent_model_execution.v1"
+            manifest.get("schema_version") != "agent_model_execution.v2"
             or len(manifest_hash) != 64
             or manifest_hash != _execution_manifest_sha256(manifest)
         ):
@@ -218,7 +218,7 @@ class RuntimeLedgerRepository:
         if not envelope:
             envelope = {
                 "schema_version": (
-                    "agent_run_execution_manifest.v1"
+                    "agent_run_execution_manifest.v2"
                 ),
                 "runtime_pattern": run.runtime_pattern,
                 "runtime_version": run.runtime_version,
@@ -226,7 +226,7 @@ class RuntimeLedgerRepository:
             }
         if (
             envelope.get("schema_version")
-            != "agent_run_execution_manifest.v1"
+            != "agent_run_execution_manifest.v2"
             or envelope.get("runtime_pattern") != run.runtime_pattern
             or envelope.get("runtime_version") != run.runtime_version
         ):

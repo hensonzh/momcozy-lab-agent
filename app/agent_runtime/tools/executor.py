@@ -22,7 +22,7 @@ from .payloads import (
     persistable_tool_output,
 )
 from .registry import ToolContractRegistry
-from .result import ToolResult
+from .result import FunctionCallOutput, ToolResult
 from .validation import validate_tool_input, validate_tool_output
 
 
@@ -34,9 +34,8 @@ LOGGER = logging.getLogger("agent_runtime.tool")
 
 @dataclass(frozen=True)
 class ToolExecutionResult:
-    tool_call: AgentToolCall
-    tool_result: ToolResult
     canonical_output: dict[str, Any]
+    model_output: FunctionCallOutput
 
 
 class ToolExecutor:
@@ -220,6 +219,10 @@ class ToolExecutor:
                 raise TypeError(
                     "Tool handlers must return an object canonical output."
                 )
+            if not isinstance(result.model_output, dict):
+                raise TypeError(
+                    "Tool handlers must return an object model output."
+                )
             canonical_output = dict(result.canonical_output)
             validate_tool_output(
                 schema=contract.output_schema,
@@ -282,7 +285,22 @@ class ToolExecutor:
                 status=503,
                 details={"fatal": True},
             ) from exc
-        model_output = result.to_function_call_output()
+        try:
+            model_output = result.to_function_call_output(
+                max_bytes=contract.model_output_max_bytes,
+            )
+        except ValueError as exc:
+            await self._fail(
+                run_id=run.id,
+                tool_call=tool_call,
+                error_code="tool_model_output_too_large",
+            )
+            raise ApiError(
+                code="tool_model_output_too_large",
+                message="Tool output is too large for model context.",
+                status=503,
+                details={"fatal": True},
+            ) from exc
         completed = await self.repository.complete_tool_call(
             tool_call=tool_call,
             completed_at=_utcnow(),
@@ -337,9 +355,8 @@ class ToolExecutor:
                     },
                 )
         return ToolExecutionResult(
-            tool_call=completed,
-            tool_result=result,
             canonical_output=canonical_output,
+            model_output=model_output,
         )
 
     async def _fail(

@@ -83,17 +83,7 @@ def test_capability_registry_matches_global_catalog_and_action_boundary() -> Non
         "support_ticket_draft_create",
     )
     cart = registry.get("hospital_bag_cart_mutate")
-    assert cart.effect_scope == "user_resource"
     assert cart.action_types == ("hospital_bag.cart.update",)
-    assert registry.get("devices_guidance_manage").effect_scope == "agent_internal"
-    assert (
-        registry.get("ibclc_consult_card_create").effect_scope
-        == "agent_internal"
-    )
-    assert (
-        registry.get("support_ticket_draft_create").effect_scope
-        == "agent_internal"
-    )
 
 
 def test_history_image_contract_does_not_accept_asset_id_or_url() -> None:
@@ -107,7 +97,7 @@ def test_history_image_contract_does_not_accept_asset_id_or_url() -> None:
 
 def test_pump_models_read_uses_versioned_runtime_reference() -> None:
     result = asyncio.run(PumpModelsReadToolHandler()(_context(args={})))
-    observation = result.to_observation()
+    observation = result.canonical_output
 
     assert observation["schema_version"] == "pump-models.result.v1"
     assert observation["reference_version"].startswith("pump-models-")
@@ -137,7 +127,7 @@ def test_ibclc_card_is_persisted_as_owner_scoped_runtime_artifact() -> None:
             )
         )
     )
-    observation = result.to_observation()
+    observation = result.canonical_output
 
     assert observation["status"] == "card_created"
     assert store.artifacts[-1].owner_user_id == OWNER_ID
@@ -174,7 +164,7 @@ def test_support_ticket_create_persists_draft_without_external_action() -> None:
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert result["status"] == "draft_created"
     assert result["submission_status"] == "draft"
@@ -193,13 +183,13 @@ def test_pregnancy_intake_pause_resume_abandon_events_are_explicit() -> None:
     )
     paused = asyncio.run(
         handler(_context(args={"command": "pause"}))
-    ).to_observation()
+    ).canonical_output
     resumed = asyncio.run(
         handler(_context(args={"command": "resume"}))
-    ).to_observation()
+    ).canonical_output
     abandoned = asyncio.run(
         handler(_context(args={"command": "abandon"}))
-    ).to_observation()
+    ).canonical_output
 
     assert paused["status"] == "intake_paused"
     assert resumed["status"] == "intake_resumed"
@@ -229,10 +219,10 @@ def test_hospital_bag_flow_persists_and_resumes_the_same_form() -> None:
                 }
             )
         )
-    ).to_observation()
+    ).canonical_output
     resumed = asyncio.run(
         handler(_context(args={}))
-    ).to_observation()
+    ).canonical_output
 
     assert first["status"] == "intake_required"
     assert resumed["status"] == "intake_required"
@@ -255,7 +245,7 @@ def test_hospital_bag_submission_creates_card_and_completes_workflow() -> None:
                 }
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     completed = asyncio.run(
         handler(
@@ -273,7 +263,7 @@ def test_hospital_bag_submission_creates_card_and_completes_workflow() -> None:
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert completed["status"] == "card_ready"
     assert store.artifacts[-1].artifact_type == "hospital_bag_card"
@@ -308,7 +298,7 @@ def test_device_walkthrough_is_durable_and_advances_one_step() -> None:
                 }
             )
         )
-    ).to_observation()
+    ).canonical_output
     advanced = asyncio.run(
         handler(
             _context(
@@ -317,7 +307,7 @@ def test_device_walkthrough_is_durable_and_advances_one_step() -> None:
                 }
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert started["workflow"]["current_step"] == "guide.parts"
     assert advanced["workflow"]["current_step"] == "guide.controls"
@@ -425,7 +415,7 @@ def test_hospital_bag_cart_mutate_uses_runtime_action_and_applicator() -> None:
                 },
             )
         )
-    ).to_observation()
+    ).canonical_output
 
     assert proposer.proposal is not None
     assert proposer.proposal.actor_user_id == OWNER_ID

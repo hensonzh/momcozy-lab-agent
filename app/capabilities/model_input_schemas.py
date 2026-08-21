@@ -778,106 +778,67 @@ _SCHEDULE_TIMELINE_MUTATE_SCHEMA = _union(
 )
 
 
-_OBSERVED_ANSWERS = {
-    "type": "array",
-    "minItems": 1,
-    "maxItems": 5,
-    "uniqueItems": True,
-    "description": (
-        "本轮用户原话明确覆盖的一个或多个观察字段。五个字段来自用户回答；"
-        "第六项近 7 天实际记录由工具自动读取，不要放入此数组。"
-    ),
-    "items": _closed_object(
-        {
-            "field": {
-                "type": "string",
-                "enum": [
-                    "infant_wet_diapers",
-                    "infant_state_or_satisfaction",
-                    "infant_growth_signal",
-                    "maternal_red_flags",
-                    "maternal_breast_comfort",
-                ],
-                "description": (
-                    "用户本轮明确回答的观察字段：infant_wet_diapers=宝宝湿尿布，"
-                    "infant_state_or_satisfaction=吃奶后状态，infant_growth_signal=宝宝生长信号，"
-                    "maternal_red_flags=妈妈危险信号，maternal_breast_comfort=妈妈乳房舒适度。"
-                ),
-            },
-            "evidence": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 500,
-                "description": "能够支持该字段的本轮用户原话片段；必须逐字引用，不改写、不推断。",
-            },
-        },
-        required=("field", "evidence"),
-    ),
+_LACTATION_QUERY_DAYS = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 90,
+    "default": 7,
+    "description": "按用户本地日期读取最近多少天，包含今天；默认 7 天，范围 1 至 90。",
+}
+_LACTATION_QUERY_LIMIT = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 100,
+    "default": 50,
+    "description": "最多返回的匹配记录数，默认 50，范围 1 至 100；截断时应缩小日期窗口后重查。",
+}
+_GROWTH_QUERY_DAYS = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 3650,
+    "default": 365,
+    "description": "按用户本地日期读取最近多少天，包含今天；默认 365 天，最长 3650 天。",
 }
 
 
-_MILK_ANALYSIS_SCHEMA = _union(
-    _closed_object(
-        {
-            "operation": _operation(
-                "review",
-                "review 读取基于已持久化实际记录生成的确定性奶量状态快照。",
-            ),
-            "detail_level": {
-                "type": "string",
-                "enum": ["summary", "detailed"],
-                "default": "summary",
-                "description": "summary 返回摘要；detailed 额外返回实际记录、生长记录和趋势明细；省略时使用 summary。",
-            },
-            "days": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 30,
-                "default": 7,
-                "description": "快照覆盖的连续自然日数，包含当前自然日，默认 7 天。",
-            },
-            "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 20,
-                "description": "每类近期明细最多返回的记录数；摘要默认 5，详细模式默认 8。",
-            },
-        },
-        required=("operation",),
-    ),
-    _closed_object(
-        {
-            "operation": _operation(
-                "start_or_resume",
-                "start_or_resume 开始新的六项奶量分析采集，或恢复当前未完成的采集。",
-            ),
-            "restart": {
-                "type": "boolean",
-                "default": False,
-                "description": "仅在用户明确要求放弃当前采集并重新开始时传 true；否则省略或传 false。",
-            },
-        },
-        required=("operation",),
-    ),
-    _closed_object(
-        {
-            "operation": _operation(
-                "answer",
-                "answer 提交当前用户消息中明确出现的奶量分析观察答案。",
-            ),
-            "observed_answers": _OBSERVED_ANSWERS,
-        },
-        required=("operation", "observed_answers"),
-    ),
-    _closed_object(
-        {
-            "operation": _operation(
-                "evaluate",
-                "evaluate 仅在工具此前返回 can_evaluate=true 后生成分析卡和计划准入结论。",
-            ),
-        },
-        required=("operation",),
-    ),
+_LACTATION_SUMMARY_SCHEMA = _closed_object(
+    {"days": deepcopy(_LACTATION_QUERY_DAYS)}
+)
+_LACTATION_RECORDS_SCHEMA = _closed_object(
+    {
+        "days": deepcopy(_LACTATION_QUERY_DAYS),
+        "limit": deepcopy(_LACTATION_QUERY_LIMIT),
+    }
+)
+_FEEDING_SUMMARY_SCHEMA = _closed_object(
+    {
+        "infant_id": deepcopy(_INFANT_ID),
+        "days": deepcopy(_LACTATION_QUERY_DAYS),
+    },
+    required=("infant_id",),
+)
+_FEEDING_RECORDS_SCHEMA = _closed_object(
+    {
+        "infant_id": deepcopy(_INFANT_ID),
+        "days": deepcopy(_LACTATION_QUERY_DAYS),
+        "limit": deepcopy(_LACTATION_QUERY_LIMIT),
+    },
+    required=("infant_id",),
+)
+_GROWTH_SUMMARY_SCHEMA = _closed_object(
+    {
+        "infant_id": deepcopy(_INFANT_ID),
+        "days": deepcopy(_GROWTH_QUERY_DAYS),
+    },
+    required=("infant_id",),
+)
+_GROWTH_RECORDS_SCHEMA = _closed_object(
+    {
+        "infant_id": deepcopy(_INFANT_ID),
+        "days": deepcopy(_GROWTH_QUERY_DAYS),
+        "limit": deepcopy(_LACTATION_QUERY_LIMIT),
+    },
+    required=("infant_id",),
 )
 
 
@@ -1662,7 +1623,12 @@ _TOOL_INPUT_SCHEMAS: dict[str, JsonSchema] = {
         }
     ),
     "schedule_timeline_mutate": _SCHEDULE_TIMELINE_MUTATE_SCHEMA,
-    "milk_analysis_manage": _MILK_ANALYSIS_SCHEMA,
+    "get_lactation_summary": _LACTATION_SUMMARY_SCHEMA,
+    "get_lactation_records": _LACTATION_RECORDS_SCHEMA,
+    "get_feeding_summary": _FEEDING_SUMMARY_SCHEMA,
+    "get_feeding_records": _FEEDING_RECORDS_SCHEMA,
+    "get_growth_summary": _GROWTH_SUMMARY_SCHEMA,
+    "get_growth_records": _GROWTH_RECORDS_SCHEMA,
     "diary_read": _DIARY_READ_SCHEMA,
     "diary_mutate": _DIARY_MUTATE_SCHEMA,
     "devices_guidance_manage": _DEVICES_GUIDANCE_SCHEMA,

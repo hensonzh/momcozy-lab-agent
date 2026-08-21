@@ -257,7 +257,7 @@ def main() -> int:
             REPOSITORY_ROOT
             / "evals"
             / "behavior"
-            / "v1"
+            / "v3"
             / "scenarios.json"
         ),
     )

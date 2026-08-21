@@ -78,6 +78,7 @@ class OpenAIContextTokenCounter:
         self,
         *,
         input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...] = (),
     ) -> ContextTokenCount:
         client = self.client or _openai_client(
             api_key=self.api_key,
@@ -94,11 +95,14 @@ class OpenAIContextTokenCounter:
                 details={"retryable": True},
             )
         try:
+            request: dict[str, Any] = {
+                "model": self.model,
+                "input": [dict(item) for item in input_items],
+            }
+            if tools:
+                request["tools"] = [deepcopy(tool) for tool in tools]
             response = await asyncio.wait_for(
-                count(
-                    model=self.model,
-                    input=[dict(item) for item in input_items],
-                ),
+                count(**request),
                 timeout=self.timeout_seconds,
             )
         except TimeoutError as exc:

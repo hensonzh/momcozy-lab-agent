@@ -12,6 +12,7 @@ using `LOG_LEVEL`.
 | `agent_runtime_tool` | one tool execution attempt | `tool_name`, `outcome`, `error_code` |
 | `agent_runtime_model` | one model operation | `provider`, `model`, `agent_name`, `outcome`, `error_code` |
 | `agent_runtime_context_preflight` | one Run history measurement | `provider`, `model`, `outcome` |
+| `agent_runtime_model_request_budget` | one complete pre-model request measurement | `provider`, `model`, `outcome`, `error_code` |
 | `agent_runtime_context_compaction` | one durable compaction attempt | `provider`, `model`, `outcome`, `error_code` |
 
 Each event contains `duration_ms`; the log collector derives an operation
@@ -24,6 +25,18 @@ hooks emit the existing privacy-safe `agent_runtime_model` operation records,
 while the durable execution manifest and replay remain the diagnostic source
 of truth. This avoids exporting Prompt, user content, or Tool payloads through
 an independent tracing path.
+
+Every provider model turn is preceded by
+`agent_runtime_model_request_budget`. It counts the final materialized input and
+the exact provider Tool schemas, then reserves the configured response budget.
+An `outcome="exceeded"` record precedes durable compaction recovery or an
+explicit `model_context_budget_exceeded` failure.
+
+Deterministic safety escalations are persisted as versioned `safety.decision`
+Run events containing only the bounded category, severity, rule ID, and policy
+version. They do not copy the triggering user text. A matching Run completes
+without a provider model or business Tool operation, so these durable events
+are the operational source for safety-escalation monitoring.
 
 `AGENT_MODEL_TIMEOUT_SECONDS` bounds every complete CozyMate model call,
 including the entire streamed response and provider SDK retries. A deadline
@@ -70,6 +83,8 @@ correlation.
 - Context-compaction retry/dead-letter rate, queued-job age, lease-renewal
   failures, and Thread Context Heads stuck in `compacting`. A `blocked` head
   rejects new Runs until an audited supersede recovery succeeds.
+- Complete-request budget exceedances and durable `safety.decision`
+  escalations by their bounded category/severity.
 - `http.request.unhandled` events, grouped by route and exception type.
 - Missing worker heartbeat or repeated `worker.heartbeat.failed` events.
 

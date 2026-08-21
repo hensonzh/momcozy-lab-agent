@@ -61,6 +61,8 @@ def test_agent_api_derives_owner_from_verified_principal() -> None:
     assert create_thread.json()["owner_user_id"] == str(principal.user_id)
     assert create_run.status_code == 201
     assert create_run.json()["actor_user_id"] == str(principal.user_id)
+    assert create_run.json()["agent_name"] == ""
+    assert "skill_id" not in create_run.json()
     assert service.create_thread_kwargs["owner_user_id"] == principal.user_id
     assert service.create_run_kwargs["actor_user_id"] == principal.user_id
     assert service.create_run_kwargs["idempotency_key"] == "run-key"
@@ -306,7 +308,7 @@ class FakeAgentService:
             status="queued",
             runtime_pattern="proprietary_runtime",
             runtime_version="momcozy-agent-v5",
-            skill_id="",
+            agent_name="",
             request_id="request-id",
             trace_id="request-id",
             error_code="",

@@ -16,6 +16,10 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
+from app.agent_runtime.safety import (
+    RuntimeSafetyDecision,
+    RuntimeSafetyPolicy,
+)
 from app.agent_runtime.tools import (
     ToolExecutor,
     TrustedToolArgumentsProvider,
@@ -88,6 +92,14 @@ class ContextCoordinator(Protocol):
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]: ...
 
+    async def ensure_model_request_fits(
+        self,
+        *,
+        run: Any,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None: ...
+
 
 class AgentLoop:
     """Durable append-only single-agent tool loop."""
@@ -104,6 +116,7 @@ class AgentLoop:
             TrustedToolArgumentsProvider | None
         ) = None,
         context_coordinator: ContextCoordinator | None = None,
+        safety_policy: RuntimeSafetyPolicy | None = None,
     ) -> None:
         self.repository = repository
         self.execution_engine = execution_engine
@@ -112,6 +125,7 @@ class AgentLoop:
         self.transient_delta_publisher = transient_delta_publisher
         self.trusted_arguments_provider = trusted_arguments_provider
         self.context_coordinator = context_coordinator
+        self.safety_policy = safety_policy or RuntimeSafetyPolicy()
         self._persistence_lock = asyncio.Lock()
         self._message_id: UUID | None = None
         self._run_id: UUID | None = None
@@ -213,6 +227,12 @@ class AgentLoop:
             recovered = await self._recover_completed_run(run)
             if recovered is not None:
                 return recovered
+            safety_answer = await self._safety_answer(run)
+            if safety_answer is not None:
+                return await self._persist_final_and_complete(
+                    run=run,
+                    answer=safety_answer,
+                )
             await self._prepare_context(run)
             await self._progress(
                 run,
@@ -230,11 +250,13 @@ class AgentLoop:
                     run=run,
                     emit_deltas=True,
                     as_of_date=as_of_date,
-                    branch_id="main",
                 )
             except ApiError as exc:
                 if (
-                    exc.code != "model_context_window_exceeded"
+                    exc.code not in {
+                        "model_context_window_exceeded",
+                        "model_context_budget_exceeded",
+                    }
                     or self.context_coordinator is None
                 ):
                     raise
@@ -250,7 +272,6 @@ class AgentLoop:
                     run=run,
                     emit_deltas=True,
                     as_of_date=as_of_date,
-                    branch_id="main",
                 )
             await self._ensure_active(run)
             return await self._persist_final_and_complete(
@@ -302,6 +323,78 @@ class AgentLoop:
             await self._checkpoint_unlocked(expected_statuses=("completed",))
             return completed
 
+    async def _safety_answer(
+        self,
+        run: AgentRun,
+    ) -> AgentAnswer | None:
+        text = await self._current_user_text(run)
+        decision = self.safety_policy.evaluate(text)
+        if decision.decision != "escalate":
+            return None
+        await self._record_safety_decision(
+            run=run,
+            decision=decision,
+        )
+        return AgentAnswer(
+            text=decision.response,
+            agent=self.runtime.agent.name,
+        )
+
+    async def _current_user_text(self, run: AgentRun) -> str:
+        async with self._persistence_lock:
+            loader = getattr(
+                self.repository,
+                "get_latest_user_message_for_run",
+                None,
+            )
+            if callable(loader):
+                message = await loader(run_id=run.id)
+                if message is not None:
+                    content = getattr(message, "content", None)
+                    if isinstance(content, dict):
+                        text = content.get("text")
+                        if isinstance(text, str):
+                            return text
+            records = await self.repository.list_context_items_for_thread(
+                thread_id=run.thread_id,
+                owner_user_id=run.actor_user_id,
+            )
+        for record in reversed(records):
+            if getattr(record, "run_id", None) != run.id:
+                continue
+            item = getattr(record, "item", None)
+            if not isinstance(item, dict) or item.get("role") != "user":
+                continue
+            return _input_text(item.get("content"))
+        return ""
+
+    async def _record_safety_decision(
+        self,
+        *,
+        run: AgentRun,
+        decision: RuntimeSafetyDecision,
+    ) -> None:
+        async with self._persistence_lock:
+            events = await self.repository.list_events_for_run(
+                run_id=run.id
+            )
+            if not any(
+                event.event_type == "safety.decision"
+                for event in events
+            ):
+                await self.repository.append_event(
+                    run_id=run.id,
+                    event_type="safety.decision",
+                    payload={
+                        "category": decision.category,
+                        "decision": decision.decision,
+                        "policy_version": decision.policy_version,
+                        "rule_id": decision.rule_id,
+                        "severity": decision.severity,
+                    },
+                )
+            await self._checkpoint_unlocked()
+
     async def _start(self, run: AgentRun) -> None:
         async with self._persistence_lock:
             run = await self.repository.refresh_run(run=run)
@@ -321,10 +414,10 @@ class AgentLoop:
                     event_type="run.started",
                     payload={"phase": "running"},
                 )
-            if not run.skill_id:
-                await self.repository.set_run_skill_id(
+            if not run.agent_name:
+                await self.repository.set_run_agent_name(
                     run=run,
-                    skill_id=self.runtime.agent.name,
+                    agent_name=self.runtime.agent.name,
                 )
             await self._checkpoint_unlocked()
 
@@ -335,15 +428,13 @@ class AgentLoop:
         emit_deltas: bool,
         as_of_date: date | None,
         initial_input_items: tuple[dict[str, Any], ...] | None = None,
-        branch_id: str = "main",
     ) -> AgentAnswer:
         agent_name = self.runtime.agent.name
         context_records = await self._context_records(run)
-        branch_items = _restore_agent_input(
+        model_input = _restore_agent_input(
             context_records,
             run_id=run.id,
             agent_name=agent_name,
-            branch_id=branch_id,
             initial_input_items=initial_input_items,
         )
         await self._ensure_active(run)
@@ -351,30 +442,25 @@ class AgentLoop:
             context_records,
             run_id=run.id,
             agent_name=agent_name,
-            branch_id=branch_id,
         )
         if pending:
             direct = await self._execute_calls(
                 run=run,
                 calls=pending,
                 as_of_date=as_of_date,
-                branch_items=branch_items,
+                model_input=model_input,
             )
             if direct is not None:
                 return direct
             context_records = await self._context_records(run)
-            branch_items = _restore_agent_input(
+            model_input = _restore_agent_input(
                 context_records,
                 run_id=run.id,
                 agent_name=agent_name,
-                branch_id=branch_id,
                 initial_input_items=initial_input_items,
             )
         result = await self.execution_engine.execute(
-            branch_id=branch_id,
-            input_items=tuple(
-                dict(item) for item in branch_items
-            ),
+            input_items=tuple(dict(item) for item in model_input),
             port=_LoopExecutionPort(
                 loop=self,
                 run=run,
@@ -402,7 +488,7 @@ class AgentLoop:
         run: AgentRun,
         calls: tuple[_PendingToolCall, ...],
         as_of_date: date | None,
-        branch_items: list[dict[str, Any]],
+        model_input: list[dict[str, Any]],
     ) -> AgentAnswer | None:
         available = frozenset(self.runtime.tools.tool_names)
         for call in calls:
@@ -416,7 +502,7 @@ class AgentLoop:
                         "tool_name": call.name,
                     },
                 )
-            branch_items.append(
+            model_input.append(
                 await self._execute_tool(
                     run=run,
                     call=call,
@@ -475,9 +561,9 @@ class AgentLoop:
         output_item = {
             "type": "function_call_output",
             "call_id": call.call_id,
-            "output": execution.tool_result.to_function_call_output(),
+            "output": execution.model_output,
         }
-        observation = _function_output_object(output_item["output"])
+        observation = execution.canonical_output
         if _requires_confirmation(observation):
             async with self._persistence_lock:
                 if self._lease_token is None:
@@ -535,7 +621,6 @@ class AgentLoop:
         *,
         run: AgentRun,
         agent_name: str,
-        branch_id: str,
         response_id: str,
         output_items: tuple[dict[str, Any], ...],
     ) -> None:
@@ -546,7 +631,6 @@ class AgentLoop:
                 item_key=_model_item_key(
                     run_id=run.id,
                     agent_name=agent_name,
-                    branch_id=branch_id,
                     response_id=response_id,
                     index=index,
                     item=item,
@@ -853,6 +937,25 @@ class _LoopExecutionPort(AgentExecutionPort):
             ),
         )
 
+    async def ensure_model_request_fits(
+        self,
+        *,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None:
+        coordinator = self.loop.context_coordinator
+        guard = (
+            getattr(coordinator, "ensure_model_request_fits", None)
+            if coordinator is not None
+            else None
+        )
+        if callable(guard):
+            await guard(
+                run=self.run,
+                input_items=input_items,
+                tools=tools,
+            )
+
     async def invoke_tool(
         self,
         *,
@@ -877,7 +980,6 @@ class _LoopExecutionPort(AgentExecutionPort):
         self,
         *,
         agent_name: str,
-        branch_id: str,
         response_id: str,
         output_items: tuple[dict[str, Any], ...],
     ) -> None:
@@ -885,7 +987,6 @@ class _LoopExecutionPort(AgentExecutionPort):
         await self.loop._persist_model_output(
             run=self.run,
             agent_name=agent_name,
-            branch_id=branch_id,
             response_id=response_id,
             output_items=output_items,
         )
@@ -917,16 +1018,13 @@ def _pending_calls(
     *,
     run_id: UUID,
     agent_name: str,
-    branch_id: str,
 ) -> tuple[_PendingToolCall, ...]:
     outputs = {
         str(record.item.get("call_id") or "")
         for record in context_records
         if record.item.get("type") == "function_call_output"
     }
-    prefix = (
-        f"run:{run_id}:agent:{agent_name}:branch:{branch_id}:"
-    )
+    prefix = f"run:{run_id}:agent:{agent_name}:"
     calls: list[_PendingToolCall] = []
     for record in context_records:
         item = record.item
@@ -979,13 +1077,10 @@ def _restore_agent_input(
     *,
     run_id: UUID,
     agent_name: str,
-    branch_id: str,
     initial_input_items: tuple[dict[str, Any], ...] | None,
 ) -> list[dict[str, Any]]:
     agent_prefix = f"run:{run_id}:agent:"
-    own_prefix = (
-        f"{agent_prefix}{agent_name}:branch:{branch_id}:"
-    )
+    own_prefix = f"{agent_prefix}{agent_name}:"
     if initial_input_items is None:
         base_items = _base_input_before_agent_records(
             context_records,
@@ -1089,7 +1184,6 @@ def _model_item_key(
     *,
     run_id: UUID,
     agent_name: str,
-    branch_id: str,
     response_id: str,
     index: int,
     item: dict[str, Any],
@@ -1100,10 +1194,7 @@ def _model_item_key(
         suffix = f"item:{item['id']}"
     else:
         suffix = f"response:{response_id or 'unknown'}:{index}"
-    return (
-        f"run:{run_id}:agent:{agent_name}:"
-        f"branch:{branch_id}:{suffix}"
-    )
+    return f"run:{run_id}:agent:{agent_name}:{suffix}"
 
 
 def _requires_confirmation(observation: Any) -> bool:
@@ -1121,6 +1212,20 @@ def _function_output_object(output: Any) -> Any:
         return json.loads(output)
     except json.JSONDecodeError:
         return output
+
+
+def _input_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        str(block.get("text") or "")
+        for block in content
+        if isinstance(block, dict)
+        and block.get("type") in {"input_text", "text"}
+        and block.get("text")
+    )
 
 
 def _retryable(code: str) -> bool:

@@ -26,21 +26,17 @@ def test_tool_executor_emits_correlated_outcome_metric(
     registry.register(
         ToolContract(
             name="profile_read",
-            domain="profile",
-                input_schema={
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "private": {"type": "string"},
-                    },
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "private": {"type": "string"},
                 },
+            },
             output_schema={
                 "type": "object",
                 "additionalProperties": True,
             },
-            effect_scope="none",
-            blocking_policy="must_wait",
-            result_dependency="final_response",
         )
     )
     executor = ToolExecutor(
@@ -90,6 +86,67 @@ def test_tool_executor_emits_correlated_outcome_metric(
     assert "model-only" not in records[0].getMessage()
 
 
+def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> None:
+    repository = ToolRepository()
+    registry = ToolContractRegistry()
+    registry.register(
+        ToolContract(
+            name="profile_read",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+            },
+            output_schema={
+                "type": "object",
+                "additionalProperties": True,
+            },
+            model_output_max_bytes=2_048,
+        )
+    )
+    canonical = {"result": "x" * 10_000, "status": "ok"}
+    executor = ToolExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        registry=registry,
+        handlers={
+            "profile_read": lambda _context: ToolResult.json(
+                canonical,
+                model_output={"status": "ok", "result_ref": "stored"},
+            )
+        },
+    )
+    actor = RuntimePrincipal(
+        user_id=repository.owner_user_id,
+        subject=str(repository.owner_user_id),
+        session_id=uuid4(),
+        token_id="token",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset({"agent:run"}),
+    )
+
+    result = asyncio.run(
+        executor.execute(
+            actor=actor,
+            run_id=repository.run.id,
+            tool_name="profile_read",
+            call_id="call-large",
+            args={},
+            request_id="request-large",
+        )
+    )
+
+    assert repository.tool_outputs[0]["output"] == canonical
+    ledger_output = repository.context_items[0].item["output"]
+    assert ledger_output == result.model_output
+    assert len(str(ledger_output).encode("utf-8")) <= 2_048
+    assert __import__("json").loads(str(ledger_output)) == {
+        "result_ref": "stored",
+        "status": "ok",
+    }
+    assert "x" * 1_000 not in str(ledger_output)
+
+
 class ToolRepository:
     def __init__(self) -> None:
         self.owner_user_id = uuid4()
@@ -97,6 +154,8 @@ class ToolRepository:
             id=uuid4(),
             thread_id=uuid4(),
         )
+        self.tool_outputs: list[dict[str, Any]] = []
+        self.context_items: list[Any] = []
 
     async def get_run_for_owner(
         self,
@@ -122,8 +181,10 @@ class ToolRepository:
     async def complete_tool_call(self, *, tool_call: Any, **_kwargs: Any) -> Any:
         return tool_call
 
-    async def create_tool_output(self, **_kwargs: Any) -> Any:
+    async def create_tool_output(self, **kwargs: Any) -> Any:
+        self.tool_outputs.append(kwargs)
         return SimpleNamespace(id=uuid4())
 
-    async def append_context_items(self, **_kwargs: Any) -> None:
+    async def append_context_items(self, **kwargs: Any) -> None:
+        self.context_items.extend(kwargs["items"])
         return None

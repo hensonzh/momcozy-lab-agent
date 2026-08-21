@@ -82,6 +82,7 @@ class Settings:
     agent_worker_lock_ttl_seconds: int = 120
     agent_context_compaction_threshold_tokens: int = 100_000
     agent_context_summary_max_tokens: int = 2_000
+    agent_context_response_reserve_tokens: int = 8_000
     agent_context_compaction_max_attempts: int = 3
     agent_context_compaction_batch_size: int = 2
     agent_context_compaction_concurrency: int = 1
@@ -256,6 +257,10 @@ class Settings:
             agent_context_summary_max_tokens=_env_int(
                 "AGENT_CONTEXT_SUMMARY_MAX_TOKENS",
                 cls.agent_context_summary_max_tokens,
+            ),
+            agent_context_response_reserve_tokens=_env_int(
+                "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS",
+                cls.agent_context_response_reserve_tokens,
             ),
             agent_context_compaction_max_attempts=_env_int(
                 "AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS",
@@ -460,6 +465,10 @@ class Settings:
                 self.agent_context_summary_max_tokens,
             ),
             (
+                "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS",
+                self.agent_context_response_reserve_tokens,
+            ),
+            (
                 "AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS",
                 self.agent_context_compaction_max_attempts,
             ),
@@ -522,6 +531,14 @@ class Settings:
         ):
             errors.append(
                 "AGENT_CONTEXT_SUMMARY_MAX_TOKENS must be below "
+                "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS"
+            )
+        if (
+            self.agent_context_response_reserve_tokens
+            >= self.agent_context_compaction_threshold_tokens
+        ):
+            errors.append(
+                "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS must be below "
                 "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS"
             )
         if (

@@ -10,10 +10,17 @@ recoverable, and safe for attachments.
 
 - Before a Run's first model call, Runtime counts only model-bound history from
   prior **completed** Runs.
-- The current Run's client context and user message, Agent instructions, and
-  Tool definitions do not contribute to the `100000` trigger.
+- That history-only count drives proactive compaction. The current Run's client
+  context and user message, Agent instructions, and Tool definitions do not
+  contribute to this proactive trigger.
 - Compaction is queued only when the history count is strictly greater than
   `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`.
+- Separately, immediately before **every** model call, Runtime asks the provider
+  to count the complete request: stable developer Prompt, materialized current
+  input, all current ToolResults, and the exact Tool schemas sent by the Agents
+  SDK. The request is accepted only when input tokens plus
+  `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
+  guard therefore also runs after Skill loading and ordinary Tool calls.
 - A checkpoint replaces all history through a completed-Run cutoff. There is no
   separately configured raw tail. The cutoff cannot split a function call from
   its output.
@@ -35,6 +42,11 @@ Immediately before any token-count, compaction, or SDK Agent model call, the sha
 capability URLs. Materialized input is ephemeral. `image_url` and `file_url`
 values are not written to the ledger or Replay.
 
+Normalized `client_context` is projected as a bounded `user` item with an
+explicit untrusted-data envelope. It can inform locale, device, screen, and
+workflow context but cannot gain developer/system authority merely because it
+was supplied by the client.
+
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
 materializes attachments, then renders the active Agent instructions as the
 first developer `input_text` block and writes one explicit cache breakpoint on it.
@@ -42,7 +54,9 @@ OpenAI injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment
 URLs remain after it. Request-wide caching uses explicit mode with a `30m`
 minimum lifetime. The same filter runs for CozyMate on its
-initial call and every post-Tool model turn.
+initial call and every post-Tool model turn. The complete-request budget check
+uses this final filtered input and the same converted provider Tool definitions,
+not an earlier approximation of the ledger.
 
 ## Typed low-trust checkpoints
 
@@ -109,7 +123,7 @@ queried as permanent Thread poison.
 
 ## Replay, evals, and operations
 
-Replay v2 exports the frozen Run context state, typed checkpoint metadata, and
+Replay v3 exports the frozen Run context state, typed checkpoint metadata, and
 the current Thread Context Head. Checkpoint content remains redacted unless the
 existing privileged content flag is enabled.
 
@@ -124,6 +138,8 @@ Worker controls:
 - `AGENT_CONTEXT_COMPACTION_BATCH_SIZE` (default `2`)
 - `AGENT_CONTEXT_COMPACTION_CONCURRENCY` (default `1`)
 - `AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS` (default `3`)
+- `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `8000`; must be below the
+  compaction threshold)
 
 Context jobs use the existing worker database lease duration and renewal
 interval; startup validation requires the batch size to cover configured

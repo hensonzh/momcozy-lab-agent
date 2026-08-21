@@ -277,6 +277,98 @@ def test_openai_token_counter_receives_only_materialized_history() -> None:
     }
 
 
+def test_openai_token_counter_forwards_provider_tool_schemas() -> None:
+    client = TokenCountClient(input_tokens=321)
+    counter = OpenAIContextTokenCounter(
+        client=client,
+        model="gpt-5.6-terra",
+    )
+    items = ({"role": "developer", "content": "stable prompt"},)
+    tools = (
+        {
+            "type": "function",
+            "name": "profile_read",
+            "parameters": {"type": "object"},
+        },
+    )
+
+    result = asyncio.run(
+        counter.count(input_items=items, tools=tools)
+    )
+
+    assert result.input_tokens == 321
+    assert client.kwargs == {
+        "model": "gpt-5.6-terra",
+        "input": list(items),
+        "tools": list(tools),
+    }
+
+
+def test_complete_model_request_budget_counts_tools_and_reserves_output() -> None:
+    repository = PipelineRepository()
+    counter = RecordingCounter(input_tokens=81)
+    service = ContextCompactionService(
+        repository=repository,  # type: ignore[arg-type]
+        token_counter=counter,
+        compactor=NeverCompactor(),
+        model_input_resolver=RecordingResolver(
+            resolved_url="https://signed.example/history"
+        ),
+        model="gpt-5.6-terra",
+        threshold_tokens=100,
+        summary_max_tokens=10,
+        response_reserve_tokens=20,
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            service.ensure_model_request_fits(
+                run=repository.run,
+                input_items=(
+                    {"role": "developer", "content": "stable prompt"},
+                    {"role": "user", "content": "current request"},
+                ),
+                tools=(
+                    {
+                        "type": "function",
+                        "name": "profile_read",
+                        "parameters": {"type": "object"},
+                    },
+                ),
+            )
+        )
+
+    assert captured.value.code == "model_context_budget_exceeded"
+    assert captured.value.details["input_tokens"] == 81
+    assert captured.value.details["response_reserve_tokens"] == 20
+    assert counter.request_tools[0][0]["name"] == "profile_read"
+
+
+def test_complete_model_request_budget_allows_exact_reserved_limit() -> None:
+    repository = PipelineRepository()
+    counter = RecordingCounter(input_tokens=80)
+    service = ContextCompactionService(
+        repository=repository,  # type: ignore[arg-type]
+        token_counter=counter,
+        compactor=NeverCompactor(),
+        model_input_resolver=RecordingResolver(
+            resolved_url="https://signed.example/history"
+        ),
+        model="gpt-5.6-terra",
+        threshold_tokens=100,
+        summary_max_tokens=10,
+        response_reserve_tokens=20,
+    )
+
+    asyncio.run(
+        service.ensure_model_request_fits(
+            run=repository.run,
+            input_items=({"role": "user", "content": "request"},),
+            tools=(),
+        )
+    )
+
+
 def test_compaction_worker_fails_closed_on_pinned_model_drift() -> None:
     repository = PipelineRepository()
     compactor = NeverCompactor(model="gpt-5.6-terra")
@@ -391,13 +483,16 @@ class RecordingCounter:
     def __init__(self, *, input_tokens: int) -> None:
         self.input_tokens = input_tokens
         self.calls: list[tuple[dict[str, Any], ...]] = []
+        self.request_tools: list[tuple[dict[str, Any], ...]] = []
 
     async def count(
         self,
         *,
         input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...] = (),
     ) -> Any:
         self.calls.append(input_items)
+        self.request_tools.append(tools)
         return SimpleNamespace(
             input_tokens=self.input_tokens,
             counter=self.counter,

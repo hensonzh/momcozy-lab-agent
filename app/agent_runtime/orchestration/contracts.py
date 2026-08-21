@@ -18,6 +18,13 @@ class AgentExecutionPort(Protocol):
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]: ...
 
+    async def ensure_model_request_fits(
+        self,
+        *,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None: ...
+
     async def invoke_tool(
         self,
         *,
@@ -31,7 +38,6 @@ class AgentExecutionPort(Protocol):
         self,
         *,
         agent_name: str,
-        branch_id: str,
         response_id: str,
         output_items: tuple[dict[str, Any], ...],
     ) -> None: ...
@@ -54,7 +60,6 @@ class AgentExecutionEngine(Protocol):
     async def execute(
         self,
         *,
-        branch_id: str,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
         runtime_context: dict[str, Any] | None = None,
@@ -169,13 +174,6 @@ class ToolCatalog:
             for namespace in self.tool_namespaces
             for tool_name in namespace.tool_names
         )
-
-    def namespace_for_tool(self, tool_name: str) -> str | None:
-        for namespace in self.tool_namespaces:
-            if tool_name in namespace.tool_names:
-                return namespace.name
-        return None
-
 
 @dataclass(frozen=True)
 class RuntimeDefinition:

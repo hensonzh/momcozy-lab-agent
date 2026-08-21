@@ -5,7 +5,6 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-import pytest
 from agents import FunctionTool, ToolSearchTool
 
 from app.agent_runtime.orchestration import (
@@ -23,7 +22,6 @@ from app.agent import (
     SERVICE_SKILL_REGISTRY,
 )
 from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
-from app.core.errors import ApiError
 
 
 def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> None:
@@ -45,7 +43,6 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
 
     result = asyncio.run(
         _engine(model).execute(
-            branch_id="main",
             input_items=(
                 {"role": "user", "content": "帮我开始孕期计划"},
             ),
@@ -71,6 +68,16 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
     skill = SERVICE_SKILL_REGISTRY.get("prenatal")
     assert output["content"] == skill.content
     assert output["content_sha256"] == skill.content_sha256
+    assert len(port.model_budget_requests) == 2
+    budget_output_item = next(
+        item
+        for item in port.model_budget_requests[1][0]
+        if item.get("type") == "function_call_output"
+        and item.get("call_id") == "load-prenatal"
+    )
+    assert json.loads(str(budget_output_item["output"]))[
+        "content"
+    ] == skill.content
     assert not any(
         item.get("role") == "developer"
         and skill.content in str(item.get("content"))
@@ -86,7 +93,6 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
 
     asyncio.run(
         _engine(model).execute(
-            branch_id="main",
             input_items=({"role": "user", "content": "你好"},),
             port=port,
         )
@@ -123,43 +129,6 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
     )["defer_loading"] is False
 
 
-def test_skill_loader_must_be_the_only_function_call_in_its_model_turn() -> None:
-    model = ScriptedAgentModel(
-        {
-            "cozymate": [
-                ScriptedTurn.calls(
-                    ScriptedToolCall(
-                        call_id="load-prenatal",
-                        name=LOAD_SERVICE_SKILL_TOOL_NAME,
-                        arguments={"skill_id": "prenatal"},
-                    ),
-                    ScriptedToolCall(
-                        call_id="profile-read",
-                        name="profile_read",
-                        namespace="profile",
-                        arguments={},
-                    ),
-                )
-            ]
-        }
-    )
-    port = RecordingExecutionPort()
-
-    with pytest.raises(ApiError) as captured:
-        asyncio.run(
-            _engine(model).execute(
-                branch_id="main",
-                input_items=(
-                    {"role": "user", "content": "读取资料并做孕期计划"},
-                ),
-                port=port,
-            )
-        )
-
-    assert captured.value.code == "agent_tool_sequence_invalid"
-    assert port.tool_calls == []
-
-
 def _engine(model: Any) -> OpenAIAgentsExecutionEngine:
     return OpenAIAgentsExecutionEngine(
         model=model,
@@ -176,6 +145,12 @@ class RecordingExecutionPort:
         default_factory=list
     )
     manifests: list[dict[str, Any]] = field(default_factory=list)
+    model_budget_requests: list[
+        tuple[
+            tuple[dict[str, Any], ...],
+            tuple[dict[str, Any], ...],
+        ]
+    ] = field(default_factory=list)
 
     async def resolve_model_input(
         self,
@@ -183,6 +158,14 @@ class RecordingExecutionPort:
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]:
         return input_items
+
+    async def ensure_model_request_fits(
+        self,
+        *,
+        input_items: tuple[dict[str, Any], ...],
+        tools: tuple[dict[str, Any], ...],
+    ) -> None:
+        self.model_budget_requests.append((input_items, tools))
 
     async def invoke_tool(
         self,
@@ -210,7 +193,6 @@ class RecordingExecutionPort:
         self,
         *,
         agent_name: str,
-        branch_id: str,
         response_id: str,
         output_items: tuple[dict[str, Any], ...],
     ) -> None:

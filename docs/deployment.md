@@ -37,7 +37,14 @@ recreating the Runtime database before this baseline is deployed.
    `AGENT_WORKER_DB_LEASE_DURATION_SECONDS` at least one lease-renewal interval
    longer. The execution contract gate must prove that the single Agent stream
    stops at the configured wall-clock deadline.
-10. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
+10. Set `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` below
+    `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`, and verify the complete-request
+    budget gate with production Tool schemas. A Skill loader result must remain
+    complete; handlers for ordinary large ToolResults must define an explicit,
+    bounded `model_output`.
+11. Verify deterministic safety cases complete with a durable
+    `safety.decision` and no model or Tool invocation.
+12. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
    action application, terminal events, ready health, and the durable
    context-compaction/next-Run gate described in
    [context-compaction.md](context-compaction.md).
