@@ -377,9 +377,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     assert set(namespaces) == {
         "profile",
         "planning",
-        "diary",
         "attachments",
-        "prenatal",
         "lactation",
         "device",
     }

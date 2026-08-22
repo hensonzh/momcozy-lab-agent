@@ -19,9 +19,8 @@ from .tool_catalog import LOAD_SERVICE_SKILL_TOOL_NAME
 
 
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
-ServiceSkillName = Literal["prenatal", "lactation", "device"]
+ServiceSkillName = Literal["lactation", "device"]
 SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = (
-    "prenatal",
     "lactation",
     "device",
 )
@@ -151,7 +150,7 @@ def service_skill_tool_registry() -> ToolContractRegistry:
             required_permissions=("agent:run",),
             description=(
                 "加载一个版本化服务 Skill，并以普通工具结果返回完整 SKILL.md。"
-                "当当前请求需要孕期、泌乳或设备专业工作流且同版本 Skill 尚未进入上下文时使用。"
+                "当当前请求需要泌乳或设备专业工作流且同版本 Skill 尚未进入上下文时使用。"
             ),
             input_schema={
                 "type": "object",

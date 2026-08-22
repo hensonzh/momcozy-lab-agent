@@ -13,18 +13,9 @@ from .device_guidance import (
     DeviceGuidanceManageToolHandler,
     device_guidance_tool_registry,
 )
-from .hospital_bag import (
-    HospitalBagCartMutateToolHandler,
-    HospitalBagManageToolHandler,
-    hospital_bag_tool_registry,
-)
 from .ibclc import (
     IbclcConsultCardCreateToolHandler,
     ibclc_tool_registry,
-)
-from .pregnancy_intake import (
-    PregnancyIntakeManageToolHandler,
-    pregnancy_intake_tool_registry,
 )
 from .pump_models import (
     PumpModelsReadToolHandler,
@@ -40,8 +31,6 @@ _REGISTRY_FACTORIES: tuple[
     Callable[[], ToolContractRegistry],
     ...,
 ] = (
-    pregnancy_intake_tool_registry,
-    hospital_bag_tool_registry,
     ibclc_tool_registry,
     device_guidance_tool_registry,
     pump_models_tool_registry,
@@ -64,15 +53,6 @@ def runtime_capability_tool_handlers(
     action_proposer: ActionProposer,
 ) -> dict[str, ToolHandler]:
     return {
-        "pregnancy_intake_manage": PregnancyIntakeManageToolHandler(
-            repository=repository
-        ),
-        "hospital_bag_manage": HospitalBagManageToolHandler(
-            repository=repository
-        ),
-        "hospital_bag_cart_mutate": HospitalBagCartMutateToolHandler(
-            action_proposer=action_proposer
-        ),
         "ibclc_consult_card_create": IbclcConsultCardCreateToolHandler(
             repository=repository
         ),

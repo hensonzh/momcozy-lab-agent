@@ -50,7 +50,6 @@ from app.infrastructure.redis import (
     close_redis_client,
     create_redis_client,
 )
-from app.capabilities.hospital_bag import HOSPITAL_BAG_CART_UPDATE_ACTION
 
 from .agent_run import AgentRunWorker
 
@@ -209,7 +208,6 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     action_service=action_service,
                 )
                 action_types = set(build_product_action_applicators(product_client))
-                action_types.add(HOSPITAL_BAG_CART_UPDATE_ACTION)
                 validate_runtime_composition(
                     registry=registry,
                     handlers=handlers,

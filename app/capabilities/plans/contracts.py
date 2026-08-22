@@ -18,7 +18,6 @@ from app.infrastructure.product_backend.plans_contracts import (
     PlanUpdatePayload,
     PlansActionPayload,
     PlansActionType,
-    PregnancyPlanCreatePayload,
     ScheduleDomain,
 )
 
@@ -52,10 +51,8 @@ class PlanReadArguments(_StrictArguments):
 
 
 class PlanMutateArguments(_StrictArguments):
-    operation: Literal["create", "update", "delete"]
-    plan_type: Literal["pregnancy"] | None = None
-    scope: Literal["full", "prenatal_only", "short_range"] = "full"
-    plan_id: UUID | None = None
+    operation: Literal["update", "delete"]
+    plan_id: UUID
     expected_version: int | None = Field(default=None, ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=255)
     summary: str | None = Field(default=None, max_length=20_000)
@@ -64,27 +61,12 @@ class PlanMutateArguments(_StrictArguments):
     @model_validator(mode="after")
     def validate_operation(self) -> PlanMutateArguments:
         supplied = self.model_fields_set - {"operation"}
-        if self.operation == "create":
-            if self.plan_type != "pregnancy":
-                raise ValueError("pregnancy create requires plan_type")
-            if supplied & {
-                "plan_id",
-                "expected_version",
-                "title",
-                "reason",
-            }:
-                raise ValueError("create contains unsupported fields")
-            return self
-        if self.plan_id is None:
-            raise ValueError("plan_id is required")
         if self.operation == "update":
             if self.expected_version is None:
                 raise ValueError("expected_version is required")
             if self.title is None and "summary" not in self.model_fields_set:
                 raise ValueError("title or summary is required")
             if supplied & {
-                "plan_type",
-                "scope",
                 "reason",
             }:
                 raise ValueError("update contains unsupported fields")
@@ -98,22 +80,7 @@ class PlanMutateArguments(_StrictArguments):
 
     def to_action(
         self,
-        *,
-        runtime_plan_context: dict[str, Any] | None = None,
     ) -> tuple[PlansActionType, PlansActionPayload]:
-        if self.operation == "create":
-            plan_context = dict(runtime_plan_context or {})
-            return (
-                "pregnancy.plan.create",
-                PregnancyPlanCreatePayload(
-                    title="孕期计划",
-                    summary=self.summary or "",
-                    payload={
-                        "scope": self.scope,
-                        "plan_context": plan_context,
-                    },
-                ),
-            )
         if self.operation == "update":
             return (
                 "plans.plan.update",
@@ -125,10 +92,7 @@ class PlanMutateArguments(_StrictArguments):
                     )
                 ),
             )
-        return (
-            "plans.plan.delete",
-            PlanDeletePayload(plan_id=cast(UUID, self.plan_id), reason=self.reason),
-        )
+        return ("plans.plan.delete", PlanDeletePayload(plan_id=self.plan_id, reason=self.reason))
 
 
 class ScheduleTimelineReadArguments(_StrictArguments):

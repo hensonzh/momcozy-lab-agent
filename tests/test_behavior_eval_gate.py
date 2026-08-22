@@ -37,7 +37,8 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     assert suite.replay_contract_version == "agent_run_replay.v1"
     assert {case.id for case in suite.cases} == {
         "general_health_answer",
-        "prenatal_skill_workflow",
+        "diary_capability_unavailable",
+        "prenatal_planning_capability_unavailable",
         "lactation_skill_workflow",
         "lactation_pumping_record_drilldown",
         "lactation_infant_feeding_focus",
@@ -164,8 +165,8 @@ def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_ev
     case_payload["structural_expectation"] = {
         "terminal_status": "completed",
         "responding_agent": "cozymate",
-        "exact_loaded_skills": ["prenatal", "lactation"],
-        "required_tools": ["hospital_bag_manage"],
+        "exact_loaded_skills": ["lactation", "device"],
+        "required_tools": ["devices_guidance_manage"],
         "forbidden_tools": ["profile_update"],
         "forbid_actions": True,
         "require_final_response_event": True,
@@ -179,11 +180,11 @@ def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_ev
     run_id = uuid4()
     bundle = _replay_bundle(run_id=run_id)
     loader_tool_id = str(uuid4())
-    bundle["events"].insert(1, _skill_event("prenatal", loader_tool_id))
+    bundle["events"].insert(1, _skill_event("lactation", loader_tool_id))
     bundle["tool_calls"] = [
         {
             "id": loader_tool_id,
-            "call_id": "load-prenatal",
+            "call_id": "load-lactation",
             "tool_name": "load_service_skill",
             "status": "completed",
         },

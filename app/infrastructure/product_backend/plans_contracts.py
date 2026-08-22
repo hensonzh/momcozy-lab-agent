@@ -16,7 +16,6 @@ PlansActionType = Literal[
     "plans.task.delete",
     "plans.plan.update",
     "plans.plan.delete",
-    "pregnancy.plan.create",
     "plans.milk_schedule.reschedule",
 ]
 ScheduleDomain = Literal[
@@ -146,12 +145,6 @@ class PlanDeletePayload(_StrictContract):
     reason: str = Field(default="", max_length=500)
 
 
-class PregnancyPlanCreatePayload(_StrictContract):
-    title: str = Field(min_length=1, max_length=255)
-    summary: str = Field(default="", max_length=20_000)
-    payload: dict[str, Any]
-
-
 class MilkScheduleUpdate(_StrictContract):
     task_id: UUID
     expected_plan_id: UUID
@@ -198,7 +191,6 @@ PlansActionPayload = (
     | PlanTaskDeletePayload
     | PlanUpdatePayload
     | PlanDeletePayload
-    | PregnancyPlanCreatePayload
     | MilkScheduleReschedulePayload
 )
 _ACTION_PAYLOAD_MODELS: dict[PlansActionType, type[BaseModel]] = {
@@ -208,7 +200,6 @@ _ACTION_PAYLOAD_MODELS: dict[PlansActionType, type[BaseModel]] = {
     "plans.task.delete": PlanTaskDeletePayload,
     "plans.plan.update": PlanUpdatePayload,
     "plans.plan.delete": PlanDeletePayload,
-    "pregnancy.plan.create": PregnancyPlanCreatePayload,
     "plans.milk_schedule.reschedule": MilkScheduleReschedulePayload,
 }
 

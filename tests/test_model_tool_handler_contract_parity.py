@@ -10,14 +10,9 @@ from uuid import UUID, uuid4
 from app.agent_runtime.actions import ActionProposal, ActionProposed
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.tools import ToolHandlerContext
-from app.agent_runtime.tools.trusted import TrustedToolArgumentsProvider
 from app.capabilities.plans import (
     PlanMutateToolHandler,
     ScheduleTimelineMutateToolHandler,
-)
-from app.capabilities.hospital_bag import (
-    DEFAULT_HOSPITAL_BAG_CART_GROUPS,
-    reduce_hospital_bag_cart,
 )
 from app.capabilities.device_guidance import (
     DeviceGuidanceManageToolHandler,
@@ -116,54 +111,6 @@ def test_plan_mutate_success_output_is_json_serializable() -> None:
     assert str(action_id) in encoded
 
 
-def test_cart_next_state_is_reloaded_for_a_later_run() -> None:
-    removed = reduce_hospital_bag_cart(
-        arguments={
-            "operation": "remove_items",
-            "item_ids": ["mom-wipes"],
-        },
-        runtime_cart={
-            "groups": DEFAULT_HOSPITAL_BAG_CART_GROUPS,
-        },
-        pump_products=[],
-    )
-    repository = _TrustedCartRepository(cart_update=removed)
-    provider = TrustedToolArgumentsProvider(
-        repository=repository,
-        product_client=cast(Any, object()),
-    )
-    run = SimpleNamespace(
-        id=RUN_ID,
-        thread_id=THREAD_ID,
-        actor_user_id=OWNER_ID,
-        request_id="request",
-    )
-
-    trusted = asyncio.run(
-        provider.build(
-            run=cast(Any, run),
-            tool_name="hospital_bag_cart_mutate",
-            model_args={
-                "operation": "restore_items",
-                "item_ids": ["mom-wipes"],
-            },
-            context_records=[],
-            as_of_date=date(2026, 7, 27),
-        )
-    )
-    restored = reduce_hospital_bag_cart(
-        arguments={
-            "operation": "restore_items",
-            "item_ids": ["mom-wipes"],
-        },
-        runtime_cart=trusted["runtime_cart"],
-        pump_products=[],
-    )
-
-    assert "mom-wipes" not in _cart_item_ids(removed)
-    assert "mom-wipes" in _cart_item_ids(restored)
-
-
 class _RecordingProposer:
     proposal: ActionProposal | None = None
 
@@ -197,45 +144,6 @@ class _ArtifactRepository:
 
     async def append_event(self, **kwargs: Any) -> None:
         return None
-
-
-class _TrustedCartRepository:
-    def __init__(self, *, cart_update: dict[str, Any]) -> None:
-        self.cart_update = cart_update
-
-    async def get_latest_user_message_for_run(
-        self,
-        *,
-        run_id: Any,
-    ) -> Any:
-        return SimpleNamespace(
-            content={
-                "text": "把湿巾加回来",
-                "client_context": {},
-            }
-        )
-
-    async def get_latest_artifact_for_thread_owner(
-        self,
-        **kwargs: Any,
-    ) -> Any:
-        return SimpleNamespace(
-            payload={"cart_update": self.cart_update}
-        )
-
-    async def get_latest_workflow_state_for_owner(
-        self,
-        **kwargs: Any,
-    ) -> Any | None:
-        return None
-
-
-def _cart_item_ids(cart_update: dict[str, Any]) -> set[str]:
-    return {
-        str(item["id"])
-        for group in cart_update["groups"]
-        for item in group["items"]
-    }
 
 
 def _context(

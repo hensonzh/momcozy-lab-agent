@@ -9,8 +9,6 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.agent_runtime.actions import ActionApplyResult, ActionProposal, ActionProposed
-from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.tools import ToolHandlerContext
 from app.capabilities.conversation_history_image import (
@@ -22,19 +20,9 @@ from app.capabilities.device_guidance import (
     DEVICE_GUIDANCE_TOOL_NAMES,
     DeviceGuidanceManageToolHandler,
 )
-from app.capabilities.hospital_bag import (
-    HOSPITAL_BAG_TOOL_NAMES,
-    HospitalBagCartActionApplicator,
-    HospitalBagCartMutateToolHandler,
-    HospitalBagManageToolHandler,
-)
 from app.capabilities.ibclc import (
     IBCLC_TOOL_NAMES,
     IbclcConsultCardCreateToolHandler,
-)
-from app.capabilities.pregnancy_intake import (
-    PREGNANCY_INTAKE_TOOL_NAMES,
-    PregnancyIntakeManageToolHandler,
 )
 from app.capabilities.pump_models import (
     PUMP_MODELS_TOOL_NAMES,
@@ -55,20 +43,12 @@ def test_capability_registry_matches_global_catalog_and_action_boundary() -> Non
     assert set(registry.names_for_sdk()) == {
         "conversation_history_image_read",
         "devices_guidance_manage",
-        "hospital_bag_cart_mutate",
-        "hospital_bag_manage",
         "ibclc_consult_card_create",
-        "pregnancy_intake_manage",
         "pump_models_read",
         "support_ticket_draft_create",
     }
     assert CONVERSATION_HISTORY_IMAGE_TOOL_NAMES == (
         "conversation_history_image_read",
-    )
-    assert PREGNANCY_INTAKE_TOOL_NAMES + HOSPITAL_BAG_TOOL_NAMES == (
-        "pregnancy_intake_manage",
-        "hospital_bag_manage",
-        "hospital_bag_cart_mutate",
     )
     assert IBCLC_TOOL_NAMES == (
         "ibclc_consult_card_create",
@@ -82,8 +62,6 @@ def test_capability_registry_matches_global_catalog_and_action_boundary() -> Non
         "pump_models_read",
         "support_ticket_draft_create",
     )
-    cart = registry.get("hospital_bag_cart_mutate")
-    assert cart.action_types == ("hospital_bag.cart.update",)
 
 
 def test_history_image_contract_does_not_accept_asset_id_or_url() -> None:
@@ -172,117 +150,6 @@ def test_support_ticket_create_persists_draft_without_external_action() -> None:
     assert store.artifacts[-1].payload["submission_status"] == "draft"
 
 
-def test_pregnancy_intake_pause_resume_abandon_events_are_explicit() -> None:
-    store = FakeNativeRepository()
-    handler = PregnancyIntakeManageToolHandler(
-        repository=cast(RuntimeLedgerRepository, store)
-    )
-
-    asyncio.run(
-        handler(_context(args={"command": "start_or_resume"}))
-    )
-    paused = asyncio.run(
-        handler(_context(args={"command": "pause"}))
-    ).canonical_output
-    resumed = asyncio.run(
-        handler(_context(args={"command": "resume"}))
-    ).canonical_output
-    abandoned = asyncio.run(
-        handler(_context(args={"command": "abandon"}))
-    ).canonical_output
-
-    assert paused["status"] == "intake_paused"
-    assert resumed["status"] == "intake_resumed"
-    assert abandoned["status"] == "intake_abandoned"
-    assert store.workflow_event_types[-3:] == [
-        "pregnancy_plan.paused",
-        "pregnancy_plan.resumed",
-        "pregnancy_plan.abandoned",
-    ]
-    focus_areas = next(
-        field
-        for field in store.artifacts[0].payload["form"]["fields"]
-        if field["id"] == "focus_areas"
-    )
-    assert focus_areas["type"] == "multi_select"
-
-
-def test_hospital_bag_flow_persists_and_resumes_the_same_form() -> None:
-    store = FakeNativeRepository()
-    handler = HospitalBagManageToolHandler(repository=cast(RuntimeLedgerRepository, store))
-
-    first = asyncio.run(
-        handler(
-            _context(
-                args={
-                    "generation_mode": "standard",
-                }
-            )
-        )
-    ).canonical_output
-    resumed = asyncio.run(
-        handler(_context(args={}))
-    ).canonical_output
-
-    assert first["status"] == "intake_required"
-    assert resumed["status"] == "intake_required"
-    assert resumed["reused"] is True
-    assert resumed["artifact_id"] == first["artifact_id"]
-    assert len(store.artifacts) == 1
-    assert store.workflow is not None
-    assert store.workflow.owner_user_id == OWNER_ID
-    assert store.workflow.thread_id == THREAD_ID
-
-
-def test_hospital_bag_submission_creates_card_and_completes_workflow() -> None:
-    store = FakeNativeRepository()
-    handler = HospitalBagManageToolHandler(repository=cast(RuntimeLedgerRepository, store))
-    started = asyncio.run(
-        handler(
-            _context(
-                args={
-                    "generation_mode": "immediate",
-                }
-            )
-        )
-    ).canonical_output
-
-    completed = asyncio.run(
-        handler(
-            _context(
-                args={"generation_mode": "immediate"},
-                trusted_args={
-                    "form_artifact_id": started["artifact_id"],
-                    "form_submission_id": "submission-1",
-                    "confirmed_form_data": {
-                        "due_date": "2026-08-18",
-                        "delivery_method": "unknown",
-                        "feeding_plan": "breastfeeding",
-                        "hospital_stay_days": 3,
-                    },
-                },
-            )
-        )
-    ).canonical_output
-
-    assert completed["status"] == "card_ready"
-    assert store.artifacts[-1].artifact_type == "hospital_bag_card"
-    card = store.artifacts[-1].payload
-    assert card["card_type"] == "hospital_bag_card"
-    assert card["generation_mode"] == "immediate"
-    assert "groups" not in card
-    assert card["packing_groups"]
-    assert all(
-        isinstance(item, dict)
-        and isinstance(item.get("id"), str)
-        and item["id"]
-        and isinstance(item.get("label"), str)
-        and item["label"]
-        for group in card["packing_groups"]
-        for item in group["items"]
-    )
-    assert store.workflow is not None
-    assert store.workflow.status == "completed"
 
 
 def test_device_walkthrough_is_durable_and_advances_one_step() -> None:
@@ -379,78 +246,6 @@ def test_history_image_can_reinject_runtime_artifact_image() -> None:
     }
 
 
-def test_hospital_bag_cart_mutate_uses_runtime_action_and_applicator() -> None:
-    proposer = RecordingActionProposer()
-    handler = HospitalBagCartMutateToolHandler(
-        action_proposer=proposer
-    )
-
-    result = asyncio.run(
-        handler(
-            _context(
-                args={
-                    "operation": "update_quantity",
-                    "quantity_updates": [
-                        {"item_id": "mom-wipes", "qty": 2}
-                    ],
-                },
-                trusted_args={
-                    "runtime_cart": {
-                        "groups": [
-                            {
-                                "title": "妈妈护理",
-                                "tone": "rose",
-                                "items": [
-                                    {
-                                        "id": "mom-wipes",
-                                        "name": "产后护理湿巾",
-                                        "qty": 1,
-                                        "price": 29.9,
-                                    }
-                                ],
-                            }
-                        ],
-                        "totals": {},
-                    }
-                },
-            )
-        )
-    ).canonical_output
-
-    assert proposer.proposal is not None
-    assert proposer.proposal.actor_user_id == OWNER_ID
-    assert proposer.proposal.action_type == "hospital_bag.cart.update"
-    assert result["action_status"] == "applied"
-
-    store = FakeNativeRepository()
-    action = AgentAction(
-        id=uuid4(),
-        run_id=RUN_ID,
-        actor_user_id=OWNER_ID,
-        action_type="hospital_bag.cart.update",
-        target_type="hospital_bag_cart",
-        target_id="current",
-        status="applying",
-        side_effect_level="low",
-        preview_payload={},
-        apply_payload=proposer.proposal.apply_payload,
-        idempotency_key="cart-call",
-    )
-    applied: ActionApplyResult = asyncio.run(HospitalBagCartActionApplicator(repository=cast(RuntimeLedgerRepository, store))(action))
-
-    assert applied.resource_type == "hospital_bag_cart"
-    assert store.artifacts[-1].artifact_type == "hospital_bag_cart"
-    assert store.artifacts[-1].owner_user_id == OWNER_ID
-    artifact_event = applied.application_events[0]
-    assert artifact_event["type"] == "artifact.created"
-    assert artifact_event["payload"]["artifact"] == {
-        "id": str(store.artifacts[-1].id),
-        "artifact_type": "hospital_bag_cart",
-        "schema_version": "v1",
-        "status": "created",
-        "payload": store.artifacts[-1].payload,
-        "raw_payload_ref": "",
-    }
 
 
 OWNER_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -484,18 +279,6 @@ def _context(
     )
 
 
-class RecordingActionProposer:
-    def __init__(self) -> None:
-        self.proposal: ActionProposal | None = None
-
-    async def propose_action(self, proposal: ActionProposal) -> ActionProposed:
-        self.proposal = proposal
-        return ActionProposed(
-            id=uuid4(),
-            action_type=proposal.action_type,
-            status="applied",
-            requires_confirmation=False,
-        )
 
 
 class FakeNativeRepository:

@@ -50,7 +50,6 @@ def test_plans_registry_exposes_four_canonical_tools() -> None:
         *SCHEDULE_TIMELINE_TOOL_NAMES,
     }
     assert registry.get("plan_mutate").action_types == (
-        "pregnancy.plan.create",
         "plans.plan.update",
         "plans.plan.delete",
     )
@@ -92,14 +91,6 @@ def test_plan_read_selects_current_or_detail() -> None:
     (
         (
             {
-                "operation": "create",
-                "plan_type": "pregnancy",
-            },
-            "pregnancy.plan.create",
-            "new",
-        ),
-        (
-            {
                 "operation": "update",
                 "plan_id": "__plan__",
                 "expected_version": 2,
@@ -130,25 +121,11 @@ def test_plan_mutate_normalizes_plan_lifecycle_actions(
         for key, value in args.items()
     }
     proposer = RecordingActionProposer()
-    operation = str(normalized["operation"])
-    trusted_args = (
-        {
-            "runtime_workflow_context": {
-                "phase": "ready_to_generate"
-            },
-            "runtime_plan_context": {
-                "plan_context": {"due_date": "2026-10-01"}
-            },
-        }
-        if operation == "create"
-        else None
-    )
     result = asyncio.run(
         PlanMutateToolHandler(action_proposer=proposer)(
             _context(
                 tool_name="plan_mutate",
                 args=normalized,
-                trusted_args=trusted_args,
             )
         )
     )
@@ -156,9 +133,7 @@ def test_plan_mutate_normalizes_plan_lifecycle_actions(
     assert proposer.proposal is not None
     assert proposer.proposal.action_type == action_type
     assert proposer.proposal.target_type == "plan"
-    assert proposer.proposal.target_id == (
-        str(plan_id) if target_id == "__plan__" else target_id
-    )
+    assert proposer.proposal.target_id == str(plan_id)
     assert result.canonical_output["action_type"] == action_type
 
 

@@ -43,12 +43,6 @@ def _validate(tool_name: str, value: dict[str, Any]) -> None:
     validate_tool_input(schema=contract.input_schema, value=value)
 
 
-def _validate_internal(tool_name: str, value: dict[str, Any]) -> None:
-    contract = default_tool_registry().get(tool_name)
-    assert contract.internal_input_schema is not None
-    validate_tool_input(schema=contract.internal_input_schema, value=value)
-
-
 def _assert_invalid(tool_name: str, value: dict[str, Any]) -> None:
     with pytest.raises(ApiError) as exc_info:
         _validate(tool_name, value)
@@ -194,11 +188,6 @@ def test_profile_update_rejects_values_that_only_match_a_shallow_any_of(
             },
         ),
         ("get_lactation_summary", {"timezone": "Asia/Shanghai"}),
-        (
-            "diary_read",
-            {"entry_date": "2026-07-26", "start_date": "2026-07-01"},
-        ),
-        ("diary_mutate", {"operation": "delete"}),
         ("devices_guidance_manage", {"operation": "read", "model": "Air1"}),
         (
             "devices_guidance_manage",
@@ -215,15 +204,6 @@ def test_profile_update_rejects_values_that_only_match_a_shallow_any_of(
                 "plan_type": "pregnancy",
             },
         ),
-        ("pregnancy_intake_manage", {"command": "edit_answer", "answer": "改成自然分娩"}),
-        ("pregnancy_intake_manage", {"command": "submit_form"}),
-        ("hospital_bag_manage", {"generation_mode": "quick"}),
-        ("hospital_bag_cart_mutate", {"operation": "optimize_budget"}),
-        (
-            "hospital_bag_cart_mutate",
-            {"operation": "replace_pump_model", "product_sku_id": "air1"},
-        ),
-        ("hospital_bag_cart_mutate", {"operation": "clarify"}),
         (
             "ibclc_consult_card_create",
             {"operation": "create", "reason": "衔乳疼痛"},
@@ -261,34 +241,18 @@ def test_operation_specific_contracts_reject_irrelevant_or_incomplete_inputs(
             },
         ),
         ("get_lactation_summary", {"days": 7}),
-        ("diary_read", {}),
-        ("diary_read", {"entry_date": "2026-07-26"}),
-        (
-            "diary_mutate",
-            {
-                "operation": "delete",
-                "entry_date": "2026-07-26",
-            },
-        ),
         (
             "devices_guidance_manage",
             {"operation": "read", "model": "Air1", "topic": "cleaning"},
         ),
         ("devices_guidance_manage", {"operation": "complete_current"}),
         ("plan_read", {"mode": "detail", "plan_id": "10000000-0000-4000-8000-000000000001"}),
-        ("plan_mutate", {"operation": "create", "plan_type": "pregnancy"}),
         (
             "plan_mutate",
             {
                 "operation": "delete",
                 "plan_id": "10000000-0000-4000-8000-000000000001",
             },
-        ),
-        ("pregnancy_intake_manage", {"command": "pause"}),
-        ("hospital_bag_manage", {"generation_mode": "standard"}),
-        (
-            "hospital_bag_cart_mutate",
-            {"operation": "set_pump_model", "product_sku_id": "air1"},
         ),
         ("ibclc_consult_card_create", {"reason": "衔乳疼痛"}),
         ("support_ticket_draft_create", {"issue_summary": "吸奶器无法开机"}),
@@ -402,107 +366,6 @@ def test_execution_measurements_have_units_and_typo_resistant_bounds() -> None:
     )
 
 
-def test_pregnancy_answer_contract_separates_model_intent_from_structured_client_state() -> None:
-    model_schema = default_tool_registry().get("pregnancy_intake_manage").input_schema
-    answer_variants = [
-        variant
-        for variant in model_schema["anyOf"]
-        if variant["properties"]["command"]["enum"] == ["answer_current"]
-    ]
-
-    assert len(answer_variants) == 3
-    assert all("step_id" not in variant["properties"] for variant in answer_variants)
-    _validate(
-        "pregnancy_intake_manage",
-        {"command": "answer_current", "choice_id": "confirm_no_checkup_yet"},
-    )
-    _validate(
-        "pregnancy_intake_manage",
-        {"command": "answer_current", "answer": "还没有做过产检"},
-    )
-    _validate(
-        "pregnancy_intake_manage",
-        {
-            "command": "answer_current",
-            "choice_id": "submit_final_additional_info",
-            "answer": "希望把下次产检时间放进计划",
-        },
-    )
-    _assert_invalid(
-        "pregnancy_intake_manage",
-        {
-            "command": "answer_current",
-            "step_id": "checkup_done_question",
-            "choice_id": "confirm_no_checkup_yet",
-        },
-    )
-    _validate_internal(
-        "pregnancy_intake_manage",
-        {
-            "command": "answer_current",
-            "step_id": "checkup_done_question",
-            "choice_id": "confirm_no_checkup_yet",
-        },
-    )
-
-
-def test_hospital_bag_budget_contract_exposes_only_implemented_modes_and_preferences() -> None:
-    variants = default_tool_registry().get("hospital_bag_cart_mutate").input_schema["anyOf"]
-    optimize_variants = [
-        variant
-        for variant in variants
-        if variant["properties"]["operation"]["enum"] == ["optimize_budget"]
-    ]
-
-    assert len(optimize_variants) == 2
-    target_variant = next(
-        variant for variant in optimize_variants if "target_budget" in variant["properties"]
-    )
-    mode_variant = next(
-        variant for variant in optimize_variants if "budget_mode" in variant["properties"]
-    )
-    assert "budget_mode" not in target_variant["properties"]
-    assert "target_budget" not in mode_variant["properties"]
-    assert mode_variant["properties"]["budget_mode"]["enum"] == ["cheaper", "minimal"]
-    assert target_variant["properties"]["preference"]["enum"] == [
-        "balanced",
-        "comfort",
-        "breastfeeding",
-    ]
-    assert mode_variant["properties"]["preference"]["enum"] == [
-        "balanced",
-        "comfort",
-        "breastfeeding",
-    ]
-    restore_variant = next(
-        variant
-        for variant in variants
-        if variant["properties"]["operation"]["enum"] == ["restore_items"]
-    )
-    assert "默认清单" in restore_variant["properties"]["item_ids"]["description"]
-    assert "当前已不在购物车" in restore_variant["properties"]["item_ids"]["description"]
-    _validate(
-        "hospital_bag_cart_mutate",
-        {"operation": "optimize_budget", "target_budget": 1500},
-    )
-    _assert_invalid(
-        "hospital_bag_cart_mutate",
-        {"operation": "optimize_budget", "target_budget": 0},
-    )
-    _validate(
-        "hospital_bag_cart_mutate",
-        {"operation": "optimize_budget", "budget_mode": "minimal"},
-    )
-    _assert_invalid(
-        "hospital_bag_cart_mutate",
-        {
-            "operation": "optimize_budget",
-            "target_budget": 1500,
-            "budget_mode": "minimal",
-        },
-    )
-
-
 def test_input_descriptions_state_defaults_units_sources_and_enum_meanings() -> None:
     registry = default_tool_registry()
 
@@ -530,10 +393,6 @@ def test_input_descriptions_state_defaults_units_sources_and_enum_meanings() -> 
     ]["infant_id"]
     assert "profile_read" in feeding_infant["description"]
 
-    diary_range = registry.get("diary_read").input_schema["anyOf"][1]["properties"]
-    assert "不设置最早日期限制" in diary_range["start_date"]["description"]
-    assert "不设置最晚日期限制" in diary_range["end_date"]["description"]
-
     device_topic = registry.get("devices_guidance_manage").input_schema["anyOf"][0][
         "properties"
     ]["topic"]
@@ -547,8 +406,11 @@ def test_input_descriptions_state_defaults_units_sources_and_enum_meanings() -> 
     assert "include_content" not in plan_read[1]["properties"]
 
     plan_variants = registry.get("plan_mutate").input_schema["anyOf"]
-    pregnancy_create = plan_variants[0]["properties"]
-    plan_delete = plan_variants[2]
+    assert [
+        variant["properties"]["operation"]["enum"]
+        for variant in plan_variants
+    ] == [["update"], ["delete"]]
+    plan_delete = plan_variants[1]
     assert "confirmation_evidence" not in plan_delete["properties"]
     _assert_invalid(
         "plan_mutate",
@@ -559,9 +421,6 @@ def test_input_descriptions_state_defaults_units_sources_and_enum_meanings() -> 
             "preferred_pumping_times": ["08:00"],
         },
     )
-    for token in ("full=完整孕期", "prenatal_only=仅产前", "short_range=近期短周期"):
-        assert token in pregnancy_create["scope"]["description"]
-
     support_issue_type = registry.get("support_ticket_draft_create").input_schema[
         "properties"
     ]["issue_type"]

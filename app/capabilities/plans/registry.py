@@ -72,33 +72,13 @@ def plans_tool_registry() -> ToolContractRegistry:
             operation="action_proposal",
             required_permissions=("plans:write",),
             description=(
-                "创建孕期计划，更新已有计划的标题或摘要，或删除整个计划；"
-                "不修改计划内单项日程。当孕期资料采集已满足计划生成条件，"
-                "或需要修改计划标题、摘要或删除整份计划时使用。"
+                "更新已有计划的标题或摘要，或删除整个计划；"
+                "不修改计划内单项日程。当需要修改计划标题、摘要或删除整份计划时使用。"
             ),
             input_schema=input_schema_for_tool("plan_mutate"),
-            internal_input_schema=internal_input_schema(
-                PlanMutateArguments.model_json_schema(),
-                trusted_properties={
-                    "runtime_timezone": {
-                        "type": "string",
-                        "maxLength": 80,
-                    },
-                    "runtime_local_date": {
-                        "type": "string",
-                        "format": "date",
-                    },
-                    "runtime_workflow_context": {
-                        "type": "object",
-                    },
-                    "runtime_plan_context": {
-                        "type": "object",
-                    },
-                },
-            ),
+            internal_input_schema=PlanMutateArguments.model_json_schema(),
             output_schema=_OBJECT_OUTPUT_SCHEMA,
             action_types=(
-                "pregnancy.plan.create",
                 "plans.plan.update",
                 "plans.plan.delete",
             ),

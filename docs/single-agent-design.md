@@ -27,7 +27,7 @@ agent-as-tool 路径。
 - `app/agent/system_prompt.md` 是唯一系统提示词；不存在 shared prompt 层或
   多份 Agent prompt 的组合逻辑。
 - `app/agent/skills/<skill_id>/<version>/SKILL.md` 保存完整、版本化的
-  `prenatal`、`lactation`、`device` 工作流。
+  `lactation`、`device` 工作流。
 - `app/agent/skill_registry.py` 校验 Skill frontmatter、版本和内容，并提供
   `load_service_skill` Tool contract/handler。
 - `app/agent/tool_catalog.py` 定义全局 eager Tool 与 deferred namespace；工具
@@ -50,7 +50,7 @@ system/developer Prompt。
 当请求需要专业工作流时，模型先单独调用：
 
 ```text
-load_service_skill({"skill_id":"prenatal|lactation|device"})
+load_service_skill({"skill_id":"lactation|device"})
 ```
 
 loader 返回普通、可持久化的 `function_call_output`：
@@ -58,7 +58,7 @@ loader 返回普通、可持久化的 `function_call_output`：
 ```json
 {
   "schema_version": "momcozy.service_skill.v1",
-  "skill_id": "prenatal",
+  "skill_id": "lactation",
   "version": "v1",
   "description": "...",
   "content": "完整原始 SKILL.md（含 frontmatter 与正文）",
@@ -84,6 +84,9 @@ CozyMate 明确要求加载和遵循的版本化工作流。
 
 ## 全局渐进 Tool Catalog
 
+Tool/Action 的完整当前方案和后续维护入口统一为 [tools.md](tools.md)；本节只描述
+单 Agent 下的渐进加载决策。
+
 `load_service_skill` 是唯一常驻 FunctionTool。业务 Tool 不在初始平铺列表中，
 而是按全局 namespace 声明为 `defer_loading=true`，由 server-side
 `tool_search` 按当前任务加载最小集合：
@@ -92,9 +95,7 @@ CozyMate 明确要求加载和遵循的版本化工作流。
 | --- | --- |
 | `profile` | `profile_read`, `profile_update` |
 | `planning` | `plan_read`, `plan_mutate`, `schedule_timeline_read`, `schedule_timeline_mutate` |
-| `diary` | `diary_read`, `diary_mutate` |
 | `attachments` | `conversation_history_image_read` |
-| `prenatal` | `pregnancy_intake_manage`, `hospital_bag_manage`, `hospital_bag_cart_mutate` |
 | `lactation` | `get_lactation_summary`, `get_lactation_records`, `get_feeding_summary`, `get_feeding_records`, `get_growth_summary`, `get_growth_records`, `ibclc_consult_card_create` |
 | `device` | `devices_guidance_manage`, `pump_models_read`, `support_ticket_draft_create` |
 
@@ -114,7 +115,7 @@ Backend 没有尿布记录和版本化生长参考契约，因此 Runtime 不注
    output 的普通 Tool call。
 2. `OpenAIAgentsExecutionEngine` 从 `RuntimeDefinition.agent` 创建且只创建一个
    SDK Agent；执行接口不接受起始 Agent 名称。
-3. Skill loader 常驻；`ToolSearchTool` 与七个 deferred namespace 提供业务
+3. Skill loader 常驻；`ToolSearchTool` 与五个 deferred namespace 提供业务
    Tool 的渐进发现。
 4. SDK `on_llm_start` 记录不含 Prompt/用户正文的执行清单；`on_llm_end` 先
    校验本轮调用，再按实际顺序追加 reasoning/function call。

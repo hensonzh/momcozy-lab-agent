@@ -3,7 +3,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.agent_runtime.tools.trusted import _visible_image_urls
-from app.capabilities.diary.registry import diary_tool_registry
 from app.capabilities.ibclc.handlers import _ibclc_consult_allowed
 from app.capabilities.plans.registry import plans_tool_registry
 from app.capabilities.runtime import runtime_capability_tool_registry
@@ -51,8 +50,6 @@ def test_model_schemas_never_expose_runtime_consent_or_form_state() -> None:
     registry = runtime_capability_tool_registry()
     ibclc = registry.get("ibclc_consult_card_create")
     support = registry.get("support_ticket_draft_create")
-    pregnancy = registry.get("pregnancy_intake_manage")
-    hospital_bag = registry.get("hospital_bag_manage")
 
     assert "confirmation_evidence" not in _property_names(
         ibclc.input_schema
@@ -66,27 +63,11 @@ def test_model_schemas_never_expose_runtime_consent_or_form_state() -> None:
     assert "trusted_current_user_text" not in _property_names(
         support.input_schema
     )
-    assert "form_artifact_id" not in _property_names(
-        pregnancy.input_schema
-    )
-    assert "confirmed_form_data" not in _property_names(
-        pregnancy.input_schema
-    )
-    assert "form_artifact_id" not in _property_names(
-        hospital_bag.input_schema
-    )
-    assert "confirmed_form_data" not in _property_names(
-        hospital_bag.input_schema
-    )
 
 
-def test_delete_tools_do_not_accept_model_supplied_confirmation() -> None:
-    diary = diary_tool_registry().get("diary_mutate")
+def test_plan_delete_does_not_accept_model_supplied_confirmation() -> None:
     plan = plans_tool_registry().get("plan_mutate")
 
-    assert "confirmation_evidence" not in _property_names(
-        diary.input_schema
-    )
     assert "confirmation_evidence" not in _property_names(
         plan.input_schema
     )

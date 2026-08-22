@@ -28,9 +28,7 @@ CONFIRMATION_ACTION_TYPE = "plans.plan.delete"
 ACTION_PERMISSIONS = frozenset(
     {
         "agent:run",
-        "diary:write",
         "plans:write",
-        "prenatal:write",
         "profile:write",
         "records:write",
     }
@@ -83,20 +81,10 @@ def _plan_delete_proposal(
     )
 
 
-@pytest.mark.parametrize(
-    ("action_type", "target_type"),
-    (
-        ("diary.entry.delete", "diary_entry"),
-        ("plans.plan.delete", "plan"),
-    ),
-)
-def test_destructive_document_delete_requires_runtime_confirmation(
-    action_type: str,
-    target_type: str,
-) -> None:
+def test_plan_delete_requires_runtime_confirmation() -> None:
     rule = _policy().validate(
-        action_type=action_type,
-        target_type=target_type,
+        action_type="plans.plan.delete",
+        target_type="plan",
         side_effect_level="medium",
     )
 

@@ -231,12 +231,6 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
 
 def test_service_skills_retain_the_domain_workflow_contracts() -> None:
     expected_phrases = {
-        "prenatal": (
-            "pregnancy_intake_manage",
-            "workflow_phase",
-            "ready_to_generate",
-            "hospital_bag_manage",
-        ),
         "lactation": (
             "get_lactation_summary",
             "get_feeding_summary",

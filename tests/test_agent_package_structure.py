@@ -46,10 +46,6 @@ def test_single_system_prompt_owns_progressive_loading_boundaries() -> None:
 
 def test_versioned_service_skills_are_complete_domain_contracts() -> None:
     expected_tools = {
-        "prenatal": (
-            "pregnancy_intake_manage",
-            "hospital_bag_manage",
-        ),
         "lactation": (
             "get_lactation_summary",
             "get_feeding_summary",
@@ -91,7 +87,6 @@ def test_agent_package_has_canonical_single_agent_files() -> None:
         path.relative_to(agent_root / "skills").as_posix()
         for path in (agent_root / "skills").rglob("SKILL.md")
     } == {
-        "prenatal/v1/SKILL.md",
         "lactation/v1/SKILL.md",
         "device/v1/SKILL.md",
     }

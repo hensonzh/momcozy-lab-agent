@@ -104,46 +104,8 @@ class PlanMutateToolHandler:
 
     async def __call__(self, context: ToolHandlerContext) -> ToolResult:
         arguments = _validate(PlanMutateArguments, context.args)
-        trusted = context.trusted_args or {}
-        runtime_plan_context: dict[str, Any] | None = None
-        if arguments.operation == "create":
-            raw_workflow = trusted.get("runtime_workflow_context")
-            workflow = (
-                dict(raw_workflow)
-                if isinstance(raw_workflow, dict)
-                else {}
-            )
-            raw_plan_context = trusted.get("runtime_plan_context")
-            plan_envelope = (
-                dict(raw_plan_context)
-                if isinstance(raw_plan_context, dict)
-                else {}
-            )
-            raw_answers = plan_envelope.get("plan_context")
-            runtime_plan_context = (
-                dict(raw_answers)
-                if isinstance(raw_answers, dict)
-                else {}
-            )
-            if (
-                workflow.get("phase") != "ready_to_generate"
-                or not runtime_plan_context
-            ):
-                return ToolResult.json(
-                    {
-                        "status": "needs_pregnancy_plan_intake",
-                        "operation": arguments.operation,
-                        "write_succeeded": False,
-                    }
-                )
-        action_type, payload_model = arguments.to_action(
-            runtime_plan_context=runtime_plan_context
-        )
-        target_id = (
-            str(arguments.plan_id)
-            if arguments.plan_id is not None
-            else "new"
-        )
+        action_type, payload_model = arguments.to_action()
+        target_id = str(arguments.plan_id)
         result = await _propose(
             context=context,
             proposer=self.action_proposer,
@@ -156,7 +118,6 @@ class PlanMutateToolHandler:
             ),
             preview={
                 "operation": arguments.operation,
-                "plan_type": arguments.plan_type,
                 "plan_id": target_id,
                 "title": arguments.title,
             },

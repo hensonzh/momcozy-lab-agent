@@ -34,12 +34,12 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
             "cozymate": [
                 ScriptedTurn.calls(
                     ScriptedToolCall(
-                        call_id="load-prenatal",
+                        call_id="load-lactation",
                         name=LOAD_SERVICE_SKILL_TOOL_NAME,
-                        arguments={"skill_id": "prenatal"},
+                        arguments={"skill_id": "lactation"},
                     )
                 ),
-                ScriptedTurn.final("已按产前 Skill 继续处理。"),
+                ScriptedTurn.final("已按泌乳 Skill 继续处理。"),
             ]
         }
     )
@@ -48,7 +48,7 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
     result = asyncio.run(
         _engine(model).execute(
             input_items=(
-                {"role": "user", "content": "帮我开始孕期计划"},
+                {"role": "user", "content": "帮我分析奶量记录"},
             ),
             port=port,
             authorization_permissions=_all_tool_permissions(),
@@ -56,7 +56,7 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
     )
 
     assert result == AgentExecutionResult(
-        text="已按产前 Skill 继续处理。",
+        text="已按泌乳 Skill 继续处理。",
         agent="cozymate",
     )
     assert [request.agent_name for request in model.requests] == [
@@ -67,10 +67,10 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
         item
         for item in model.requests[1].input_items
         if item.get("type") == "function_call_output"
-        and item.get("call_id") == "load-prenatal"
+        and item.get("call_id") == "load-lactation"
     )
     output = json.loads(str(output_item["output"]))
-    skill = SERVICE_SKILL_REGISTRY.get("prenatal")
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
     assert output["content"] == skill.content
     assert output["content_sha256"] == skill.content_sha256
     assert len(port.model_budget_requests) == 2
@@ -78,7 +78,7 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
         item
         for item in port.model_budget_requests[1][0]
         if item.get("type") == "function_call_output"
-        and item.get("call_id") == "load-prenatal"
+        and item.get("call_id") == "load-lactation"
     )
     assert json.loads(str(budget_output_item["output"]))[
         "content"

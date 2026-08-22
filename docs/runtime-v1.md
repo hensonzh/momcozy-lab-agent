@@ -32,6 +32,9 @@ authority.
 
 ## ToolContract v1 and ActionPolicy v1
 
+完整的当前方案、Tool/Action 清单、限制和变更维护协议统一记录在
+[tools.md](tools.md)；本节只定义 Runtime v1 不可绕过的发布不变量。
+
 Every Tool declares its domain, operation class, required permissions, actor
 owner scope, privacy-safe argument/output fields, retry policy, schemas,
 timeout, and any Action types it can propose. Every Tool record carries

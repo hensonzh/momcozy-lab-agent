@@ -55,6 +55,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 GENERATED_CATALOG = (
     REPOSITORY_ROOT / "docs/runtime-contract-catalog.generated.json"
 )
+TOOLS_DOCUMENT = REPOSITORY_ROOT / "docs/tools.md"
 
 
 def test_all_first_party_contract_versions_use_v1_baseline() -> None:
@@ -212,3 +213,23 @@ def test_checked_in_runtime_contract_catalog_has_no_drift() -> None:
 
     assert json.loads(rendered) == build_runtime_contract_catalog_snapshot()
     assert GENERATED_CATALOG.read_text(encoding="utf-8") == rendered
+
+
+def test_tools_document_tracks_the_complete_contract_catalog() -> None:
+    snapshot = build_runtime_contract_catalog_snapshot()
+    document = TOOLS_DOCUMENT.read_text(encoding="utf-8")
+
+    assert (
+        "runtime-contract-catalog-sha256: "
+        f"{snapshot['catalog_sha256']}"
+    ) in document
+    assert f"tool-count: {len(snapshot['tools']['items'])}" in document
+    assert f"action-count: {len(snapshot['actions']['items'])}" in document
+    assert all(
+        f"`{item['name']}`" in document
+        for item in snapshot["tools"]["items"]
+    )
+    assert all(
+        f"`{item['action_type']}`" in document
+        for item in snapshot["actions"]["items"]
+    )

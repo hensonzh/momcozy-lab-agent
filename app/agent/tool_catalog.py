@@ -31,23 +31,9 @@ TOOL_NAMESPACE_DEFINITIONS = (
         ),
     ),
     ToolNamespaceDefinition(
-        name="diary",
-        description="读取或变更当前用户的日记记录。",
-        tool_names=("diary_read", "diary_mutate"),
-    ),
-    ToolNamespaceDefinition(
         name="attachments",
         description="按权限读取当前会话历史中的图片附件。",
         tool_names=("conversation_history_image_read",),
-    ),
-    ToolNamespaceDefinition(
-        name="prenatal",
-        description="孕期资料流程、待产包与待产包购物车能力。",
-        tool_names=(
-            "pregnancy_intake_manage",
-            "hospital_bag_manage",
-            "hospital_bag_cart_mutate",
-        ),
     ),
     ToolNamespaceDefinition(
         name="lactation",

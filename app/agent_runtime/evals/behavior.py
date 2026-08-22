@@ -32,10 +32,6 @@ KNOWN_TOOL_NAMES = frozenset(
     {
         "conversation_history_image_read",
         "devices_guidance_manage",
-        "diary_mutate",
-        "diary_read",
-        "hospital_bag_cart_mutate",
-        "hospital_bag_manage",
         "ibclc_consult_card_create",
         "load_service_skill",
         "get_feeding_records",
@@ -46,7 +42,6 @@ KNOWN_TOOL_NAMES = frozenset(
         "get_lactation_summary",
         "plan_mutate",
         "plan_read",
-        "pregnancy_intake_manage",
         "profile_read",
         "profile_update",
         "pump_models_read",
@@ -55,7 +50,7 @@ KNOWN_TOOL_NAMES = frozenset(
         "support_ticket_draft_create",
     }
 )
-SERVICE_SKILL_NAMES = frozenset({"prenatal", "lactation", "device"})
+SERVICE_SKILL_NAMES = frozenset({"lactation", "device"})
 
 
 class _StrictModel(BaseModel):

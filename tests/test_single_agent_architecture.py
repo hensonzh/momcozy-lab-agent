@@ -54,7 +54,7 @@ def test_stable_prompt_contains_skill_manifest_but_not_full_skill_bodies() -> No
 
 
 def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> None:
-    skill = SERVICE_SKILL_REGISTRY.get("prenatal")
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
     result = LoadServiceSkillToolHandler(
         registry=SERVICE_SKILL_REGISTRY
     )(
@@ -71,8 +71,8 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
             run_id=UUID(int=3),
             thread_id=UUID(int=4),
             tool_name=LOAD_SERVICE_SKILL_TOOL_NAME,
-            call_id="load-prenatal",
-            args={"skill_id": "prenatal"},
+            call_id="load-lactation",
+            args={"skill_id": "lactation"},
             request_id="test-request",
         )
     )
@@ -80,7 +80,7 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
     output = result.canonical_output
     assert output == {
         "schema_version": "momcozy.service_skill.v1",
-        "skill_id": "prenatal",
+        "skill_id": "lactation",
         "version": skill.version,
         "description": skill.description,
         "content": skill.content,
@@ -94,13 +94,13 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
         / "app"
         / "agent"
         / "skills"
-        / "prenatal"
+        / "lactation"
         / "v1"
         / "SKILL.md"
     )
     assert output["content"] == skill_path.read_text(encoding="utf-8")
     assert "# 角色与使命" in output["content"]
-    assert "# 孕期计划" in output["content"]
+    assert "# 奶量分析" in output["content"]
 
     function_output = result.to_function_call_output()
     assert isinstance(function_output, str)

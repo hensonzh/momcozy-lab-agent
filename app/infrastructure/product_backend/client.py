@@ -11,10 +11,6 @@ from app.core.errors import DependencyError
 from .contracts import (
     AgentFileResolveRequest,
     AgentFileResolveResponse,
-    DiaryApplyRequest,
-    DiaryApplyResponse,
-    DiaryReadRequest,
-    DiaryReadResponse,
     LactationRecordApplyRequest,
     LactationRecordApplyResponse,
     ProfileReadRequest,
@@ -110,46 +106,6 @@ class ProductBackendClient:
             request_id=request_id,
         )
         if result.file_id != command.file_id:
-            raise _invalid_response()
-        return result
-
-    async def read_diary(
-        self,
-        *,
-        query: DiaryReadRequest,
-        request_id: str,
-    ) -> DiaryReadResponse:
-        params = {
-            key: str(value)
-            for key, value in query.model_dump(
-                mode="json",
-                exclude_none=True,
-            ).items()
-        }
-        return await self._request_model(
-            "GET",
-            "/v1/internal/agent/diary",
-            response_model=DiaryReadResponse,
-            params=params,
-            request_id=request_id,
-        )
-
-    async def apply_diary(
-        self,
-        *,
-        command: DiaryApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> DiaryApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/diary.entry/apply",
-            response_model=DiaryApplyResponse,
-            json=command.model_dump(mode="json"),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        if result.action_id != command.action_id:
             raise _invalid_response()
         return result
 

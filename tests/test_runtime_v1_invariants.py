@@ -2,12 +2,32 @@ from __future__ import annotations
 
 import pytest
 
+from app.agent import SERVICE_SKILL_NAMES, TOOL_NAMESPACE_DEFINITIONS
 from app.agent_runtime.actions import ActionPolicyRule
 from app.agent_runtime.tools import ToolContract, ToolContractRegistry
 from app.bootstrap import (
     build_action_policy_rules,
     build_runtime_tool_registry,
     validate_runtime_contracts,
+)
+
+
+REMOVED_TOOL_NAMES = frozenset(
+    {
+        "diary_read",
+        "diary_mutate",
+        "pregnancy_intake_manage",
+        "hospital_bag_manage",
+        "hospital_bag_cart_mutate",
+    }
+)
+REMOVED_ACTION_TYPES = frozenset(
+    {
+        "diary.entry.save",
+        "diary.entry.delete",
+        "hospital_bag.cart.update",
+        "pregnancy.plan.create",
+    }
 )
 
 
@@ -23,6 +43,22 @@ def test_runtime_v1_catalog_satisfies_action_and_permission_invariants() -> None
         for action_type in contract.action_types
     }
     assert bound_actions == set(rules)
+
+
+def test_diary_and_prenatal_capabilities_are_not_composed() -> None:
+    registry = build_runtime_tool_registry()
+    tool_names = set(registry.names_for_sdk())
+    action_types = set(build_action_policy_rules())
+    namespace_names = {
+        namespace.name for namespace in TOOL_NAMESPACE_DEFINITIONS
+    }
+
+    assert len(tool_names) == 18
+    assert len(action_types) == 18
+    assert REMOVED_TOOL_NAMES.isdisjoint(tool_names)
+    assert REMOVED_ACTION_TYPES.isdisjoint(action_types)
+    assert {"diary", "prenatal"}.isdisjoint(namespace_names)
+    assert SERVICE_SKILL_NAMES == ("lactation", "device")
 
 
 def test_runtime_contracts_reject_duplicate_action_binding() -> None:

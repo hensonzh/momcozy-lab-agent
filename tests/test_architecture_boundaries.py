@@ -9,9 +9,7 @@ PRODUCT_REPOSITORY_PATH = re.compile(r"(?i)(?:^|[./\\])backend(?:[/\\]|$)")
 CAPABILITY_IMPLEMENTATION_PACKAGES = (
     "conversation_history_image",
     "device_guidance",
-    "hospital_bag",
     "ibclc",
-    "pregnancy_intake",
     "pump_models",
     "support_ticket",
 )

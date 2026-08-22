@@ -18,7 +18,6 @@ from app.infrastructure.product_backend.plans_contracts import (
     PlanTaskUpdatePayload,
     PlansActionApplyRequest,
     PlansActionApplyResponse,
-    PregnancyPlanCreatePayload,
 )
 
 PLANS_ACTION_TYPES = frozenset(
@@ -29,7 +28,6 @@ PLANS_ACTION_TYPES = frozenset(
         "plans.task.delete",
         "plans.plan.update",
         "plans.plan.delete",
-        "pregnancy.plan.create",
         "plans.milk_schedule.reschedule",
     }
 )
@@ -76,13 +74,6 @@ PLANS_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
         side_effect_level="medium",
         required_permissions=frozenset({"plans:write"}),
         confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
-    ),
-    "pregnancy.plan.create": ActionPolicyRule(
-        action_type="pregnancy.plan.create",
-        target_type="plan",
-        side_effect_level="medium",
-        required_permissions=frozenset({"plans:write"}),
-        confirmation_exemption="explicit_user_intent_after_pregnancy_intake",
     ),
     "plans.milk_schedule.reschedule": ActionPolicyRule(
         action_type="plans.milk_schedule.reschedule",
@@ -170,8 +161,6 @@ def _expected_target(
         return "plan_task", str(payload.task_id)
     if isinstance(payload, (PlanUpdatePayload, PlanDeletePayload)):
         return "plan", str(payload.plan_id)
-    if isinstance(payload, PregnancyPlanCreatePayload):
-        return "plan", "new"
     if isinstance(payload, MilkScheduleReschedulePayload):
         return "plan", str(payload.plan_id)
     raise _scope_violation()

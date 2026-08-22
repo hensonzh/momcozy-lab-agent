@@ -141,6 +141,9 @@ are defined in [observability.md](docs/observability.md).
 
 The current single-agent progressive Skill/Tool loading model is defined
 in [single-agent-design.md](docs/single-agent-design.md).
+The canonical human-readable Tool/Action design, complete inventory, current
+limitations, and mandatory change protocol are maintained in
+[tools.md](docs/tools.md). Every Tool-scheme change must update that document.
 Runtime v1 authorization, Tool/Action policy, double-cursor streaming,
 provider, migration, and deterministic harness contracts are defined in
 [runtime-v1.md](docs/runtime-v1.md).

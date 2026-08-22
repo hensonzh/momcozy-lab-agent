@@ -35,19 +35,6 @@ from app.agent import (
     LoadServiceSkillToolHandler,
     service_skill_tool_registry,
 )
-from app.capabilities.diary import (
-    DIARY_ACTION_POLICY_RULES,
-    DIARY_ACTION_TYPES,
-    DiaryActionApplicator,
-    DiaryMutateHandler,
-    DiaryReadHandler,
-    diary_tool_registry,
-)
-from app.capabilities.hospital_bag import (
-    HOSPITAL_BAG_ACTION_POLICY_RULES,
-    HOSPITAL_BAG_CART_UPDATE_ACTION,
-    HospitalBagCartActionApplicator,
-)
 from app.capabilities.lactation_analysis import (
     GetFeedingRecordsToolHandler,
     GetFeedingSummaryToolHandler,
@@ -100,10 +87,8 @@ def build_action_policy_rules() -> dict[str, ActionPolicyRule]:
     rules: dict[str, ActionPolicyRule] = {}
     for source in (
         PROFILE_ACTION_POLICY_RULES,
-        DIARY_ACTION_POLICY_RULES,
         PLANS_ACTION_POLICY_RULES,
         LACTATION_ACTION_POLICY_RULES,
-        HOSPITAL_BAG_ACTION_POLICY_RULES,
     ):
         overlap = rules.keys() & source.keys()
         if overlap:
@@ -127,13 +112,11 @@ def build_product_action_applicators(
     client: ProductBackendClient,
 ) -> Mapping[str, ActionApplicator]:
     profile = ProfileUpdateActionApplicator(client=client)
-    diary = DiaryActionApplicator(client=client)
     plans = PlansActionApplicator(client=client)
     lactation = LactationRecordActionApplicator(client=client)
     return {
         PROFILE_UPDATE_ACTION: profile,
         PROFILE_CURRENT_INFANTS_REPLACE_ACTION: profile,
-        **{action_type: diary for action_type in DIARY_ACTION_TYPES},
         **{action_type: plans for action_type in PLANS_ACTION_TYPES},
         **{
             action_type: lactation
@@ -152,9 +135,6 @@ def build_action_service(
 ) -> RuntimeActionService:
     repository = RuntimeLedgerRepository(session)
     applicators = dict(build_product_action_applicators(client))
-    applicators[HOSPITAL_BAG_CART_UPDATE_ACTION] = (
-        HospitalBagCartActionApplicator(repository=repository)
-    )
     if additional_applicators:
         overlap = applicators.keys() & additional_applicators.keys()
         if overlap:
@@ -179,7 +159,6 @@ def build_product_tool_registry() -> ToolContractRegistry:
     registry = ToolContractRegistry()
     for source in (
         profile_tool_registry(),
-        diary_tool_registry(),
         plans_tool_registry(),
         lactation_analysis_tool_registry(),
     ):
@@ -235,10 +214,6 @@ def build_product_tool_handlers(
     return {
         "profile_read": ProfileReadToolHandler(client=client),
         "profile_update": ProfileUpdateToolHandler(
-            action_proposer=action_service
-        ),
-        "diary_read": DiaryReadHandler(client=client),
-        "diary_mutate": DiaryMutateHandler(
             action_proposer=action_service
         ),
         "plan_read": PlanReadToolHandler(client=client),
