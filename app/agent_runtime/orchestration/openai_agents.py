@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from importlib import metadata
@@ -52,6 +52,18 @@ from openai.types.responses.response_prompt_param import (
 )
 from app.agent_runtime.tools import ToolContractRegistry
 from app.core.errors import ApiError
+from app.agent_runtime.providers.contracts import (
+    ModelProviderProfile,
+    openai_responses_profile,
+)
+from app.agent_runtime.runtime_metadata import (
+    ACTION_POLICY_SCHEMA_VERSION,
+    MODEL_CONTEXT_SCHEMA_VERSION,
+    MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
+    TOOL_CONTRACT_SCHEMA_VERSION,
+    runtime_metadata_snapshot,
+    validate_runtime_contract_catalog_snapshot,
+)
 from app.core.observability import emit_operation_metric
 
 from .contracts import (
@@ -67,10 +79,6 @@ PROMPT_CACHE_OPTIONS = {
     "ttl": "30m",
 }
 PROMPT_CACHE_BREAKPOINT = {"mode": "explicit"}
-MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION = (
-    "agent_model_execution.v2"
-)
-MODEL_CONTEXT_SCHEMA_VERSION = "openai.responses.input_items.v1"
 MODEL_LOGGER = logging.getLogger("agent_runtime.model")
 
 
@@ -195,12 +203,14 @@ class OpenAIAgentsExecutionEngine:
         model_name: str,
         tool_registry: ToolContractRegistry,
         runtime: RuntimeDefinition,
+        runtime_contract_catalog: Mapping[str, Any],
         max_turns: int = 10,
         reasoning_effort: str = "low",
         text_verbosity: str = "low",
         store: bool = False,
         base_url: str = "",
         timeout_seconds: float = 60,
+        provider_profile: ModelProviderProfile | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
@@ -210,18 +220,50 @@ class OpenAIAgentsExecutionEngine:
         self.model_name = model_name
         self.tool_registry = tool_registry
         self.runtime = runtime
+        self.runtime_contract_catalog = (
+            validate_runtime_contract_catalog_snapshot(
+                runtime_contract_catalog
+            )
+        )
+        catalog_tool_items = self.runtime_contract_catalog["tools"]["items"]
+        registered_tool_items = sorted(
+            (
+                contract.catalog_item()
+                for contract in tool_registry.list()
+            ),
+            key=lambda item: str(item["name"]),
+        )
+        if catalog_tool_items != registered_tool_items:
+            raise ValueError(
+                "runtime contract catalog does not match Tool registry"
+            )
         self.max_turns = max_turns
         self.reasoning_effort = reasoning_effort
         self.text_verbosity = text_verbosity
         self.store = store
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
+        self.provider_profile = provider_profile or openai_responses_profile(
+            model=model_name,
+            base_url=base_url,
+        )
+        if self.provider_profile.model != model_name:
+            raise ValueError("provider profile model does not match engine model")
+        if self.provider_profile.api != "responses":
+            raise ValueError(
+                "OpenAI Agents execution requires a Responses API provider"
+            )
+        if self.provider_profile.base_url.rstrip("/") != base_url.rstrip("/"):
+            raise ValueError(
+                "provider profile base URL does not match engine base URL"
+            )
 
     async def execute(
         self,
         *,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
+        authorization_permissions: frozenset[str],
         runtime_context: dict[str, Any] | None = None,
         observation_context: dict[str, str] | None = None,
     ) -> AgentExecutionResult:
@@ -234,7 +276,9 @@ class OpenAIAgentsExecutionEngine:
             observation_context=dict(observation_context or {}),
         )
         hooks = _DurableRunHooks(engine=self, state=state)
-        agent = self._build_agent()
+        agent = self._build_agent(
+            authorization_permissions=authorization_permissions
+        )
         run_config = RunConfig(
             tracing_disabled=True,
             trace_include_sensitive_data=False,
@@ -365,11 +409,18 @@ class OpenAIAgentsExecutionEngine:
             )
             raise
 
-    def _build_agent(self) -> Agent[_ExecutionState]:
+    def _build_agent(
+        self,
+        *,
+        authorization_permissions: frozenset[str],
+    ) -> Agent[_ExecutionState]:
         definition = self.runtime.agent
         return self._agent(
             definition=definition,
-            tools=self._agent_tools(definition),
+            tools=self._agent_tools(
+                definition,
+                authorization_permissions=authorization_permissions,
+            ),
         )
 
     def _agent(
@@ -408,6 +459,8 @@ class OpenAIAgentsExecutionEngine:
     def _agent_tools(
         self,
         definition: AgentDefinition,
+        *,
+        authorization_permissions: frozenset[str],
     ) -> list[Tool]:
         contracts = {
             contract.name: contract
@@ -420,15 +473,27 @@ class OpenAIAgentsExecutionEngine:
                 f"tool catalog references unknown tools: {sorted(missing)}"
             )
 
-        deferred = self.runtime.tools.deferred_tool_names
+        authorized_contracts = {
+            name: contract
+            for name, contract in contracts.items()
+            if set(contract.required_permissions)
+            <= authorization_permissions
+        }
+
+        deferred = self.runtime.tools.deferred_tool_names & set(
+            authorized_contracts
+        )
         tools: list[Tool] = [
             self._business_tool(
                 agent_name=definition.name,
-                contract=contracts[tool_name],
+                contract=authorized_contracts[tool_name],
                 defer_loading=False,
             )
             for tool_name in self.runtime.tools.eager_tool_names
-            if tool_name not in deferred
+            if (
+                tool_name not in deferred
+                and tool_name in authorized_contracts
+            )
         ]
         if deferred:
             tools.append(
@@ -443,11 +508,14 @@ class OpenAIAgentsExecutionEngine:
             namespaced = [
                 self._business_tool(
                     agent_name=definition.name,
-                    contract=contracts[tool_name],
+                    contract=authorized_contracts[tool_name],
                     defer_loading=True,
                 )
                 for tool_name in namespace.tool_names
+                if tool_name in authorized_contracts
             ]
+            if not namespaced:
+                continue
             tools.extend(
                 tool_namespace(
                     name=namespace.name,
@@ -596,8 +664,12 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
             ),
             store=self.engine.store,
             base_url=self.engine.base_url,
+            provider_profile=self.engine.provider_profile,
             timeout_seconds=self.engine.timeout_seconds,
             runtime_context=self.state.runtime_context,
+            runtime_contract_catalog=(
+                self.engine.runtime_contract_catalog
+            ),
         )
         await self.state.port.record_execution_manifest(
             manifest=manifest
@@ -714,7 +786,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         error_code: str,
     ) -> None:
         dimensions: dict[str, Any] = {
-            "provider": "openai",
+            "provider": self.engine.provider_profile.provider_id,
             "model": self.engine.model_name,
             "agent_name": agent_name,
             **self.state.observation_context,
@@ -763,8 +835,10 @@ def _execution_manifest(
     parallel_tool_calls: bool,
     store: bool,
     base_url: str,
+    provider_profile: ModelProviderProfile,
     timeout_seconds: float,
     runtime_context: dict[str, Any],
+    runtime_contract_catalog: Mapping[str, Any],
 ) -> dict[str, Any]:
     tool_items = [
         {
@@ -822,16 +896,38 @@ def _execution_manifest(
             "sha256": _sha256_text(instructions),
             "utf8_bytes": len(instructions.encode("utf-8")),
         },
+        "runtime_metadata": runtime_metadata_snapshot(),
+        "contract_catalog": {
+            "schema_version": runtime_contract_catalog[
+                "schema_version"
+            ],
+            "sha256": runtime_contract_catalog["catalog_sha256"],
+        },
         "tools": {
+            "contract_schema_version": TOOL_CONTRACT_SCHEMA_VERSION,
+            "catalog_schema_version": runtime_contract_catalog["tools"][
+                "schema_version"
+            ],
+            "catalog_sha256": runtime_contract_catalog["tools"]["sha256"],
             "items": tool_items,
             "tool_search": has_tool_search,
             "sha256": _sha256_json(tool_items),
         },
+        "actions": {
+            "policy_schema_version": ACTION_POLICY_SCHEMA_VERSION,
+            "catalog_schema_version": runtime_contract_catalog["actions"][
+                "schema_version"
+            ],
+            "catalog_sha256": runtime_contract_catalog["actions"][
+                "sha256"
+            ],
+        },
         "model": {
-            "provider": "openai",
-            "api": "responses",
+            "provider": provider_profile.provider_id,
+            "api": provider_profile.api,
             "execution_engine": "openai_agents_sdk",
             "base_url": base_url or None,
+            "capabilities": sorted(provider_profile.capabilities),
             "sdk_package": "openai-agents",
             "sdk_version": _package_version("openai-agents"),
             "openai_sdk_version": _package_version("openai"),

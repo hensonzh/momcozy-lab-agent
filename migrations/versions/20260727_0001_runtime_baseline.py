@@ -75,6 +75,7 @@ def upgrade() -> None:
     sa.Column('error_code', sa.String(length=120), server_default='', nullable=False),
     sa.Column('error_details_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
     sa.Column('execution_manifest_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
+    sa.Column('authorization_context_json', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('context_state_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
     sa.Column('lease_token', sa.UUID(), nullable=True),
     sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),

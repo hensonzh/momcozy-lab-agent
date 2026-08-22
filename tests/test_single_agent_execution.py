@@ -21,7 +21,11 @@ from app.agent import (
     NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_REGISTRY,
 )
-from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
+from app.bootstrap import (
+    RUNTIME_DEFINITION,
+    build_runtime_contract_catalog_snapshot,
+    build_runtime_tool_registry,
+)
 
 
 def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> None:
@@ -47,6 +51,7 @@ def test_complete_skill_tool_result_is_the_next_item_in_same_agent_context() -> 
                 {"role": "user", "content": "帮我开始孕期计划"},
             ),
             port=port,
+            authorization_permissions=_all_tool_permissions(),
         )
     )
 
@@ -95,6 +100,7 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
         _engine(model).execute(
             input_items=({"role": "user", "content": "你好"},),
             port=port,
+            authorization_permissions=_all_tool_permissions(),
         )
     )
 
@@ -129,13 +135,49 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
     )["defer_loading"] is False
 
 
+def test_single_agent_omits_tools_without_snapshot_permissions() -> None:
+    model = ScriptedAgentModel(
+        {"cozymate": [ScriptedTurn.final("完成。")]}
+    )
+    port = RecordingExecutionPort()
+
+    asyncio.run(
+        _engine(model).execute(
+            input_items=({"role": "user", "content": "你好"},),
+            port=port,
+            authorization_permissions=frozenset({"agent:run"}),
+        )
+    )
+
+    tools = model.requests[0].tools
+    assert not any(isinstance(tool, ToolSearchTool) for tool in tools)
+    function_tools = {
+        tool.name
+        for tool in tools
+        if isinstance(tool, FunctionTool)
+    }
+    assert function_tools == {LOAD_SERVICE_SKILL_TOOL_NAME}
+    assert {
+        item["name"] for item in port.manifests[0]["tools"]["items"]
+    } == {LOAD_SERVICE_SKILL_TOOL_NAME}
+
+
 def _engine(model: Any) -> OpenAIAgentsExecutionEngine:
     return OpenAIAgentsExecutionEngine(
         model=model,
         model_name="scripted",
         tool_registry=build_runtime_tool_registry(),
         runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
         max_turns=8,
+    )
+
+
+def _all_tool_permissions() -> frozenset[str]:
+    return frozenset(
+        permission
+        for contract in build_runtime_tool_registry().list()
+        for permission in contract.required_permissions
     )
 
 

@@ -12,12 +12,12 @@ from app.agent_runtime.tools import (
     ToolHandlerContext,
     ToolResult,
 )
+from app.agent_runtime.runtime_metadata import SERVICE_SKILL_SCHEMA_VERSION
 from app.core.errors import ApiError
 
 from .tool_catalog import LOAD_SERVICE_SKILL_TOOL_NAME
 
 
-SERVICE_SKILL_SCHEMA_VERSION = "momcozy.service_skill.v1"
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
 ServiceSkillName = Literal["prenatal", "lactation", "device"]
 SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = (
@@ -146,6 +146,9 @@ def service_skill_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name=LOAD_SERVICE_SKILL_TOOL_NAME,
+            domain="runtime",
+            operation="runtime_internal",
+            required_permissions=("agent:run",),
             description=(
                 "加载一个版本化服务 Skill，并以普通工具结果返回完整 SKILL.md。"
                 "当当前请求需要孕期、泌乳或设备专业工作流且同版本 Skill 尚未进入上下文时使用。"
@@ -191,6 +194,13 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                     },
                 },
             },
+            safe_arg_fields=("skill_id",),
+            safe_output_fields=(
+                "schema_version",
+                "skill_id",
+                "version",
+                "content_sha256",
+            ),
             model_output_max_bytes=None,
             timeout_seconds=5,
         )

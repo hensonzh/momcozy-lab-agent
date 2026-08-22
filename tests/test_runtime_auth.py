@@ -13,7 +13,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import Depends
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import require_runtime_principal
+from app.api.dependencies import (
+    authenticate_runtime_principal,
+    require_agent_run_principal,
+)
 from app.auth import JwksCache, RuntimePrincipal, RuntimeTokenAuthenticator
 from app.auth.jwks import JwksUnavailableError
 from app.core.errors import ApiError
@@ -56,16 +59,51 @@ def test_valid_rs256_token_returns_runtime_principal_derived_from_subject() -> N
         )
     )
 
-    assert principal == RuntimePrincipal(
+    assert principal.user_id == user_id
+    assert principal.subject == str(user_id)
+    assert principal.session_id == session_id
+    assert principal.token_id == "access-token-1"
+    assert principal.token_version == 1
+    assert principal.roles == frozenset({"user"})
+    assert principal.permissions == frozenset({"agent:run"})
+    assert principal.issued_at is not None
+    assert principal.expires_at is not None
+    assert principal.issued_at < principal.expires_at
+    assert RuntimePrincipal.from_authorization_context(
+        principal.authorization_context()
+    ) == principal
+    assert fetcher.calls == 1
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda context: context.update({"unexpected": True}),
+        lambda context: context.update(
+            {"permissions": ["agent:run", "agent:run"]}
+        ),
+        lambda context: context.update(
+            {"permissions": ["profile:read", "agent:run"]}
+        ),
+    ),
+)
+def test_authorization_snapshot_rejects_non_canonical_payload(
+    mutate: Any,
+) -> None:
+    user_id = uuid4()
+    context = RuntimePrincipal(
         user_id=user_id,
         subject=str(user_id),
-        session_id=session_id,
-        token_id="access-token-1",
+        session_id=uuid4(),
+        token_id="token-id",
         token_version=1,
         roles=frozenset({"user"}),
         permissions=frozenset({"agent:run"}),
-    )
-    assert fetcher.calls == 1
+    ).authorization_context()
+    mutate(context)
+
+    with pytest.raises(ValueError, match="Authorization context"):
+        RuntimePrincipal.from_authorization_context(context)
 
 
 @pytest.mark.parametrize(
@@ -273,6 +311,31 @@ def test_bearer_dependency_returns_principal_and_never_accepts_body_identity() -
     assert response.json() == {"owner_user_id": str(expected.user_id)}
 
 
+def test_agent_run_dependency_requires_explicit_permission() -> None:
+    principal = RuntimePrincipal(
+        user_id=uuid4(),
+        subject="subject",
+        session_id=uuid4(),
+        token_id="token-id",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset(),
+    )
+    app = _app_with_protected_endpoint(
+        dependency=require_agent_run_principal
+    )
+    app.state.runtime_authenticator = FakeAuthenticator(principal)
+
+    response = TestClient(app).post(
+        "/test/protected",
+        headers={"Authorization": "Bearer signed-token"},
+        json={},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "permission_denied"
+
+
 @pytest.mark.parametrize(
     "authorization",
     (None, "Basic credentials", "Bearer"),
@@ -370,7 +433,10 @@ def _claims(*, now: datetime) -> dict[str, Any]:
     }
 
 
-def _app_with_protected_endpoint() -> Any:
+def _app_with_protected_endpoint(
+    *,
+    dependency: Any = authenticate_runtime_principal,
+) -> Any:
     app = create_app(
         Settings(
             app_env="test",
@@ -380,7 +446,7 @@ def _app_with_protected_endpoint() -> Any:
 
     @app.post("/test/protected")
     async def protected(
-        principal: RuntimePrincipal = Depends(require_runtime_principal),
+        principal: RuntimePrincipal = Depends(dependency),
     ) -> dict[str, str]:
         return {"owner_user_id": str(principal.user_id)}
 

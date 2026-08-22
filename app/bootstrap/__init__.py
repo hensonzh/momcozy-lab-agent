@@ -8,6 +8,8 @@ from .agent_runtime import (
     build_product_tool_registry,
     build_runtime_tool_handlers,
     build_runtime_tool_registry,
+    build_runtime_contract_catalog_snapshot,
+    validate_runtime_contracts,
     validate_runtime_composition,
 )
 
@@ -21,5 +23,7 @@ __all__ = [
     "build_product_tool_registry",
     "build_runtime_tool_handlers",
     "build_runtime_tool_registry",
+    "build_runtime_contract_catalog_snapshot",
+    "validate_runtime_contracts",
     "validate_runtime_composition",
 ]

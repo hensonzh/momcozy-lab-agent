@@ -17,6 +17,7 @@ COPY --chown=app:app migrations migrations
 COPY --chown=app:app app app
 COPY --chown=app:app evals evals
 COPY --chown=app:app docs/contracts docs/contracts
+COPY --chown=app:app docs/runtime-contract-catalog.generated.json docs/runtime-contract-catalog.generated.json
 COPY --chown=app:app scripts scripts
 
 USER app

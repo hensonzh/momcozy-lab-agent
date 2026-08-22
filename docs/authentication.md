@@ -9,6 +9,12 @@
 - Runtime requires `iss`, runtime `aud`, UUID `sub`, UUID `sid`, `jti`, `iat`,
   `exp`, `token_version=1`, and string-array `roles` and `permissions`; `sub`
   is the authoritative owner user ID.
+- Every public Agent route requires `agent:run`. Run admission persists a
+  canonical `agent.authorization_context.v1` snapshot, and workers reconstruct
+  that exact principal for Tool and Action authorization.
+- The Tool catalog and Tool executor both enforce the Run snapshot. Action
+  proposal uses the snapshot, while confirmation/rejection rechecks the live
+  request principal so revoked permissions fail closed.
 - Valid cache hits perform no Product Backend request. Unknown key IDs trigger
   a single bounded refresh; unavailable keys return a retryable `503`.
 - Product API requests also check active device sessions. Runtime does not

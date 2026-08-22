@@ -16,6 +16,7 @@ from app.agent_runtime.tools import (
 )
 from app.agent_runtime.tools.executor import ToolExecutor
 from app.auth import RuntimePrincipal
+from app.core.errors import ApiError
 
 
 def test_tool_executor_emits_correlated_outcome_metric(
@@ -26,6 +27,9 @@ def test_tool_executor_emits_correlated_outcome_metric(
     registry.register(
         ToolContract(
             name="profile_read",
+            domain="profile",
+            operation="read",
+            required_permissions=("profile:read",),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -37,6 +41,7 @@ def test_tool_executor_emits_correlated_outcome_metric(
                 "type": "object",
                 "additionalProperties": True,
             },
+            retry_policy="safe_read",
         )
     )
     executor = ToolExecutor(
@@ -48,15 +53,7 @@ def test_tool_executor_emits_correlated_outcome_metric(
             )
         },
     )
-    actor = RuntimePrincipal(
-        user_id=repository.owner_user_id,
-        subject=str(repository.owner_user_id),
-        session_id=uuid4(),
-        token_id="token",
-        token_version=1,
-        roles=frozenset({"user"}),
-        permissions=frozenset({"agent:run"}),
-    )
+    actor = repository.principal
 
     with caplog.at_level(logging.INFO, logger="agent_runtime.tool"):
         asyncio.run(
@@ -84,6 +81,13 @@ def test_tool_executor_emits_correlated_outcome_metric(
     assert fields["duration_ms"] >= 0
     assert "tool-input" not in records[0].getMessage()
     assert "model-only" not in records[0].getMessage()
+    assert repository.started_tool_calls[0]["safe_args"] == {
+        "private": "<redacted>"
+    }
+    assert repository.events[-1]["payload"]["output_summary"] == {
+        "externalized": False,
+        "field_count": 1,
+    }
 
 
 def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> None:
@@ -92,6 +96,9 @@ def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> No
     registry.register(
         ToolContract(
             name="profile_read",
+            domain="profile",
+            operation="read",
+            required_permissions=("profile:read",),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -101,6 +108,7 @@ def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> No
                 "type": "object",
                 "additionalProperties": True,
             },
+            retry_policy="safe_read",
             model_output_max_bytes=2_048,
         )
     )
@@ -115,15 +123,7 @@ def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> No
             )
         },
     )
-    actor = RuntimePrincipal(
-        user_id=repository.owner_user_id,
-        subject=str(repository.owner_user_id),
-        session_id=uuid4(),
-        token_id="token",
-        token_version=1,
-        roles=frozenset({"user"}),
-        permissions=frozenset({"agent:run"}),
-    )
+    actor = repository.principal
 
     result = asyncio.run(
         executor.execute(
@@ -147,15 +147,104 @@ def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> No
     assert "x" * 1_000 not in str(ledger_output)
 
 
+def test_tool_executor_blocks_missing_permission_before_handler() -> None:
+    repository = ToolRepository(permissions=frozenset({"agent:run"}))
+    registry = ToolContractRegistry()
+    registry.register(
+        ToolContract(
+            name="profile_read",
+            domain="profile",
+            operation="read",
+            required_permissions=("profile:read",),
+            safe_arg_fields=("mode",),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "mode": {"type": "string"},
+                    "private": {"type": "string"},
+                },
+            },
+            output_schema={"type": "object"},
+            retry_policy="safe_read",
+        )
+    )
+    invoked = False
+
+    def handler(_context: Any) -> ToolResult:
+        nonlocal invoked
+        invoked = True
+        return ToolResult.json({})
+
+    executor = ToolExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        registry=registry,
+        handlers={"profile_read": handler},
+    )
+    elevated_actor = RuntimePrincipal(
+        user_id=repository.owner_user_id,
+        subject=str(repository.owner_user_id),
+        session_id=repository.principal.session_id,
+        token_id=repository.principal.token_id,
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset({"agent:run", "profile:read"}),
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            executor.execute(
+                actor=elevated_actor,
+                run_id=repository.run.id,
+                tool_name="profile_read",
+                call_id="call-blocked",
+                args={"mode": "summary", "private": "secret"},
+                request_id="request-blocked",
+            )
+        )
+
+    assert captured.value.code == "permission_denied"
+    assert invoked is False
+    assert repository.started_tool_calls[0]["safe_args"] == {
+        "mode": "summary",
+        "private": "<redacted>",
+    }
+    assert repository.blocked_tool_calls == ["permission_denied"]
+    assert repository.events[-1]["event_type"] == "tool.blocked"
+    assert repository.events[-1]["payload"]["missing_permissions"] == [
+        "profile:read"
+    ]
+
+
 class ToolRepository:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        permissions: frozenset[str] = frozenset(
+            {"agent:run", "profile:read"}
+        ),
+    ) -> None:
         self.owner_user_id = uuid4()
+        self.principal = RuntimePrincipal(
+            user_id=self.owner_user_id,
+            subject=str(self.owner_user_id),
+            session_id=uuid4(),
+            token_id="tool-executor-test",
+            token_version=1,
+            roles=frozenset({"user"}),
+            permissions=permissions,
+        )
         self.run = SimpleNamespace(
             id=uuid4(),
             thread_id=uuid4(),
+            actor_user_id=self.owner_user_id,
+            authorization_context=self.principal.authorization_context(),
         )
         self.tool_outputs: list[dict[str, Any]] = []
         self.context_items: list[Any] = []
+        self.started_tool_calls: list[dict[str, Any]] = []
+        self.blocked_tool_calls: list[str] = []
+        self.events: list[dict[str, Any]] = []
 
     async def get_run_for_owner(
         self,
@@ -168,6 +257,7 @@ class ToolRepository:
         return self.run
 
     async def start_tool_call(self, **kwargs: Any) -> Any:
+        self.started_tool_calls.append(kwargs)
         return SimpleNamespace(
             id=uuid4(),
             run_id=kwargs["run_id"],
@@ -175,8 +265,21 @@ class ToolRepository:
             call_id=kwargs["call_id"],
         )
 
-    async def append_event(self, **_kwargs: Any) -> None:
+    async def append_event(self, **kwargs: Any) -> None:
+        self.events.append(kwargs)
         return None
+
+    async def block_tool_call(
+        self,
+        *,
+        tool_call: Any,
+        error_code: str,
+        **_kwargs: Any,
+    ) -> Any:
+        tool_call.status = "blocked"
+        tool_call.error_code = error_code
+        self.blocked_tool_calls.append(error_code)
+        return tool_call
 
     async def complete_tool_call(self, *, tool_call: Any, **_kwargs: Any) -> Any:
         return tool_call

@@ -30,7 +30,7 @@ runtime_admin_service_key_scheme = APIKeyHeader(
 RUNTIME_ADMIN_SERVICE_NAME = "agent-runtime-operator"
 
 
-async def require_runtime_principal(
+async def authenticate_runtime_principal(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> RuntimePrincipal:
@@ -45,6 +45,21 @@ async def require_runtime_principal(
         request.app.state.runtime_authenticator
     )
     return await authenticator.authenticate(credentials.credentials)
+
+
+async def require_runtime_principal(
+    principal: RuntimePrincipal = Depends(authenticate_runtime_principal),
+) -> RuntimePrincipal:
+    if "agent:run" not in principal.permissions:
+        raise ApiError(
+            code="permission_denied",
+            message="Agent Runtime permission is required.",
+            status=403,
+        )
+    return principal
+
+
+require_agent_run_principal = require_runtime_principal
 
 
 async def require_runtime_admin(

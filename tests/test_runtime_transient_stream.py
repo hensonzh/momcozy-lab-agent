@@ -23,6 +23,10 @@ def test_text_delta_round_trips_through_cross_process_stream_contract() -> None:
             message_id=message_id,
             agent_name="cozymate",
             delta="你好",
+            stream_schema_version="append-only.v1",
+            segment_index=0,
+            prefix_utf8_bytes=6,
+            prefix_sha256="670d9743542cae3ea7ebe36af56bd53648b0a1126162e78d81a32934a711302e",
         )
     )
     events = asyncio.run(stream.read(run_id=run_id))
@@ -34,7 +38,12 @@ def test_text_delta_round_trips_through_cross_process_stream_contract() -> None:
     assert events[0].payload == {
         "delta": "你好",
         "message_id": str(message_id),
+        "message_stream_id": str(message_id),
+        "prefix_sha256": "670d9743542cae3ea7ebe36af56bd53648b0a1126162e78d81a32934a711302e",
+        "prefix_utf8_bytes": 6,
         "responding_agent": "cozymate",
+        "segment_index": 0,
+        "stream_schema_version": "append-only.v1",
     }
     assert redis.expirations
 

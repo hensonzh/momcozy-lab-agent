@@ -62,6 +62,7 @@ class AgentExecutionEngine(Protocol):
         *,
         input_items: tuple[dict[str, Any], ...],
         port: AgentExecutionPort,
+        authorization_permissions: frozenset[str],
         runtime_context: dict[str, Any] | None = None,
         observation_context: dict[str, str] | None = None,
     ) -> AgentExecutionResult: ...

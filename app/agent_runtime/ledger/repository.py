@@ -13,6 +13,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 
+from app.agent_runtime.runtime_metadata import (
+    MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
+    RUN_EXECUTION_MANIFEST_SCHEMA_VERSION,
+)
 from app.infrastructure.db.session import (
     add_after_commit_callback,
     run_after_commit_callbacks,
@@ -143,6 +147,7 @@ class RuntimeLedgerRepository:
         actor_user_id: UUID,
         runtime_pattern: str,
         runtime_version: str,
+        authorization_context: dict[str, Any],
         request_id: str,
         trace_id: str,
     ) -> AgentRun:
@@ -166,6 +171,7 @@ class RuntimeLedgerRepository:
             actor_user_id=actor_user_id,
             runtime_pattern=runtime_pattern,
             runtime_version=runtime_version,
+            authorization_context=dict(authorization_context),
             request_id=request_id,
             trace_id=trace_id,
         )
@@ -208,7 +214,8 @@ class RuntimeLedgerRepository:
     ) -> dict[str, Any]:
         manifest_hash = str(manifest.get("manifest_sha256") or "")
         if (
-            manifest.get("schema_version") != "agent_model_execution.v2"
+            manifest.get("schema_version")
+            != MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
             or len(manifest_hash) != 64
             or manifest_hash != _execution_manifest_sha256(manifest)
         ):
@@ -217,16 +224,14 @@ class RuntimeLedgerRepository:
         envelope = deepcopy(run.execution_manifest or {})
         if not envelope:
             envelope = {
-                "schema_version": (
-                    "agent_run_execution_manifest.v2"
-                ),
+                "schema_version": RUN_EXECUTION_MANIFEST_SCHEMA_VERSION,
                 "runtime_pattern": run.runtime_pattern,
                 "runtime_version": run.runtime_version,
                 "invocations": [],
             }
         if (
             envelope.get("schema_version")
-            != "agent_run_execution_manifest.v2"
+            != RUN_EXECUTION_MANIFEST_SCHEMA_VERSION
             or envelope.get("runtime_pattern") != run.runtime_pattern
             or envelope.get("runtime_version") != run.runtime_version
         ):
@@ -1901,6 +1906,19 @@ class RuntimeLedgerRepository:
         error_code: str,
     ) -> AgentToolCall:
         tool_call.status = "failed"
+        tool_call.completed_at = completed_at
+        tool_call.error_code = error_code
+        await self.session.flush()
+        return tool_call
+
+    async def block_tool_call(
+        self,
+        *,
+        tool_call: AgentToolCall,
+        completed_at: datetime,
+        error_code: str,
+    ) -> AgentToolCall:
+        tool_call.status = "blocked"
         tool_call.completed_at = completed_at
         tool_call.error_code = error_code
         await self.session.flush()

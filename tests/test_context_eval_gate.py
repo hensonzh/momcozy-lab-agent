@@ -18,12 +18,12 @@ CATALOG_PATH = (
     REPOSITORY_ROOT
     / "evals"
     / "context"
-    / "v2"
+    / "v1"
     / "scenarios.json"
 )
 
 
-def test_context_eval_catalog_covers_v2_release_risks() -> None:
+def test_context_eval_catalog_covers_v1_release_risks() -> None:
     suite = load_context_eval_suite(CATALOG_PATH)
 
     assert suite.schema_version == "agent_context_eval_suite.v1"
@@ -165,7 +165,7 @@ def _release_trace() -> dict[str, Any]:
         ),
         "job": {
             "model": "gpt-5.6-terra",
-            "prompt_version": "agent_context_compaction.v2",
+            "prompt_version": "agent_context_compaction.v1",
             "materializer_version": "agent_context_materializer.v1",
             "context_schema_version": (
                 CONTEXT_CHECKPOINT_SCHEMA_VERSION

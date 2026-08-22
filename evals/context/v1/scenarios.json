@@ -1,7 +1,7 @@
 {
   "schema_version": "agent_context_eval_suite.v1",
-  "suite": "context-pipeline-v2",
-  "description": "Context Pipeline v2 的附件、信任边界、恢复、代际与可复现性回归。",
+  "suite": "context-pipeline-v1",
+  "description": "Context Pipeline v1 的附件、信任边界、恢复、代际与可复现性回归。",
   "cases": [
     {
       "id": "attachment_materialization",

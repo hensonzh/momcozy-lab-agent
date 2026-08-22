@@ -75,3 +75,5 @@ def test_agent_run_schema_has_database_lease_fencing_columns() -> None:
     assert run_table.c.locked_until.nullable is True
     assert any(constraint.name == "ck_agent_runs_ck_agent_runs_lease_pair" for constraint in run_table.constraints)
     assert run_table.c.context_state_json.nullable is False
+    assert run_table.c.authorization_context_json.nullable is False
+    assert run_table.c.authorization_context_json.server_default is None

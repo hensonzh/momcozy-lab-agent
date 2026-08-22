@@ -2395,6 +2395,17 @@
           },
           {
             "in": "query",
+            "name": "after_transient_cursor",
+            "required": false,
+            "schema": {
+              "default": "0-0",
+              "pattern": "^\\d+-\\d+$",
+              "title": "After Transient Cursor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {

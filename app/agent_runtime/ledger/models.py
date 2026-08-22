@@ -128,6 +128,11 @@ class AgentRun(Base):
         server_default=text("'{}'::jsonb"),
         nullable=False,
     )
+    authorization_context: Mapped[dict[str, Any]] = mapped_column(
+        "authorization_context_json",
+        postgresql.JSONB,
+        nullable=False,
+    )
     context_state: Mapped[dict[str, Any]] = mapped_column(
         "context_state_json",
         postgresql.JSONB,

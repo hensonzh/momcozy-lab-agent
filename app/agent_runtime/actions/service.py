@@ -6,25 +6,19 @@ import json
 from typing import Any, Protocol
 from uuid import UUID
 
-from app.agent_runtime.ledger import AgentAction, ContextItemAppend
+from app.agent_runtime.ledger import AgentAction, AgentRun, ContextItemAppend
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
+from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
 from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 from .contracts import ActionProposal, ActionProposed
 from .executor import ActionExecutor
-from .policy import action_presentation
+from .policy import ActionPolicyRule, action_presentation
 
 
 ACTION_CONFIRMATION_TTL = timedelta(
     seconds=ACTION_CONFIRMATION_TTL_SECONDS
-)
-RETRYABLE_ACTION_ERROR_CODES = frozenset(
-    {
-        "product_backend_timeout",
-        "product_backend_unavailable",
-        "product_backend_error",
-    }
 )
 
 
@@ -143,6 +137,25 @@ class RuntimeActionService:
                 message="Agent action owner scope is invalid.",
                 status=403,
             )
+        authorization = _run_authorization(run)
+        if authorization.user_id != proposal.actor_user_id:
+            raise ApiError(
+                code="agent_action_scope_violation",
+                message="Agent action owner scope is invalid.",
+                status=403,
+            )
+        await self._require_action_permissions(
+            run=run,
+            rule=rule,
+            permissions=authorization.permissions,
+            stage="proposal",
+        )
+        if rule.idempotency_required and not proposal.idempotency_key.strip():
+            raise ApiError(
+                code="agent_action_idempotency_required",
+                message="Agent action idempotency key is required.",
+                status=422,
+            )
         action = await self.repository.get_reusable_action_by_idempotency_key(
             run_id=proposal.run_id,
             actor_user_id=proposal.actor_user_id,
@@ -196,7 +209,7 @@ class RuntimeActionService:
             )
         elif (
             action.status == "failed"
-            and action.error_code in RETRYABLE_ACTION_ERROR_CODES
+            and action.error_code in rule.retryable_error_codes
         ):
             action = await self.repository.mark_action_confirmed(
                 action=action,
@@ -241,7 +254,7 @@ class RuntimeActionService:
     async def confirm_action(
         self,
         *,
-        owner_user_id: UUID,
+        principal: RuntimePrincipal,
         action_id: UUID,
         edited_apply_payload: dict[str, Any] | None = None,
         idempotency_key: str = "",
@@ -249,6 +262,7 @@ class RuntimeActionService:
         # The endpoint validates this key. Action ID remains the durable
         # operation identity used for Product idempotency.
         del idempotency_key
+        owner_user_id = principal.user_id
         action = await self.get_action(
             owner_user_id=owner_user_id,
             action_id=action_id,
@@ -258,6 +272,17 @@ class RuntimeActionService:
             action_type=action.action_type,
             target_type=action.target_type,
             side_effect_level=action.side_effect_level,
+        )
+        run = await self.repository.get_run_for_owner(
+            run_id=action.run_id,
+            owner_user_id=owner_user_id,
+        )
+        assert run is not None
+        await self._require_action_permissions(
+            run=run,
+            rule=rule,
+            permissions=principal.permissions,
+            stage="confirmation",
         )
         if not rule.requires_confirmation:
             if action.status == "applied":
@@ -287,11 +312,6 @@ class RuntimeActionService:
                 expired_at=expired_at,
                 error_code="agent_action_expired",
             )
-            run = await self.repository.get_run_for_owner(
-                run_id=expired.run_id,
-                owner_user_id=owner_user_id,
-            )
-            assert run is not None
             await self.repository.append_event(
                 run_id=run.id,
                 event_type="action.expired",
@@ -332,11 +352,6 @@ class RuntimeActionService:
             confirmed_at=_utcnow(),
             apply_payload=edited_apply_payload,
         )
-        run = await self.repository.get_run_for_owner(
-            run_id=confirmed.run_id,
-            owner_user_id=owner_user_id,
-        )
-        assert run is not None
         await self.repository.append_event(
             run_id=run.id,
             event_type="action.confirmed",
@@ -398,14 +413,31 @@ class RuntimeActionService:
     async def reject_action(
         self,
         *,
-        owner_user_id: UUID,
+        principal: RuntimePrincipal,
         action_id: UUID,
         reason: str = "",
     ) -> AgentAction:
+        owner_user_id = principal.user_id
         action = await self.get_action(
             owner_user_id=owner_user_id,
             action_id=action_id,
             for_update=True,
+        )
+        rule = self.policy.validate(
+            action_type=action.action_type,
+            target_type=action.target_type,
+            side_effect_level=action.side_effect_level,
+        )
+        run = await self.repository.get_run_for_owner(
+            run_id=action.run_id,
+            owner_user_id=owner_user_id,
+        )
+        assert run is not None
+        await self._require_action_permissions(
+            run=run,
+            rule=rule,
+            permissions=principal.permissions,
+            stage="rejection",
         )
         if action.status == "rejected":
             return action
@@ -420,11 +452,6 @@ class RuntimeActionService:
             rejected_at=_utcnow(),
             error_code="rejected_by_user",
         )
-        run = await self.repository.get_run_for_owner(
-            run_id=rejected.run_id,
-            owner_user_id=owner_user_id,
-        )
-        assert run is not None
         await self.repository.append_event(
             run_id=run.id,
             event_type="action.rejected",
@@ -452,6 +479,38 @@ class RuntimeActionService:
                 run_id=run.id,
             )
         return rejected
+
+    async def _require_action_permissions(
+        self,
+        *,
+        run: AgentRun,
+        rule: ActionPolicyRule,
+        permissions: frozenset[str],
+        stage: str,
+    ) -> None:
+        missing = sorted(rule.required_permissions - permissions)
+        if not missing:
+            return
+        await self.repository.append_event(
+            run_id=run.id,
+            event_type="action.blocked",
+            payload={
+                "action_type": rule.action_type,
+                "stage": stage,
+                "code": "permission_denied",
+                "missing_permissions": missing,
+            },
+        )
+        if stage in {"confirmation", "rejection"}:
+            commit = getattr(self.repository, "commit", None)
+            if callable(commit):
+                await commit()
+        raise ApiError(
+            code="permission_denied",
+            message="Action permission is required.",
+            status=403,
+            details={"missing_permissions": missing},
+        )
 
     def _release_admission_after_commit(
         self,
@@ -482,6 +541,19 @@ def _proposed(
         requires_confirmation=requires_confirmation,
         error_code=action.error_code,
     )
+
+
+def _run_authorization(run: AgentRun) -> RuntimePrincipal:
+    try:
+        return RuntimePrincipal.from_authorization_context(
+            run.authorization_context
+        )
+    except (TypeError, ValueError) as exc:
+        raise ApiError(
+            code="runtime_authorization_context_invalid",
+            message="Run authorization context is invalid.",
+            status=500,
+        ) from exc
 
 
 def _event_payload(action: AgentAction) -> dict[str, str]:

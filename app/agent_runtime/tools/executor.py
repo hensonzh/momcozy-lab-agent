@@ -141,6 +141,61 @@ class ToolExecutor:
         as_of_date: date | None,
     ) -> ToolExecutionResult:
         contract = self.registry.get(tool_name)
+        run = await self.repository.get_run_for_owner(
+            run_id=run_id,
+            owner_user_id=actor.user_id,
+        )
+        if run is None:
+            raise ApiError(
+                code="not_found",
+                message="Agent run not found.",
+                status=404,
+            )
+        authorization = _run_authorization(run)
+        if authorization.user_id != run.actor_user_id:
+            raise ApiError(
+                code="runtime_authorization_context_invalid",
+                message="Run authorization context is invalid.",
+                status=500,
+            )
+        actor = authorization
+        safe_args = _safe_args(
+            args,
+            allowed_fields=contract.safe_arg_fields,
+        )
+        missing_permissions = sorted(
+            set(contract.required_permissions) - actor.permissions
+        )
+        if missing_permissions:
+            tool_call = await self.repository.start_tool_call(
+                run_id=run.id,
+                tool_name=tool_name,
+                call_id=call_id,
+                safe_args=safe_args,
+                started_at=_utcnow(),
+            )
+            blocked = await self.repository.block_tool_call(
+                tool_call=tool_call,
+                completed_at=_utcnow(),
+                error_code="permission_denied",
+            )
+            await self.repository.append_event(
+                run_id=run.id,
+                event_type="tool.blocked",
+                payload={
+                    "tool_call_id": str(blocked.id),
+                    "tool_name": tool_name,
+                    "call_id": call_id,
+                    "code": "permission_denied",
+                    "missing_permissions": missing_permissions,
+                },
+            )
+            raise ApiError(
+                code="permission_denied",
+                message="Tool permission is required.",
+                status=403,
+                details={"missing_permissions": missing_permissions},
+            )
         _reject_actor_arguments(args)
         validate_tool_input(
             schema=contract.input_schema,
@@ -168,21 +223,11 @@ class ToolExecutor:
                 message="Tool handler is not configured.",
                 status=503,
             )
-        run = await self.repository.get_run_for_owner(
-            run_id=run_id,
-            owner_user_id=actor.user_id,
-        )
-        if run is None:
-            raise ApiError(
-                code="not_found",
-                message="Agent run not found.",
-                status=404,
-            )
         tool_call = await self.repository.start_tool_call(
             run_id=run.id,
             tool_name=tool_name,
             call_id=call_id,
-            safe_args=_safe_args(args),
+            safe_args=safe_args,
             started_at=_utcnow(),
         )
         await self.repository.append_event(
@@ -192,7 +237,7 @@ class ToolExecutor:
                 "tool_call_id": str(tool_call.id),
                 "tool_name": tool_name,
                 "call_id": call_id,
-                "safe_args": _safe_args(args),
+                "safe_args": safe_args,
             },
         )
         try:
@@ -335,6 +380,7 @@ class ToolExecutor:
                 "output_summary": _output_summary(
                     canonical_output,
                     output_ref=persisted_output.output_ref,
+                    allowed_fields=contract.safe_output_fields,
                 ),
             },
         )
@@ -404,38 +450,89 @@ def _reject_actor_arguments(args: dict[str, Any]) -> None:
         )
 
 
-def _safe_args(args: dict[str, Any]) -> dict[str, Any]:
+def _safe_args(
+    args: dict[str, Any],
+    *,
+    allowed_fields: tuple[str, ...],
+) -> dict[str, Any]:
+    projected = _safe_projection(args, allowed_fields=allowed_fields)
     serialized = json.dumps(
-        args,
+        projected,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     )
     if len(serialized.encode("utf-8")) <= 8_192:
-        return dict(args)
-    return {"truncated": True, "utf8_bytes": len(serialized.encode("utf-8"))}
+        return projected
+    return {
+        "truncated": True,
+        "utf8_bytes": len(serialized.encode("utf-8")),
+        "fields": sorted(args)[:100],
+    }
 
 
 def _output_summary(
     output: dict[str, Any],
     *,
     output_ref: str,
+    allowed_fields: tuple[str, ...],
 ) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "externalized": bool(output_ref),
-        "keys": sorted(output)[:20],
+        "field_count": len(output),
     }
-    for key in (
-        "status",
-        "action_status",
-        "action_type",
-        "count",
-        "truncated",
-    ):
-        value = output.get(key)
-        if isinstance(value, str | int | float | bool) or value is None:
-            summary[key] = value
+    summary.update(
+        _safe_projection(
+            output,
+            allowed_fields=allowed_fields,
+            include_redacted=False,
+        )
+    )
     return summary
+
+
+def _safe_projection(
+    value: dict[str, Any],
+    *,
+    allowed_fields: tuple[str, ...],
+    include_redacted: bool = True,
+) -> dict[str, Any]:
+    paths = tuple(tuple(path.split(".")) for path in allowed_fields)
+    projected: dict[str, Any] = {}
+    for key in sorted(value):
+        exact = (key,) in paths
+        nested = tuple(path[1:] for path in paths if path[0] == key and len(path) > 1)
+        item = value[key]
+        if exact and _is_safe_scalar(item):
+            projected[key] = item
+        elif nested and isinstance(item, dict):
+            child = _safe_projection(
+                item,
+                allowed_fields=tuple(".".join(path) for path in nested),
+                include_redacted=include_redacted,
+            )
+            if child or include_redacted:
+                projected[key] = child or "<redacted>"
+        elif include_redacted:
+            projected[key] = "<redacted>"
+    return projected
+
+
+def _is_safe_scalar(value: Any) -> bool:
+    return value is None or isinstance(value, str | int | float | bool)
+
+
+def _run_authorization(run: Any) -> RuntimePrincipal:
+    try:
+        return RuntimePrincipal.from_authorization_context(
+            run.authorization_context
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ApiError(
+            code="runtime_authorization_context_invalid",
+            message="Run authorization context is invalid.",
+            status=500,
+        ) from exc
 
 
 def _utcnow() -> datetime:

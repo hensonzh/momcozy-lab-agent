@@ -12,6 +12,7 @@ from app.agent_runtime.actions import (
     ActionApplyResult,
     ActionExecutor,
     ActionPolicy,
+    ActionPolicyRule,
     ActionProposal,
     ConfirmationExpiryService,
     RuntimeActionService,
@@ -19,14 +20,41 @@ from app.agent_runtime.actions import (
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.bootstrap import build_action_policy_rules
+from app.auth import RuntimePrincipal
 from app.core.errors import ApiError, DependencyError
 
 
 CONFIRMATION_ACTION_TYPE = "plans.plan.delete"
+ACTION_PERMISSIONS = frozenset(
+    {
+        "agent:run",
+        "diary:write",
+        "plans:write",
+        "prenatal:write",
+        "profile:write",
+        "records:write",
+    }
+)
 
 
 def _policy() -> ActionPolicy:
     return ActionPolicy(rules=build_action_policy_rules())
+
+
+def _principal(
+    owner_id: UUID,
+    *,
+    permissions: frozenset[str] = ACTION_PERMISSIONS,
+) -> RuntimePrincipal:
+    return RuntimePrincipal(
+        user_id=owner_id,
+        subject=str(owner_id),
+        session_id=uuid4(),
+        token_id="test-token",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=permissions,
+    )
 
 
 def _plan_delete_proposal(
@@ -73,6 +101,101 @@ def test_destructive_document_delete_requires_runtime_confirmation(
     )
 
     assert rule.requires_confirmation is True
+
+
+def test_medium_action_without_confirmation_requires_audited_exemption() -> None:
+    with pytest.raises(ValueError, match="exemption"):
+        ActionPolicy(
+            rules={
+                "plans.task.update": ActionPolicyRule(
+                    action_type="plans.task.update",
+                    target_type="plan_task",
+                    side_effect_level="medium",
+                    required_permissions=frozenset({"plans:write"}),
+                )
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("side_effect_level", "permissions", "blocking_policy", "message"),
+    (
+        ("critical", frozenset({"plans:write"}), "must_wait", "side-effect"),
+        ("low", frozenset({"plans:*"}), "must_wait", "permission"),
+        ("low", frozenset({"plans:write"}), "continue", "blocking"),
+    ),
+)
+def test_action_policy_rejects_noncanonical_security_metadata(
+    side_effect_level: str,
+    permissions: frozenset[str],
+    blocking_policy: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ActionPolicy(
+            rules={
+                "plans.task.update": ActionPolicyRule(
+                    action_type="plans.task.update",
+                    target_type="plan_task",
+                    side_effect_level=side_effect_level,
+                    required_permissions=permissions,
+                    blocking_policy=cast(Any, blocking_policy),
+                    confirmation_exemption="Scoped idempotent update.",
+                )
+            }
+        )
+
+
+def test_action_policy_allows_payload_edit_only_during_confirmation() -> None:
+    with pytest.raises(ValueError, match="payload edit"):
+        ActionPolicy(
+            rules={
+                "profile.update": ActionPolicyRule(
+                    action_type="profile.update",
+                    target_type="profile",
+                    side_effect_level="low",
+                    required_permissions=frozenset({"profile:write"}),
+                    allows_payload_edit=True,
+                )
+            }
+        )
+
+
+def test_action_proposal_uses_frozen_run_permissions() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(owner_id=owner_id, run_id=run_id)
+    repository.run.authorization_context = _principal(
+        owner_id,
+        permissions=frozenset({"agent:run"}),
+    ).authorization_context()
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={"profile.update": ApplyOnce()},
+            policy=_policy(),
+        ),
+    )
+    proposal = ActionProposal(
+        actor_user_id=owner_id,
+        run_id=run_id,
+        action_type="profile.update",
+        target_type="profile",
+        target_id=str(owner_id),
+        side_effect_level="low",
+        preview_payload={},
+        apply_payload={"mother": {"preferred_name": "Mai"}},
+        idempotency_key="permission-test",
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(service.propose_action(proposal))
+
+    assert captured.value.code == "permission_denied"
+    assert repository.action is None
+    assert repository.event_types == ["action.blocked"]
+    assert repository.commits == 0
 
 
 def test_low_risk_action_applies_immediately_and_replays_by_key() -> None:
@@ -151,7 +274,7 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
     )
     confirmed = asyncio.run(
         service.confirm_action(
-            owner_user_id=owner_id,
+            principal=_principal(owner_id),
             action_id=proposed.id,
         )
     )
@@ -177,6 +300,55 @@ def test_confirmation_action_waits_then_requeues_run() -> None:
     assert len(repository.after_commit_callbacks) == 1
     asyncio.run(repository.after_commit_callbacks[0]())
     assert notifier.run_ids == [run_id]
+
+
+def test_confirmation_rechecks_current_permissions() -> None:
+    owner_id = uuid4()
+    run_id = uuid4()
+    repository = FakeActionRepository(
+        owner_id=owner_id,
+        run_id=run_id,
+        run_status="waiting_for_confirmation",
+    )
+    applicator = ApplyOnce(
+        resource_type="plan",
+        application_event_type=None,
+    )
+    service = RuntimeActionService(
+        repository=cast(RuntimeLedgerRepository, repository),
+        executor=ActionExecutor(
+            repository=cast(RuntimeLedgerRepository, repository),
+            applicators={CONFIRMATION_ACTION_TYPE: applicator},
+            policy=_policy(),
+        ),
+    )
+    proposed = asyncio.run(
+        service.propose_action(
+            _plan_delete_proposal(
+                owner_id=owner_id,
+                run_id=run_id,
+                idempotency_key="revoked-before-confirmation",
+            )
+        )
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            service.confirm_action(
+                principal=_principal(
+                    owner_id,
+                    permissions=frozenset({"agent:run"}),
+                ),
+                action_id=proposed.id,
+            )
+        )
+
+    assert captured.value.code == "permission_denied"
+    assert repository.action is not None
+    assert repository.action.status == "confirmation_required"
+    assert applicator.calls == 0
+    assert repository.event_types[-1] == "action.blocked"
+    assert repository.commits == 1
 
 
 def test_retryable_product_failure_reuses_action_id_and_retries_safely() -> None:
@@ -292,13 +464,13 @@ def test_expired_confirmation_expires_run_and_releases_admission() -> None:
     with pytest.raises(ApiError) as captured:
         asyncio.run(
             service.confirm_action(
-                owner_user_id=owner_id,
+                principal=_principal(owner_id),
                 action_id=proposed.id,
             )
         )
     replay = asyncio.run(
         service.confirm_action(
-            owner_user_id=owner_id,
+            principal=_principal(owner_id),
             action_id=proposed.id,
         )
     )
@@ -403,7 +575,7 @@ def test_rejected_confirmation_cancels_run_and_releases_after_commit() -> None:
 
     asyncio.run(
         service.reject_action(
-            owner_user_id=owner_id,
+            principal=_principal(owner_id),
             action_id=proposed.id,
             reason="no",
         )
@@ -494,6 +666,7 @@ class FakeActionRepository:
             thread_id=uuid4(),
             actor_user_id=owner_id,
             status=run_status,
+            authorization_context=_principal(owner_id).authorization_context(),
         )
         self.action: AgentAction | None = None
         self.event_types: list[str] = []

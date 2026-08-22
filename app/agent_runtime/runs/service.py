@@ -25,6 +25,7 @@ from app.agent_runtime.ledger.repository import (
     LedgerActiveRunConflictError,
     RuntimeLedgerRepository,
 )
+from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
 
 from .admission import RunAdmission
@@ -126,6 +127,7 @@ class AgentRuntimeService:
         self,
         *,
         actor_user_id: UUID,
+        authorization_context: Mapping[str, Any],
         thread_id: UUID | None,
         message: str,
         attachments: Sequence[Mapping[str, Any] | BaseModel] | None = None,
@@ -136,6 +138,29 @@ class AgentRuntimeService:
         trace_id: str = "",
         idempotency_key: str | None = None,
     ) -> AgentRun:
+        try:
+            authorization = RuntimePrincipal.from_authorization_context(
+                authorization_context
+            )
+        except (TypeError, ValueError) as exc:
+            raise ApiError(
+                code="authorization_context_invalid",
+                message="Run authorization context is invalid.",
+                status=422,
+            ) from exc
+        if authorization.user_id != actor_user_id:
+            raise ApiError(
+                code="permission_denied",
+                message="Run authorization owner does not match actor.",
+                status=403,
+            )
+        if "agent:run" not in authorization.permissions:
+            raise ApiError(
+                code="permission_denied",
+                message="Agent Runtime permission is required.",
+                status=403,
+            )
+        safe_authorization_context = authorization.authorization_context()
         pattern = str(
             runtime_pattern or PROPRIETARY_RUNTIME_PATTERN
         ).strip()
@@ -263,6 +288,7 @@ class AgentRuntimeService:
                     actor_user_id=actor_user_id,
                     runtime_pattern=pattern,
                     runtime_version=version,
+                    authorization_context=safe_authorization_context,
                     request_id=_normalize_text(request_id, max_length=80),
                     trace_id=_normalize_text(trace_id, max_length=120),
                 )

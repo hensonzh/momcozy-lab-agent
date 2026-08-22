@@ -12478,5 +12478,21 @@
         "x-momcozy-stability": "stable"
       }
     }
-  }
+  },
+  "x-momcozy-runtime-token-permissions": [
+    "agent:run",
+    "device:read",
+    "diary:read",
+    "diary:write",
+    "files:read",
+    "plans:read",
+    "plans:write",
+    "prenatal:read",
+    "prenatal:write",
+    "profile:read",
+    "profile:write",
+    "records:read",
+    "records:write",
+    "support:write"
+  ]
 }

@@ -277,6 +277,7 @@ async def create_run(
     )
     run = await service.create_run(
         actor_user_id=principal.user_id,
+        authorization_context=principal.authorization_context(),
         thread_id=payload.thread_id,
         message=payload.message,
         attachments=payload.attachments,
@@ -350,6 +351,10 @@ async def stream_run_events(
     run_id: UUID,
     request: Request,
     after_sequence: int = Query(default=0, ge=0),
+    after_transient_cursor: str = Query(
+        default="0-0",
+        pattern=r"^\d+-\d+$",
+    ),
     limit: int = Query(default=200, ge=1, le=500),
     follow: bool = Query(default=False),
     poll_interval_seconds: float = Query(
@@ -374,6 +379,7 @@ async def stream_run_events(
             owner_user_id=principal.user_id,
             run_id=run_id,
             after_sequence=after_sequence,
+            after_transient_cursor=after_transient_cursor,
             limit=limit,
             follow=follow,
             poll_interval_seconds=poll_interval_seconds,
@@ -446,7 +452,7 @@ async def confirm_action(
     service: RuntimeActionService = Depends(get_action_service),
 ) -> AgentActionRead:
     action = await service.confirm_action(
-        owner_user_id=principal.user_id,
+        principal=principal,
         action_id=action_id,
         edited_apply_payload=payload.edited_apply_payload,
         idempotency_key=idempotency_key,
@@ -465,7 +471,7 @@ async def reject_action(
     service: RuntimeActionService = Depends(get_action_service),
 ) -> AgentActionRead:
     action = await service.reject_action(
-        owner_user_id=principal.user_id,
+        principal=principal,
         action_id=action_id,
         reason=payload.reason or "",
     )
@@ -595,6 +601,7 @@ async def _stream_run_event_chunks(
     owner_user_id: UUID,
     run_id: UUID,
     after_sequence: int,
+    after_transient_cursor: str = "0-0",
     limit: int,
     follow: bool,
     poll_interval_seconds: float,
@@ -604,7 +611,7 @@ async def _stream_run_event_chunks(
     service_factory: AgentStreamServiceFactory | None = None,
 ) -> AsyncIterator[str]:
     cursor = after_sequence
-    transient_cursor = "0-0"
+    transient_cursor = after_transient_cursor
     deadline = monotonic() + max_wait_seconds
     while True:
         if is_disconnected is not None and await is_disconnected():

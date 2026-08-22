@@ -37,6 +37,10 @@ class RuntimeTransientStream:
         message_id: UUID,
         agent_name: str,
         delta: str,
+        stream_schema_version: str,
+        segment_index: int,
+        prefix_utf8_bytes: int,
+        prefix_sha256: str,
     ) -> None:
         if not delta:
             return
@@ -48,6 +52,11 @@ class RuntimeTransientStream:
                 {
                     "message_id": str(message_id),
                     "delta": delta,
+                    "message_stream_id": str(message_id),
+                    "stream_schema_version": stream_schema_version,
+                    "segment_index": segment_index,
+                    "prefix_utf8_bytes": prefix_utf8_bytes,
+                    "prefix_sha256": prefix_sha256,
                     "responding_agent": agent_name,
                 },
                 ensure_ascii=False,

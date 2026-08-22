@@ -20,6 +20,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from app.infrastructure.product_backend.client import ProductBackendClient  # noqa: E402
+from app.bootstrap import build_runtime_tool_registry  # noqa: E402
 
 
 DEFAULT_OPENAPI_PATH = (
@@ -27,6 +28,9 @@ DEFAULT_OPENAPI_PATH = (
     / "docs"
     / "contracts"
     / "product.openapi.generated.json"
+)
+RUNTIME_TOKEN_PERMISSIONS_OPENAPI_FIELD = (
+    "x-momcozy-runtime-token-permissions"
 )
 
 
@@ -146,6 +150,7 @@ def discover_product_backend_client_contracts() -> tuple[ProductEndpointContract
 
 def check_openapi_contract(openapi: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    errors.extend(_runtime_token_permission_errors(openapi))
     paths = openapi.get("paths")
     if not isinstance(paths, Mapping):
         return ["OpenAPI document: paths must be an object"]
@@ -323,6 +328,39 @@ def check_openapi_contract(openapi: Mapping[str, Any]) -> list[str]:
             )
 
     return errors
+
+
+def _runtime_token_permission_errors(
+    openapi: Mapping[str, Any],
+) -> list[str]:
+    raw_permissions = openapi.get(
+        RUNTIME_TOKEN_PERMISSIONS_OPENAPI_FIELD
+    )
+    if (
+        not isinstance(raw_permissions, list)
+        or any(
+            not isinstance(permission, str) or not permission
+            for permission in raw_permissions
+        )
+        or raw_permissions != sorted(set(raw_permissions))
+    ):
+        return [
+            "OpenAPI document: Runtime token permission contract must be a "
+            "sorted unique string array"
+        ]
+    required_permissions = {
+        permission
+        for contract in build_runtime_tool_registry().list()
+        for permission in contract.required_permissions
+    }
+    required_permissions.add("agent:run")
+    missing = sorted(required_permissions - set(raw_permissions))
+    if not missing:
+        return []
+    return [
+        "OpenAPI document: Runtime token permission contract is missing "
+        f"required permissions: {', '.join(missing)}"
+    ]
 
 
 def load_openapi(path: Path) -> Mapping[str, Any]:

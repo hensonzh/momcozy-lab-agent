@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 import jwt
 from jwt import InvalidTokenError
 
+from app.agent_runtime.runtime_metadata import AUTH_TOKEN_VERSION
 from app.core.errors import ApiError
 
 from .jwks import (
@@ -18,7 +20,7 @@ from .principal import RuntimePrincipal
 
 
 ALGORITHM = "RS256"
-TOKEN_VERSION = 1
+TOKEN_VERSION = AUTH_TOKEN_VERSION
 MAX_TOKEN_ID_LENGTH = 255
 MAX_AUTHORITY_VALUES = 64
 MAX_AUTHORITY_VALUE_LENGTH = 128
@@ -105,8 +107,8 @@ def _principal_from_payload(payload: dict[str, Any]) -> RuntimePrincipal:
     token_version = payload.get("token_version")
     if type(token_version) is not int or token_version != TOKEN_VERSION:
         raise ValueError("Token version is invalid.")
-    _numeric_date(payload.get("iat"))
-    _numeric_date(payload.get("exp"))
+    issued_at = _numeric_date(payload.get("iat"))
+    expires_at = _numeric_date(payload.get("exp"))
     return RuntimePrincipal(
         user_id=UUID(subject),
         subject=subject,
@@ -115,6 +117,8 @@ def _principal_from_payload(payload: dict[str, Any]) -> RuntimePrincipal:
         token_version=token_version,
         roles=_authority_values(payload.get("roles")),
         permissions=_authority_values(payload.get("permissions")),
+        issued_at=datetime.fromtimestamp(issued_at, tz=timezone.utc),
+        expires_at=datetime.fromtimestamp(expires_at, tz=timezone.utc),
     )
 
 

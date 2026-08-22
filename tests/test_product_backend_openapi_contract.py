@@ -138,6 +138,22 @@ def test_pinned_product_openapi_satisfies_the_runtime_client_contract() -> None:
     )
 
 
+def test_checker_rejects_missing_runtime_token_permissions() -> None:
+    schema = _compatible_openapi()
+    schema["x-momcozy-runtime-token-permissions"] = ["agent:run"]
+
+    errors = check_openapi_contract(schema)
+
+    assert any(
+        error.startswith(
+            "OpenAPI document: Runtime token permission contract is missing"
+        )
+        and "profile:read" in error
+        and "records:write" in error
+        for error in errors
+    )
+
+
 @pytest.mark.skipif(
     not SIBLING_PRODUCT_OPENAPI.is_file(),
     reason="sibling Product Backend OpenAPI is not available",

@@ -5,8 +5,8 @@ import re
 import unicodedata
 from typing import Literal
 
+from app.agent_runtime.runtime_metadata import RUNTIME_SAFETY_POLICY_VERSION
 
-RUNTIME_SAFETY_POLICY_VERSION = "momcozy.runtime_safety.v1"
 SafetyDecision = Literal["allow", "escalate"]
 SafetyCategory = Literal[
     "none",

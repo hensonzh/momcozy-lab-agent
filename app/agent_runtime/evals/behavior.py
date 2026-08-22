@@ -13,11 +13,16 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-
-BEHAVIOR_SUITE_SCHEMA_VERSION = "momcozy.behavior_eval_suite.v3"
-BEHAVIOR_RUN_MAP_SCHEMA_VERSION = "momcozy.behavior_eval_run_map.v1"
-BEHAVIOR_REPORT_SCHEMA_VERSION = "momcozy.behavior_eval_report.v1"
-RUNTIME_REPLAY_SCHEMA_VERSION = "agent_run_replay.v3"
+from app.agent_runtime.runtime_metadata import (
+    BEHAVIOR_REPORT_SCHEMA_VERSION,
+    BEHAVIOR_RUN_MAP_SCHEMA_VERSION,
+    BEHAVIOR_SUITE_SCHEMA_VERSION,
+    REPLAY_SCHEMA_VERSION,
+    BehaviorRunMapSchemaVersion,
+    BehaviorSuiteSchemaVersion,
+    ReplaySchemaVersion,
+    ResponseQualityRubricVersion,
+)
 
 TerminalStatus = Literal["completed", "failed", "cancelled", "expired"]
 ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
@@ -115,7 +120,7 @@ class RubricCriterion(_StrictModel):
 
 
 class QualityRubric(_StrictModel):
-    rubric_version: Literal["momcozy.response_quality.v1"]
+    rubric_version: ResponseQualityRubricVersion
     review_mode: Literal["live_model_judge_or_manual"]
     min_score: int = Field(ge=1, le=5)
     criteria: tuple[RubricCriterion, ...] = Field(min_length=1)
@@ -160,14 +165,14 @@ class BehaviorEvalCase(_StrictModel):
 
 
 class BehaviorEvalSuite(_StrictModel):
-    schema_version: Literal["momcozy.behavior_eval_suite.v3"]
+    schema_version: BehaviorSuiteSchemaVersion
     suite_id: str = Field(
         pattern=r"^[a-z][a-z0-9_-]*$",
         min_length=1,
         max_length=120,
     )
     description: str = Field(min_length=1, max_length=2000)
-    replay_contract_version: Literal["agent_run_replay.v3"]
+    replay_contract_version: ReplaySchemaVersion
     cases: tuple[BehaviorEvalCase, ...] = Field(min_length=1)
 
     @field_validator("cases")
@@ -183,7 +188,7 @@ class BehaviorEvalSuite(_StrictModel):
 
 
 class BehaviorRunMap(_StrictModel):
-    schema_version: Literal["momcozy.behavior_eval_run_map.v1"]
+    schema_version: BehaviorRunMapSchemaVersion
     runs: dict[str, UUID] = Field(min_length=1)
 
     @field_validator("runs")
@@ -324,12 +329,12 @@ def _evaluate_structure(
 ) -> list[BehaviorEvalFailure]:
     failures: list[BehaviorEvalFailure] = []
     bundle = observed.bundle
-    if bundle.get("schema_version") != RUNTIME_REPLAY_SCHEMA_VERSION:
+    if bundle.get("schema_version") != REPLAY_SCHEMA_VERSION:
         _failure(
             failures,
             category="trace_contract_violation",
             assertion="trace.schema_version",
-            expected=RUNTIME_REPLAY_SCHEMA_VERSION,
+            expected=REPLAY_SCHEMA_VERSION,
             observed=bundle.get("schema_version"),
         )
 

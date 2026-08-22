@@ -11,10 +11,12 @@ from app.agent_runtime.context.compaction import (
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
     validate_checkpoint_document,
 )
+from app.agent_runtime.runtime_metadata import (
+    CONTEXT_EVAL_SCHEMA_VERSION,
+    ContextEvalSchemaVersion,
+)
 from app.core.errors import ApiError
 
-
-CONTEXT_EVAL_SCHEMA_VERSION = "agent_context_eval_suite.v1"
 KNOWN_CONTEXT_ASSERTIONS = frozenset(
     {
         "provider.no_internal_asset_refs",
@@ -68,7 +70,7 @@ class ContextEvalCase(_StrictModel):
 
 
 class ContextEvalSuite(_StrictModel):
-    schema_version: Literal["agent_context_eval_suite.v1"]
+    schema_version: ContextEvalSchemaVersion
     suite: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1, max_length=2000)
     cases: tuple[ContextEvalCase, ...] = Field(min_length=1)

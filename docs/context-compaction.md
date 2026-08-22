@@ -1,7 +1,7 @@
-# Context Pipeline v2
+# Context Pipeline v1
 
-Context Pipeline v2 is a subsystem inside the existing `proprietary_runtime`
-Runtime (`momcozy-agent-v5`). The durable pipeline remains outside the OpenAI
+Context Pipeline v1 is a subsystem inside the existing `proprietary_runtime`
+Runtime (`momcozy-agent-v1`). The durable pipeline remains outside the OpenAI
 Agents SDK execution engine. It preserves the append-only ledger and the
 Run/tool/action loop while making long-thread context reproducible, low-trust,
 recoverable, and safe for attachments.
@@ -123,12 +123,12 @@ queried as permanent Thread poison.
 
 ## Replay, evals, and operations
 
-Replay v3 exports the frozen Run context state, typed checkpoint metadata, and
+Replay v1 exports the frozen Run context state, typed checkpoint metadata, and
 the current Thread Context Head. Checkpoint content remains redacted unless the
 existing privileged content flag is enabled.
 
 The deterministic Context eval catalog is
-`evals/context/v2/scenarios.json`. It covers attachment materialization,
+`evals/context/v1/scenarios.json`. It covers attachment materialization,
 prompt-injection trust, typed-summary preservation, recursive compaction,
 crash-attempt bounds, dead-letter recovery, pinned-version drift, and durable
 hard-limit resume.

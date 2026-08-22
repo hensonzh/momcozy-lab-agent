@@ -204,6 +204,53 @@ def test_worker_rejects_placeholder_model_provider_key() -> None:
         ).validate_for_worker()
 
 
+def test_worker_rejects_unknown_model_provider() -> None:
+    with pytest.raises(ValueError, match="AGENT_MODEL_PROVIDER"):
+        Settings(
+            app_env="test",
+            agent_model_provider="chat_completions_compatible",
+            openai_api_key="test-openai-key",
+        ).validate_for_worker()
+
+
+def test_worker_requires_explicit_responses_compatibility_for_gateway() -> None:
+    with pytest.raises(
+        ValueError,
+        match="OPENAI_RESPONSES_COMPATIBLE_BASE_URL",
+    ):
+        Settings(
+            app_env="test",
+            openai_api_key="test-openai-key",
+            openai_base_url="https://model-gateway.test/v1",
+        ).validate_for_worker()
+
+    Settings(
+        app_env="test",
+        openai_api_key="test-openai-key",
+        openai_base_url="https://model-gateway.test/v1",
+        openai_responses_compatible_base_url=True,
+    ).validate_for_worker()
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "https://user:secret@model-gateway.test/v1",
+        "https://model-gateway.test/v1?token=secret",
+    ),
+)
+def test_worker_rejects_provider_url_credentials_and_query(
+    base_url: str,
+) -> None:
+    with pytest.raises(ValueError, match="OPENAI_BASE_URL"):
+        Settings(
+            app_env="test",
+            openai_api_key="test-openai-key",
+            openai_base_url=base_url,
+            openai_responses_compatible_base_url=True,
+        ).validate_for_worker()
+
+
 def test_unknown_environment_fails_closed() -> None:
     with pytest.raises(ValueError, match="APP_ENV"):
         create_app(Settings(app_env="prd"))

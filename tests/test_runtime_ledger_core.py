@@ -17,6 +17,7 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
+from app.auth import RuntimePrincipal
 
 
 def test_active_run_lookup_is_owner_scoped_and_only_returns_active_statuses() -> None:
@@ -72,6 +73,7 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
             repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="new",
@@ -83,18 +85,30 @@ def test_create_run_rechecks_active_run_after_locking_thread() -> None:
     assert session.added == []
 
 
+def _authorization_context(owner_user_id: UUID) -> dict[str, Any]:
+    return RuntimePrincipal(
+        user_id=owner_user_id,
+        subject=str(owner_user_id),
+        session_id=uuid4(),
+        token_id="runtime-ledger-core-test",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset({"agent:run"}),
+    ).authorization_context()
+
+
 def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> None:
     run = AgentRun(
         id=uuid4(),
         thread_id=uuid4(),
         actor_user_id=uuid4(),
         runtime_pattern="proprietary_runtime",
-        runtime_version="momcozy-agent-v5",
+        runtime_version="momcozy-agent-v1",
         request_id="request",
         trace_id="trace",
     )
     manifest = {
-        "schema_version": "agent_model_execution.v2",
+        "schema_version": "agent_model_execution.v1",
         "agent_name": "cozymate",
     }
     manifest["manifest_sha256"] = _manifest_sha256(manifest)
@@ -116,9 +130,9 @@ def test_record_model_execution_manifest_is_idempotent_per_exact_request() -> No
 
     assert first == replayed
     assert run.execution_manifest == {
-        "schema_version": "agent_run_execution_manifest.v2",
+        "schema_version": "agent_run_execution_manifest.v1",
         "runtime_pattern": "proprietary_runtime",
-        "runtime_version": "momcozy-agent-v5",
+        "runtime_version": "momcozy-agent-v1",
         "invocations": [
             {
                 "sequence": 1,
@@ -135,7 +149,7 @@ def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
         thread_id=uuid4(),
         actor_user_id=uuid4(),
         runtime_pattern="proprietary_runtime",
-        runtime_version="momcozy-agent-v5",
+        runtime_version="momcozy-agent-v1",
         request_id="request",
         trace_id="trace",
     )
@@ -149,7 +163,7 @@ def test_record_model_execution_manifest_rejects_incorrect_hash() -> None:
             repository.record_model_execution_manifest(
                 run=run,
                 manifest={
-                    "schema_version": "agent_model_execution.v2",
+                    "schema_version": "agent_model_execution.v1",
                     "manifest_sha256": "a" * 64,
                 },
             )

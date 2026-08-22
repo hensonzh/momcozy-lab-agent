@@ -16,18 +16,27 @@ def diary_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="diary_read",
+            domain="diary",
+            operation="read",
+            required_permissions=("diary:read",),
             description=(
                 "读取当前用户某天的完整日记，或日期范围内的日记摘要。"
                 "当需要查看日记、确认待修改或删除的目标，或更新前取得完整旧正文时使用。"
             ),
             input_schema=input_schema_for_tool("diary_read"),
             output_schema=DiaryReadResponse.model_json_schema(),
+            safe_arg_fields=("mode",),
+            safe_output_fields=("count", "truncated"),
+            retry_policy="safe_read",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="diary_mutate",
+            domain="diary",
+            operation="action_proposal",
+            required_permissions=("diary:write",),
             description=(
                 "创建、完整更新或删除当前用户的日记。"
                 "当用户表达记录、完整改写或删除某日日记的意图时使用。"
@@ -48,6 +57,14 @@ def diary_tool_registry() -> ToolContractRegistry:
                 "diary.entry.save",
                 "diary.entry.delete",
             ),
+            safe_arg_fields=("operation",),
+            safe_output_fields=(
+                "action_status",
+                "action_type",
+                "requires_confirmation",
+                "write_succeeded",
+            ),
+            retry_policy="idempotent_write",
             timeout_seconds=10,
         )
     )

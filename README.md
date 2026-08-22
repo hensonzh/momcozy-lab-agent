@@ -75,11 +75,20 @@ Export a replay, optionally evaluating a stored case:
 python scripts/run_replay_eval.py --run-id <run-uuid> [--eval-case-id <case-uuid>]
 ```
 
-Replay v3 includes the run's ordered model-execution manifest: Prompt identity
+Replay v1 includes the run's ordered model-execution manifest: Prompt identity
 and content hashes, Tool schemas and hashes, Agents SDK/OpenAI SDK versions,
-model settings, and ordered Context-item/request hashes. The manifest does not
-copy Prompt or user content; user-derived Context content remains governed by
-the replay export's explicit content-inclusion flag.
+model settings, ordered Context-item/request hashes, unified Runtime metadata,
+and the versioned Tool/Action catalog hashes. The manifest does not copy Prompt
+or user content; user-derived Context content remains governed by the replay
+export's explicit content-inclusion flag.
+
+Runtime-owned versions live in one source,
+`app/agent_runtime/runtime_metadata.py`. Tool/Action catalog drift is checked
+against `docs/runtime-contract-catalog.generated.json`:
+
+```bash
+python scripts/export_runtime_contract_catalog.py --check
+```
 
 Validate the versioned behavior catalog without calling a model:
 
@@ -132,7 +141,10 @@ are defined in [observability.md](docs/observability.md).
 
 The current single-agent progressive Skill/Tool loading model is defined
 in [single-agent-design.md](docs/single-agent-design.md).
-The Context Pipeline v2 100k-token contract, typed low-trust checkpoints,
+Runtime v1 authorization, Tool/Action policy, double-cursor streaming,
+provider, migration, and deterministic harness contracts are defined in
+[runtime-v1.md](docs/runtime-v1.md).
+The Context Pipeline v1 100k-token contract, typed low-trust checkpoints,
 next-Run generation gate, audited dead-letter recovery, and durable hard-limit
 resume are defined in
 [context-compaction.md](docs/context-compaction.md).

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from app.agent_runtime.runtime_metadata import (
+    DEFAULT_RUNTIME_VERSION,
+    PROPRIETARY_RUNTIME_PATTERN,
+)
 from app.core.errors import ApiError
-
-
-PROPRIETARY_RUNTIME_PATTERN = "proprietary_runtime"
-DEFAULT_RUNTIME_VERSION = "momcozy-agent-v5"
 
 
 def validate_runtime(*, version: str, pattern: str) -> None:

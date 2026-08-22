@@ -35,7 +35,12 @@ from app.agent_runtime.orchestration.testing import (
     ScriptedToolCall,
     ScriptedTurn,
 )
-from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
+from app.agent_runtime.providers import ModelProviderProfile
+from app.bootstrap import (
+    RUNTIME_DEFINITION,
+    build_runtime_contract_catalog_snapshot,
+    build_runtime_tool_registry,
+)
 from app.core.errors import ApiError
 
 
@@ -62,6 +67,7 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
         engine.execute(
             input_items=({"role": "user", "content": "读取我的资料"},),
             port=port,
+            authorization_permissions=_all_tool_permissions(),
         )
     )
 
@@ -118,6 +124,7 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
                 },
             ),
             port=port,
+            authorization_permissions=_all_tool_permissions(),
         )
     )
 
@@ -130,9 +137,35 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     ]
     assert port.deltas == ["图片", "已收到。"]
     manifest = port.manifests[0]
+    assert manifest["schema_version"] == "agent_model_execution.v1"
+    assert manifest["runtime_metadata"]["tool_contract_schema_version"] == (
+        "agent.tool_contract.v1"
+    )
+    assert manifest["runtime_metadata"]["action_policy_schema_version"] == (
+        "agent.action_policy.v1"
+    )
+    assert manifest["tools"]["contract_schema_version"] == (
+        "agent.tool_contract.v1"
+    )
+    assert manifest["actions"]["policy_schema_version"] == (
+        "agent.action_policy.v1"
+    )
+    catalog = build_runtime_contract_catalog_snapshot()
+    assert manifest["contract_catalog"] == {
+        "schema_version": catalog["schema_version"],
+        "sha256": catalog["catalog_sha256"],
+    }
+    assert manifest["tools"]["catalog_sha256"] == (
+        catalog["tools"]["sha256"]
+    )
+    assert manifest["actions"]["catalog_sha256"] == (
+        catalog["actions"]["sha256"]
+    )
     assert manifest["model"]["execution_engine"] == (
         "openai_agents_sdk"
     )
+    assert manifest["model"]["provider"] == "openai_responses"
+    assert manifest["context"]["schema_version"] == "agent.model_context.v1"
     assert manifest["model"]["sdk_package"] == "openai-agents"
     assert manifest["model"]["timeout_scope"] == (
         "per_model_call_wall_clock"
@@ -176,6 +209,7 @@ def test_unpaired_durable_function_context_is_rejected_before_sdk_run() -> None:
                     },
                 ),
                 port=RecordingExecutionPort(),
+                authorization_permissions=_all_tool_permissions(),
             )
         )
 
@@ -200,6 +234,7 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
                     {"role": "user", "content": "你好"},
                 ),
                 port=RecordingExecutionPort(),
+                authorization_permissions=_all_tool_permissions(),
                 observation_context={
                     "run_id": "run-id",
                     "thread_id": "thread-id",
@@ -217,7 +252,7 @@ def test_sdk_model_calls_emit_low_cardinality_operation_metrics(
     assert len(records) == 1
     fields = vars(records[0])
     assert fields["outcome"] == "success"
-    assert fields["provider"] == "openai"
+    assert fields["provider"] == "openai_responses"
     assert fields["model"] == "scripted"
     assert fields["agent_name"] == "cozymate"
     assert fields["run_id"] == "run-id"
@@ -246,6 +281,7 @@ def test_streaming_model_call_has_a_total_wall_clock_timeout(
                         {"role": "user", "content": "持续生成"},
                     ),
                     port=port,
+                    authorization_permissions=_all_tool_permissions(),
                 ),
                 timeout=0.5,
             )
@@ -277,6 +313,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         model_name="gpt-5.6-terra",
         tool_registry=build_runtime_tool_registry(),
         runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
         max_turns=8,
         reasoning_effort="medium",
         text_verbosity="low",
@@ -289,6 +326,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
                 {"role": "user", "content": "你好"},
             ),
             port=RecordingExecutionPort(),
+            authorization_permissions=_all_tool_permissions(),
         )
     )
 
@@ -366,8 +404,77 @@ def _engine(
         model_name="scripted",
         tool_registry=build_runtime_tool_registry(),
         runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
         max_turns=8,
         timeout_seconds=timeout_seconds,
+    )
+
+
+@pytest.mark.parametrize(
+    ("api", "profile_base_url", "expected_message"),
+    (
+        ("chat_completions", "", "Responses API"),
+        ("responses", "https://gateway-b.test/v1", "base URL"),
+    ),
+)
+def test_engine_rejects_provider_profile_that_disagrees_with_execution_boundary(
+    api: str,
+    profile_base_url: str,
+    expected_message: str,
+) -> None:
+    profile = ModelProviderProfile(
+        provider_id="compatible_gateway",
+        api=api,
+        model="scripted",
+        base_url=profile_base_url,
+        capabilities=frozenset(
+            {
+                "function_tools",
+                "streaming",
+                "structured_outputs",
+                "tool_search",
+            }
+        ),
+    )
+
+    with pytest.raises(ValueError, match=expected_message):
+        OpenAIAgentsExecutionEngine(
+            model=ScriptedAgentModel(
+                {"cozymate": [ScriptedTurn.final("unused")]}
+            ),
+            model_name="scripted",
+            tool_registry=build_runtime_tool_registry(),
+            runtime=RUNTIME_DEFINITION,
+            runtime_contract_catalog=(
+                build_runtime_contract_catalog_snapshot()
+            ),
+            base_url="https://gateway-a.test/v1",
+            provider_profile=profile,
+        )
+
+
+def test_engine_rejects_catalog_that_disagrees_with_tool_contracts() -> None:
+    registry = build_runtime_tool_registry()
+    catalog = build_runtime_contract_catalog_snapshot(registry=registry)
+    registry.list()[0].description += " drift"
+
+    with pytest.raises(ValueError, match="Tool registry"):
+        OpenAIAgentsExecutionEngine(
+            model=ScriptedAgentModel(
+                {"cozymate": [ScriptedTurn.final("unused")]}
+            ),
+            model_name="scripted",
+            tool_registry=registry,
+            runtime=RUNTIME_DEFINITION,
+            runtime_contract_catalog=catalog,
+        )
+
+
+def _all_tool_permissions() -> frozenset[str]:
+    return frozenset(
+        permission
+        for contract in build_runtime_tool_registry().list()
+        for permission in contract.required_permissions
     )
 
 

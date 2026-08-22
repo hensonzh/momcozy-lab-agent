@@ -8,7 +8,7 @@ CozyMate 是应用中唯一的 Agent，运行时标识为 `cozymate`。它在同
 agent-as-tool 路径。
 
 当前 Runtime Pattern 仍为 `proprietary_runtime`，版本为
-`momcozy-agent-v5`：
+`momcozy-agent-v1`：
 
 - 自研 durable `AgentLoop` 继续负责 Run 租约、追加式账本、Action 确认、
   崩溃恢复、Context Pipeline、最终消息和业务审计。

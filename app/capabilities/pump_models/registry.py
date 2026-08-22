@@ -11,12 +11,16 @@ def pump_models_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="pump_models_read",
+            domain="device",
+            operation="read",
+            required_permissions=("device:read",),
             description=(
                 "读取 Momcozy 官方吸奶器型号与产品事实。"
                 "当型号比较、价格或功能核对、适用场景判断或选购建议需要官方产品事实时使用。"
             ),
             input_schema=input_schema_for_tool("pump_models_read"),
             output_schema=object_output_schema(),
+            retry_policy="safe_read",
             timeout_seconds=10,
         )
     )

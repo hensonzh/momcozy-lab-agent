@@ -21,12 +21,12 @@ from app.agent_runtime.ledger import (
     AgentWorkflowEvent,
     AgentWorkflowState,
 )
+from app.agent_runtime.runtime_metadata import REPLAY_SCHEMA_VERSION
 from app.core.errors import ApiError
 
 from .repository import RuntimeReplayRepository
 
 
-REPLAY_SCHEMA_VERSION = "agent_run_replay.v3"
 SENSITIVE_KEYS = frozenset(
     {
         "authorization",

@@ -35,34 +35,62 @@ PLANS_ACTION_TYPES = frozenset(
 )
 PLANS_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     "plans.task.create": ActionPolicyRule(
-        "plans.task.create", "plan_task", "medium"
+        action_type="plans.task.create",
+        target_type="plan_task",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
     ),
     "plans.task.update": ActionPolicyRule(
-        "plans.task.update", "plan_task", "medium"
+        action_type="plans.task.update",
+        target_type="plan_task",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
     ),
     "plans.task.complete": ActionPolicyRule(
-        "plans.task.complete", "plan_task", "medium"
+        action_type="plans.task.complete",
+        target_type="plan_task",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
     ),
     "plans.task.delete": ActionPolicyRule(
-        "plans.task.delete", "plan_task", "medium"
+        action_type="plans.task.delete",
+        target_type="plan_task",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
     ),
     "plans.plan.delete": ActionPolicyRule(
-        "plans.plan.delete",
-        "plan",
-        "medium",
+        action_type="plans.plan.delete",
+        target_type="plan",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
         requires_confirmation=True,
+        blocking_policy="wait_for_confirmation",
     ),
     "plans.plan.update": ActionPolicyRule(
-        "plans.plan.update", "plan", "medium"
+        action_type="plans.plan.update",
+        target_type="plan",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_with_scoped_idempotent_apply",
     ),
     "pregnancy.plan.create": ActionPolicyRule(
-        "pregnancy.plan.create", "plan", "medium"
+        action_type="pregnancy.plan.create",
+        target_type="plan",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
+        confirmation_exemption="explicit_user_intent_after_pregnancy_intake",
     ),
     "plans.milk_schedule.reschedule": ActionPolicyRule(
-        "plans.milk_schedule.reschedule",
-        "plan",
-        "medium",
+        action_type="plans.milk_schedule.reschedule",
+        target_type="plan",
+        side_effect_level="medium",
+        required_permissions=frozenset({"plans:write"}),
         requires_confirmation=True,
+        blocking_policy="wait_for_confirmation",
     ),
 }
 

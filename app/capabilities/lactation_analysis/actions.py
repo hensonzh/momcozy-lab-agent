@@ -20,9 +20,17 @@ LACTATION_RECORD_ACTION_TYPES = frozenset(
 )
 LACTATION_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     action_type: ActionPolicyRule(
-        action_type,
-        action_type.removeprefix("records.").rsplit(".", 1)[0],
-        "low" if action_type.endswith(".create") else "medium",
+        action_type=action_type,
+        target_type=action_type.removeprefix("records.").rsplit(".", 1)[0],
+        side_effect_level=(
+            "low" if action_type.endswith(".create") else "medium"
+        ),
+        required_permissions=frozenset({"records:write"}),
+        confirmation_exemption=(
+            "explicit_user_intent_with_scoped_idempotent_record_apply"
+            if not action_type.endswith(".create")
+            else ""
+        ),
     )
     for action_type in LACTATION_RECORD_ACTION_TYPES
 }

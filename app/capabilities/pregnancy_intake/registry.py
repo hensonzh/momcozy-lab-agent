@@ -17,6 +17,9 @@ def pregnancy_intake_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="pregnancy_intake_manage",
+            domain="prenatal",
+            operation="runtime_internal",
+            required_permissions=("prenatal:write",),
             description=(
                 "收集并管理生成孕期计划所需的信息。"
                 "当用户的孕期计划目标需要启动资料采集、处理当前回答，"
@@ -56,6 +59,8 @@ def pregnancy_intake_tool_registry() -> ToolContractRegistry:
                 },
             ),
             output_schema=object_output_schema(),
+            safe_arg_fields=("operation",),
+            safe_output_fields=("status", "operation"),
             timeout_seconds=15,
         )
     )

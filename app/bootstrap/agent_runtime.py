@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,9 @@ from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
     RuntimeDefinition,
     ToolCatalog,
+)
+from app.agent_runtime.runtime_metadata import (
+    assemble_runtime_contract_catalog_snapshot,
 )
 from app.agent_runtime.tools import ToolContractRegistry
 from app.agent_runtime.tools.handlers import ToolHandler
@@ -190,8 +194,37 @@ def build_runtime_tool_registry() -> ToolContractRegistry:
         registry.register(contract)
     for contract in service_skill_tool_registry().list():
         registry.register(contract)
+    validate_runtime_contracts(registry=registry)
     _validate_tool_catalog(registry)
     return registry
+
+
+def build_runtime_contract_catalog_snapshot(
+    *,
+    registry: ToolContractRegistry | None = None,
+    policy_rules: Mapping[str, ActionPolicyRule] | None = None,
+) -> dict[str, Any]:
+    selected_registry = registry or build_runtime_tool_registry()
+    selected_rules = dict(
+        build_action_policy_rules()
+        if policy_rules is None
+        else policy_rules
+    )
+    validate_runtime_contracts(
+        registry=selected_registry,
+        policy_rules=selected_rules,
+    )
+    tool_items = [
+        contract.catalog_item() for contract in selected_registry.list()
+    ]
+    action_items = [
+        rule.catalog_item()
+        for rule in selected_rules.values()
+    ]
+    return assemble_runtime_contract_catalog_snapshot(
+        tool_items=tool_items,
+        action_items=action_items,
+    )
 
 
 def build_product_tool_handlers(
@@ -270,6 +303,7 @@ def validate_runtime_composition(
     handlers: Mapping[str, ToolHandler],
     action_types: Collection[str],
 ) -> None:
+    validate_runtime_contracts(registry=registry)
     registry.validate_action_bindings(
         policy_action_types=build_action_policy_rules(),
         handler_action_types=action_types,
@@ -290,6 +324,62 @@ def validate_runtime_composition(
             f"unused_tools={sorted(registered - expected)}"
         )
     _validate_tool_catalog(registry)
+
+
+def validate_runtime_contracts(
+    *,
+    registry: ToolContractRegistry,
+    policy_rules: Mapping[str, ActionPolicyRule] | None = None,
+) -> None:
+    """Fail closed when Tool and Action authorization metadata diverge."""
+
+    rules = dict(policy_rules or build_action_policy_rules())
+    bindings: dict[str, list[str]] = {}
+    contracts = {contract.name: contract for contract in registry.list()}
+    for contract in contracts.values():
+        for action_type in contract.action_types:
+            bindings.setdefault(action_type, []).append(contract.name)
+
+    duplicate_bindings = {
+        action_type: sorted(tool_names)
+        for action_type, tool_names in bindings.items()
+        if len(tool_names) > 1
+    }
+    if duplicate_bindings:
+        raise ValueError(
+            "runtime Action types are bound by multiple tools: "
+            f"{duplicate_bindings}"
+        )
+
+    bound_action_types = set(bindings)
+    policy_action_types = set(rules)
+    missing_policy = sorted(bound_action_types - policy_action_types)
+    if missing_policy:
+        raise ValueError(
+            "runtime Tool Action types have no policy: "
+            f"{missing_policy}"
+        )
+    unbound_policy = sorted(policy_action_types - bound_action_types)
+    if unbound_policy:
+        raise ValueError(
+            "runtime Action policy types are not bound to a Tool: "
+            f"{unbound_policy}"
+        )
+
+    permission_gaps: dict[str, list[str]] = {}
+    for action_type, tool_names in bindings.items():
+        contract = contracts[tool_names[0]]
+        missing_permissions = sorted(
+            rules[action_type].required_permissions
+            - frozenset(contract.required_permissions)
+        )
+        if missing_permissions:
+            permission_gaps[action_type] = missing_permissions
+    if permission_gaps:
+        raise ValueError(
+            "runtime Tool/Action permission coverage is incomplete: "
+            f"{permission_gaps}"
+        )
 
 
 def _validate_tool_catalog(
@@ -314,5 +404,7 @@ __all__ = [
     "build_product_tool_registry",
     "build_runtime_tool_handlers",
     "build_runtime_tool_registry",
+    "build_runtime_contract_catalog_snapshot",
+    "validate_runtime_contracts",
     "validate_runtime_composition",
 ]

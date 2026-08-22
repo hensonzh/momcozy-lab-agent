@@ -93,10 +93,16 @@ def lactation_analysis_tool_registry() -> ToolContractRegistry:
         registry.register(
             ToolContract(
                 name=name,
+                domain="records",
+                operation="read",
+                required_permissions=("records:read",),
                 description=description,
                 input_schema=input_schema_for_tool(name),
                 internal_input_schema=_internal_schema(arguments),
                 output_schema=result.model_json_schema(),
+                safe_arg_fields=("window_days",),
+                safe_output_fields=("count", "truncated"),
+                retry_policy="safe_read",
                 timeout_seconds=timeout,
             )
         )

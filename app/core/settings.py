@@ -19,6 +19,7 @@ OPENAI_REASONING_EFFORTS = {
     "xhigh",
     "max",
 }
+SUPPORTED_AGENT_MODEL_PROVIDERS = {"openai_responses"}
 KNOWN_SECRET_PLACEHOLDERS = frozenset(
     {
         "replace-with-a-random-service-key-of-at-least-32-bytes",
@@ -66,8 +67,10 @@ class Settings:
     auth_jwks_timeout_seconds: float = 2.0
     auth_jwks_cache_ttl_seconds: float = 900.0
     auth_jwks_kid_miss_cooldown_seconds: float = 30.0
+    agent_model_provider: str = "openai_responses"
     openai_api_key: str = ""
     openai_base_url: str = ""
+    openai_responses_compatible_base_url: bool = False
     openai_model: str = "gpt-5.6-terra"
     openai_reasoning_effort: str = "low"
     openai_text_verbosity: str = "low"
@@ -200,11 +203,19 @@ class Settings:
                 "AUTH_JWKS_KID_MISS_COOLDOWN_SECONDS",
                 cls.auth_jwks_kid_miss_cooldown_seconds,
             ),
+            agent_model_provider=_env(
+                "AGENT_MODEL_PROVIDER",
+                cls.agent_model_provider,
+            ).lower(),
             openai_api_key=_env("OPENAI_API_KEY", cls.openai_api_key),
             openai_base_url=_env(
                 "OPENAI_BASE_URL",
                 cls.openai_base_url,
             ).rstrip("/"),
+            openai_responses_compatible_base_url=_env_bool(
+                "OPENAI_RESPONSES_COMPATIBLE_BASE_URL",
+                cls.openai_responses_compatible_base_url,
+            ),
             openai_model=_env("OPENAI_MODEL", cls.openai_model),
             openai_reasoning_effort=_env(
                 "OPENAI_REASONING_EFFORT",
@@ -437,12 +448,43 @@ class Settings:
     def validate_for_worker(self) -> None:
         self.validate_for_startup()
         errors: list[str] = []
+        if self.agent_model_provider not in SUPPORTED_AGENT_MODEL_PROVIDERS:
+            errors.append(
+                "AGENT_MODEL_PROVIDER must be one of: openai_responses"
+            )
         if not self.openai_api_key:
             errors.append("OPENAI_API_KEY is required for the Agent worker")
         elif _is_placeholder_secret(self.openai_api_key):
             errors.append("OPENAI_API_KEY must not use a placeholder value")
         if not self.openai_model:
             errors.append("OPENAI_MODEL is required")
+        if self.openai_base_url:
+            parsed_openai_url = urlparse(self.openai_base_url)
+            if (
+                parsed_openai_url.scheme not in {"http", "https"}
+                or not parsed_openai_url.netloc
+                or parsed_openai_url.username is not None
+                or parsed_openai_url.password is not None
+                or bool(parsed_openai_url.query)
+                or bool(parsed_openai_url.fragment)
+            ):
+                errors.append(
+                    "OPENAI_BASE_URL must be an absolute HTTP(S) URL "
+                    "without credentials, query, or fragment"
+                )
+            if not self.openai_responses_compatible_base_url:
+                errors.append(
+                    "OPENAI_RESPONSES_COMPATIBLE_BASE_URL must be true "
+                    "for a custom OPENAI_BASE_URL"
+                )
+            if self.is_production and (
+                parsed_openai_url.scheme != "https"
+                or _is_loopback_host(parsed_openai_url.hostname)
+            ):
+                errors.append(
+                    "OPENAI_BASE_URL must be an explicit non-loopback "
+                    "HTTPS URL in production"
+                )
         if self.is_production and not self.runtime_output_store_bucket:
             errors.append(
                 "RUNTIME_OUTPUT_STORE_BUCKET is required for the "

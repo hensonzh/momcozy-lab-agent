@@ -30,7 +30,7 @@ from app.agent_runtime.providers.openai_context import (
 )
 
 
-def test_canonical_plan_hash_uses_stable_asset_reference_not_materialized_url() -> None:
+def test_context_v1_plan_hash_uses_stable_asset_reference_not_materialized_url() -> None:
     thread_id = uuid4()
     actor_user_id = uuid4()
     asset_id = uuid4()
@@ -502,7 +502,7 @@ class RecordingCounter:
 
 
 class NeverCompactor:
-    prompt_version = "agent_context_compaction.v2"
+    prompt_version = "agent_context_compaction.v1"
 
     def __init__(self, *, model: str = "gpt-5.6-terra") -> None:
         self.model = model
@@ -575,7 +575,7 @@ class PipelineRepository:
             token_counter_version="v1",
             source_input_tokens=10,
             summary_max_tokens=2_000,
-            prompt_version="agent_context_compaction.v2",
+            prompt_version="agent_context_compaction.v1",
             materializer_version=MATERIALIZER_VERSION,
             context_schema_version=CONTEXT_CHECKPOINT_SCHEMA_VERSION,
             summary_policy_version=SUMMARY_POLICY_VERSION,

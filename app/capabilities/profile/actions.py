@@ -19,15 +19,18 @@ PROFILE_CURRENT_INFANTS_REPLACE_ACTION = (
 )
 PROFILE_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     PROFILE_UPDATE_ACTION: ActionPolicyRule(
-        PROFILE_UPDATE_ACTION,
-        "profile",
-        "low",
+        action_type=PROFILE_UPDATE_ACTION,
+        target_type="profile",
+        side_effect_level="low",
+        required_permissions=frozenset({"profile:write"}),
     ),
     PROFILE_CURRENT_INFANTS_REPLACE_ACTION: ActionPolicyRule(
-        PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
-        "profile",
-        "medium",
+        action_type=PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
+        target_type="profile",
+        side_effect_level="medium",
+        required_permissions=frozenset({"profile:write"}),
         requires_confirmation=True,
+        blocking_policy="wait_for_confirmation",
     ),
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -20,6 +21,7 @@ from app.agent_runtime.safety import (
     RuntimeSafetyDecision,
     RuntimeSafetyPolicy,
 )
+from app.agent_runtime.runtime_metadata import TEXT_STREAM_SCHEMA_VERSION
 from app.agent_runtime.tools import (
     ToolExecutor,
     TrustedToolArgumentsProvider,
@@ -75,6 +77,10 @@ class TransientDeltaPublisher(Protocol):
         message_id: UUID,
         agent_name: str,
         delta: str,
+        stream_schema_version: str,
+        segment_index: int,
+        prefix_utf8_bytes: int,
+        prefix_sha256: str,
     ) -> None: ...
 
 
@@ -128,6 +134,8 @@ class AgentLoop:
         self.safety_policy = safety_policy or RuntimeSafetyPolicy()
         self._persistence_lock = asyncio.Lock()
         self._message_id: UUID | None = None
+        self._stream_segment_count = 0
+        self._stream_content = bytearray()
         self._run_id: UUID | None = None
         self._lease_token: UUID | None = None
         self._lease_guard: Callable[[], Awaitable[None]] | None = None
@@ -222,6 +230,8 @@ class AgentLoop:
             NAMESPACE_URL,
             f"momcozy-agent-run:{run.id}:assistant",
         )
+        self._stream_segment_count = 0
+        self._stream_content = bytearray()
         try:
             await self._start(run)
             recovered = await self._recover_completed_run(run)
@@ -430,6 +440,7 @@ class AgentLoop:
         initial_input_items: tuple[dict[str, Any], ...] | None = None,
     ) -> AgentAnswer:
         agent_name = self.runtime.agent.name
+        principal = self._runtime_principal(run)
         context_records = await self._context_records(run)
         model_input = _restore_agent_input(
             context_records,
@@ -467,6 +478,7 @@ class AgentLoop:
                 as_of_date=as_of_date,
                 emit_deltas=emit_deltas,
             ),
+            authorization_permissions=principal.permissions,
             runtime_context=dict(
                 getattr(run, "context_state", None) or {}
             ),
@@ -481,6 +493,19 @@ class AgentLoop:
             text=result.text,
             agent=result.agent,
         )
+
+    @staticmethod
+    def _runtime_principal(run: AgentRun) -> RuntimePrincipal:
+        try:
+            return RuntimePrincipal.from_authorization_context(
+                run.authorization_context
+            )
+        except (TypeError, ValueError) as exc:
+            raise ApiError(
+                code="runtime_authorization_context_invalid",
+                message="Run authorization context is invalid.",
+                status=500,
+            ) from exc
 
     async def _execute_calls(
         self,
@@ -519,15 +544,7 @@ class AgentLoop:
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
-        principal = RuntimePrincipal(
-            user_id=run.actor_user_id,
-            subject=str(run.actor_user_id),
-            session_id=UUID(int=0),
-            token_id=f"agent-run:{run.id}",
-            token_version=1,
-            roles=frozenset({"user"}),
-            permissions=frozenset({"agent:run"}),
-        )
+        principal = self._runtime_principal(run)
         trusted_args: dict[str, Any] = {}
         if self.trusted_arguments_provider is not None:
             trusted_args = await self.trusted_arguments_provider.build(
@@ -685,9 +702,16 @@ class AgentLoop:
                 event_type="message.completed",
                 payload={
                     "message_id": str(message.id),
+                    "message_stream_id": str(message.id),
                     "role": "assistant",
                     "text": answer.text,
                     "responding_agent": answer.agent,
+                    "stream_schema_version": TEXT_STREAM_SCHEMA_VERSION,
+                    "segment_count": self._stream_segment_count,
+                    "content_utf8_bytes": len(answer.text.encode("utf-8")),
+                    "content_sha256": hashlib.sha256(
+                        answer.text.encode("utf-8")
+                    ).hexdigest(),
                 },
             )
             completed_at = _utcnow()
@@ -722,6 +746,13 @@ class AgentLoop:
             if not delta:
                 return
             assert self._message_id is not None
+            segment_index = self._stream_segment_count
+            self._stream_segment_count += 1
+            self._stream_content.extend(delta.encode("utf-8"))
+            prefix_utf8_bytes = len(self._stream_content)
+            prefix_sha256 = hashlib.sha256(
+                self._stream_content
+            ).hexdigest()
             publisher = self.transient_delta_publisher
             if publisher is None:
                 return
@@ -732,6 +763,10 @@ class AgentLoop:
                     message_id=self._message_id,
                     agent_name=agent_name,
                     delta=delta,
+                    stream_schema_version=TEXT_STREAM_SCHEMA_VERSION,
+                    segment_index=segment_index,
+                    prefix_utf8_bytes=prefix_utf8_bytes,
+                    prefix_sha256=prefix_sha256,
                 )
             except Exception:
                 LOGGER.warning(

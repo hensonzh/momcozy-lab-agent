@@ -29,25 +29,37 @@ recreating the Runtime database before this baseline is deployed.
 6. Run `scripts/run_behavior_eval.py` against database-backed replay bundles.
    Structural assertions must pass, and all safety and response-quality reviews
    must be resolved.
-7. Run the deterministic Context Pipeline release gate:
-   `pytest -q tests/test_context_eval_gate.py tests/test_context_pipeline_v2.py`.
-8. Run the Agents SDK execution contract gate:
+7. Run the deterministic Runtime v1 contract harness:
+   `python scripts/run_runtime_v1_harness.py --junit reports/runtime-v1.xml`.
+8. Run the deterministic Context Pipeline release gate:
+   `pytest -q tests/test_context_eval_gate.py tests/test_context_pipeline_v1.py`.
+9. Run the Agents SDK execution contract gate:
    `pytest -q tests/test_openai_agents_execution.py tests/test_single_agent_loop.py`.
-9. Verify `AGENT_MODEL_TIMEOUT_SECONDS` against the production model and keep
+10. Verify `AGENT_MODEL_PROVIDER=openai_responses`. When a custom
+    `OPENAI_BASE_URL` is configured, explicitly attest Responses compatibility
+    with `OPENAI_RESPONSES_COMPATIBLE_BASE_URL=true`; production URLs must use
+    remote HTTPS and contain no credentials, query, or fragment.
+11. Verify `AGENT_MODEL_TIMEOUT_SECONDS` against the production model and keep
    `AGENT_WORKER_DB_LEASE_DURATION_SECONDS` at least one lease-renewal interval
    longer. The execution contract gate must prove that the single Agent stream
    stops at the configured wall-clock deadline.
-10. Set `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` below
+12. Set `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` below
     `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`, and verify the complete-request
     budget gate with production Tool schemas. A Skill loader result must remain
     complete; handlers for ordinary large ToolResults must define an explicit,
     bounded `model_output`.
-11. Verify deterministic safety cases complete with a durable
+13. Verify deterministic safety cases complete with a durable
     `safety.decision` and no model or Tool invocation.
-12. Verify SSE replay, cancellation, confirmation expiry, idempotent Product
+14. Verify both durable and transient SSE cursor recovery, cancellation,
+   confirmation permission rechecks, confirmation expiry, idempotent Product
    action application, terminal events, ready health, and the durable
    context-compaction/next-Run gate described in
    [context-compaction.md](context-compaction.md).
+
+For Runtime v1, deploy Product Backend before Runtime so refreshed JWTs contain
+`agent:run` and capability permissions. The baseline migration requires an
+empty, independently resettable Runtime database; the exact drain/reset/rollout
+contract is in [runtime-v1.md](runtime-v1.md). Never reset Product data.
 
 ## Rollback
 

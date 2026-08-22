@@ -11,9 +11,10 @@ HOSPITAL_BAG_CART_UPDATE_ACTION = "hospital_bag.cart.update"
 HOSPITAL_BAG_ACTION_TYPES = (HOSPITAL_BAG_CART_UPDATE_ACTION,)
 HOSPITAL_BAG_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     HOSPITAL_BAG_CART_UPDATE_ACTION: ActionPolicyRule(
-        HOSPITAL_BAG_CART_UPDATE_ACTION,
-        "hospital_bag_cart",
-        "low",
+        action_type=HOSPITAL_BAG_CART_UPDATE_ACTION,
+        target_type="hospital_bag_cart",
+        side_effect_level="low",
+        required_permissions=frozenset({"prenatal:write"}),
     ),
 }
 

@@ -20,18 +20,26 @@ def profile_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="profile_read",
+            domain="profile",
+            operation="read",
+            required_permissions=("profile:read",),
             description=(
                 "读取当前用户的妈妈资料和宝宝资料，不包含奶量产出和摄入记录或完整病史。"
                 "当回答母婴资料问题、进行奶量分析需要基础背景，或更新前需要定位宝宝时使用。"
             ),
             input_schema=input_schema_for_tool("profile_read"),
             output_schema=ProfileReadResponse.model_json_schema(),
+            safe_arg_fields=("infant_scope",),
+            retry_policy="safe_read",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="profile_update",
+            domain="profile",
+            operation="action_proposal",
+            required_permissions=("profile:write",),
             description=(
                 "更新妈妈的称呼、年龄、孕产和喂养基础资料，以及已有宝宝的出生资料和当前分娩关联；"
                 "不更新奶量或生长记录。当用户在对话中提供需要持久化的新资料、"
@@ -76,6 +84,13 @@ def profile_tool_registry() -> ToolContractRegistry:
                 "profile.update",
                 "profile.current_infants.replace",
             ),
+            safe_output_fields=(
+                "action_status",
+                "action_type",
+                "requires_confirmation",
+                "write_succeeded",
+            ),
+            retry_policy="idempotent_write",
             timeout_seconds=10,
         )
     )

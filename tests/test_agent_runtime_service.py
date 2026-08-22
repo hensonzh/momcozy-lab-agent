@@ -13,11 +13,13 @@ from app.agent_runtime.audit import IdempotencyService
 from app.agent_runtime.context.client import CLIENT_CONTEXT_ITEM_PREFIX
 from app.api.agent_runtime.schemas import AgentRunCreate
 from app.agent_runtime.runs.service import AgentRuntimeService
+from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
 
 
 def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     owner_user_id = uuid4()
+    authorization_context = _authorization_context(owner_user_id)
     repository = FakeLedgerRepository(owner_user_id=owner_user_id)
     service = AgentRuntimeService(
         repository=repository,  # type: ignore[arg-type]
@@ -34,6 +36,7 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     run = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=authorization_context,
             thread_id=None,
             message="  Review my pumping pattern  ",
             client_context={
@@ -49,7 +52,8 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
 
     assert run.status == "queued"
     assert run.runtime_pattern == "proprietary_runtime"
-    assert run.runtime_version == "momcozy-agent-v5"
+    assert run.runtime_version == "momcozy-agent-v1"
+    assert run.authorization_context == authorization_context
     assert repository.message_content == {
         "text": "Review my pumping pattern",
         "attachments": [],
@@ -98,6 +102,7 @@ def test_create_run_rejects_blocked_context_head_before_writing_run() -> None:
         asyncio.run(
             service.create_run(
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 thread_id=thread.id,
                 message="next",
             )
@@ -134,6 +139,7 @@ def test_create_run_notifies_worker_only_after_transaction_commit() -> None:
     run = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
         )
@@ -154,6 +160,7 @@ def test_create_run_rejects_attachments_when_verifier_is_unavailable() -> None:
         asyncio.run(
             service.create_run(
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 thread_id=None,
                 message="Look at this",
                 attachments=[{"type": "image", "asset_id": str(uuid4())}],
@@ -178,6 +185,7 @@ def test_create_run_appends_verified_image_by_stable_asset_id() -> None:
     asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Look at this",
             attachments=[
@@ -244,6 +252,7 @@ def test_create_run_appends_verified_form_as_fixed_text_context_block() -> None:
     asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="我已提交表单。",
             attachments=[
@@ -329,6 +338,7 @@ def test_create_run_idempotency_replays_without_duplicate_history() -> None:
     first = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
             idempotency_key="same-key",
@@ -337,6 +347,7 @@ def test_create_run_idempotency_replays_without_duplicate_history() -> None:
     second = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
             idempotency_key="same-key",
@@ -362,6 +373,7 @@ def test_idempotent_run_replay_does_not_charge_admission_twice() -> None:
     first = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
             idempotency_key="same-key",
@@ -370,6 +382,7 @@ def test_idempotent_run_replay_does_not_charge_admission_twice() -> None:
     replay = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
             idempotency_key="same-key",
@@ -394,6 +407,7 @@ def test_failed_run_creation_releases_active_admission() -> None:
         asyncio.run(
             service.create_run(
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 thread_id=None,
                 message="Look at this",
                 attachments=[
@@ -417,6 +431,7 @@ def test_cancelled_run_releases_active_admission_after_commit() -> None:
     run = asyncio.run(
         service.create_run(
             actor_user_id=owner_user_id,
+            authorization_context=_authorization_context(owner_user_id),
             thread_id=None,
             message="Hello",
         )
@@ -434,6 +449,18 @@ def test_cancelled_run_releases_active_admission_after_commit() -> None:
     assert len(repository.after_commit_callbacks) == 1
     asyncio.run(repository.after_commit_callbacks[0]())
     assert admission.released == [(owner_user_id, run.id)]
+
+
+def _authorization_context(owner_user_id: UUID) -> dict[str, Any]:
+    return RuntimePrincipal(
+        user_id=owner_user_id,
+        subject=str(owner_user_id),
+        session_id=uuid4(),
+        token_id="test-access-token",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset({"agent:run", "profile:read"}),
+    ).authorization_context()
 
 
 class FakeLedgerRepository:
@@ -529,6 +556,7 @@ class FakeLedgerRepository:
             status="queued",
             runtime_pattern=kwargs["runtime_pattern"],
             runtime_version=kwargs["runtime_version"],
+            authorization_context=kwargs["authorization_context"],
             request_id=kwargs["request_id"],
             trace_id=kwargs["trace_id"],
             error_code="",

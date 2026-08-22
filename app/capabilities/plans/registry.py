@@ -41,6 +41,9 @@ def plans_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="plan_read",
+            domain="plans",
+            operation="read",
+            required_permissions=("plans:read",),
             description=(
                 "读取当前用户当前有效的计划列表或指定计划详情，不读取计划内日程。"
                 "当需要查看或回答已有计划问题、修改前获取最新版本，或删除前定位目标计划时使用。"
@@ -56,12 +59,18 @@ def plans_tool_registry() -> ToolContractRegistry:
                     }
                 },
             },
+            safe_arg_fields=("mode",),
+            safe_output_fields=("mode", "count", "truncated"),
+            retry_policy="safe_read",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="plan_mutate",
+            domain="plans",
+            operation="action_proposal",
+            required_permissions=("plans:write",),
             description=(
                 "创建孕期计划，更新已有计划的标题或摘要，或删除整个计划；"
                 "不修改计划内单项日程。当孕期资料采集已满足计划生成条件，"
@@ -93,12 +102,23 @@ def plans_tool_registry() -> ToolContractRegistry:
                 "plans.plan.update",
                 "plans.plan.delete",
             ),
+            safe_arg_fields=("operation",),
+            safe_output_fields=(
+                "action_status",
+                "action_type",
+                "requires_confirmation",
+                "write_succeeded",
+            ),
+            retry_policy="idempotent_write",
             timeout_seconds=15,
         )
     )
     registry.register(
         ToolContract(
             name="schedule_timeline_read",
+            domain="plans",
+            operation="read",
+            required_permissions=("plans:read", "records:read"),
             description=(
                 "读取当前用户指定日期范围内的跨领域计划与日程，并关联喂养、"
                 "吸奶和宝宝生长实际记录。当需要查看过去、今天或未来的安排和执行情况，"
@@ -123,12 +143,17 @@ def plans_tool_registry() -> ToolContractRegistry:
                 required=("runtime_timezone",),
             ),
             output_schema=ScheduleTimelineReadResponse.model_json_schema(),
+            safe_output_fields=("count", "truncated"),
+            retry_policy="safe_read",
             timeout_seconds=10,
         )
     )
     registry.register(
         ToolContract(
             name="schedule_timeline_mutate",
+            domain="plans",
+            operation="action_proposal",
+            required_permissions=("plans:write", "records:write"),
             description=(
                 "创建、更新、删除或调整跨领域日程，管理喂养、吸奶和宝宝生长实际记录，"
                 "并支持奶量计划的冲突感知批量重排。当需要根据用户本轮已表达的意图安排、"
@@ -161,6 +186,14 @@ def plans_tool_registry() -> ToolContractRegistry:
             ),
             output_schema=_OBJECT_OUTPUT_SCHEMA,
             action_types=_SCHEDULE_ACTIONS,
+            safe_arg_fields=("operation",),
+            safe_output_fields=(
+                "action_status",
+                "action_type",
+                "requires_confirmation",
+                "write_succeeded",
+            ),
+            retry_policy="idempotent_write",
             timeout_seconds=15,
         )
     )

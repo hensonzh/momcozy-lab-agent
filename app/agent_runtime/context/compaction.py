@@ -10,15 +10,16 @@ from types import SimpleNamespace
 from typing import Any, Protocol, cast
 from uuid import UUID
 
+from app.agent_runtime.runtime_metadata import (
+    CONTEXT_CHECKPOINT_SCHEMA_VERSION,
+    CONTEXT_PLAN_SCHEMA_VERSION,
+    CONTEXT_STATE_SCHEMA_VERSION,
+    MATERIALIZER_VERSION,
+    SUMMARY_POLICY_VERSION,
+)
 from app.core.errors import ApiError
 from app.core.observability import emit_operation_metric
 
-
-CONTEXT_PLAN_SCHEMA_VERSION = "agent_context_plan.v1"
-CONTEXT_STATE_SCHEMA_VERSION = "agent_run_context.v2"
-CONTEXT_CHECKPOINT_SCHEMA_VERSION = "agent_context_checkpoint.v2"
-MATERIALIZER_VERSION = "agent_context_materializer.v1"
-SUMMARY_POLICY_VERSION = "agent_context_summary_policy.v1"
 LOGGER = logging.getLogger("agent_runtime.context")
 
 

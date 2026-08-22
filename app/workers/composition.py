@@ -13,6 +13,7 @@ from app.bootstrap import (
     build_product_action_applicators,
     build_runtime_tool_handlers,
     build_runtime_tool_registry,
+    build_runtime_contract_catalog_snapshot,
     validate_runtime_composition,
 )
 from app.agent_runtime.actions import ConfirmationExpiryService
@@ -29,6 +30,7 @@ from app.agent_runtime.orchestration import (
 from app.agent_runtime.providers import (
     OpenAIContextCompactor,
     OpenAIContextTokenCounter,
+    openai_responses_profile,
 )
 from app.agent_runtime.runs import (
     AdmissionReleasingProcessor,
@@ -87,6 +89,10 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
     }
     if settings.openai_base_url:
         openai_kwargs["base_url"] = settings.openai_base_url
+    provider_profile = openai_responses_profile(
+        model=settings.openai_model,
+        base_url=settings.openai_base_url,
+    )
     output_store = (
         S3CompatibleObjectStore(
             bucket=settings.runtime_output_store_bucket,
@@ -123,6 +129,11 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 model_name=settings.openai_model,
                 tool_registry=registry,
                 runtime=RUNTIME_DEFINITION,
+                runtime_contract_catalog=(
+                    build_runtime_contract_catalog_snapshot(
+                        registry=registry
+                    )
+                ),
                 max_turns=settings.agent_max_turns,
                 reasoning_effort=(
                     settings.openai_reasoning_effort
@@ -133,6 +144,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 timeout_seconds=(
                     settings.agent_model_timeout_seconds
                 ),
+                provider_profile=provider_profile,
             )
             context_token_counter = OpenAIContextTokenCounter(
                 client=openai_client,

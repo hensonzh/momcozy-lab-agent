@@ -19,7 +19,7 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
 
     bundle = asyncio.run(service.export_run_bundle(run_id=run_id))
 
-    assert bundle["schema_version"] == "agent_run_replay.v3"
+    assert bundle["schema_version"] == "agent_run_replay.v1"
     assert bundle["run"]["runtime_pattern"] == "proprietary_runtime"
     assert bundle["run"]["agent_name"] == "cozymate"
     assert bundle["execution_manifest"] == repository.run.execution_manifest
@@ -50,7 +50,7 @@ def test_replay_bundle_includes_sanitized_content_only_when_requested() -> None:
     assert bundle["tool_outputs"][0]["output"] == {"ok": True}
     assert bundle["events"][0]["payload"]["token"] == "[redacted]"
     assert bundle["context_checkpoint"]["checkpoint"] == {
-        "schema_version": "agent_context_checkpoint.v2",
+        "schema_version": "agent_context_checkpoint.v1",
         "user_claims": [],
         "verified_tool_facts": [],
         "confirmed_decisions": [],
@@ -131,16 +131,16 @@ class FakeReplayRepository:
             actor_user_id=uuid4(),
             status="completed",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v5",
+            runtime_version="momcozy-agent-v1",
             agent_name="cozymate",
             request_id="request",
             trace_id="trace",
             error_code="",
             error_details={},
             execution_manifest={
-                "schema_version": "agent_run_execution_manifest.v2",
+                "schema_version": "agent_run_execution_manifest.v1",
                 "runtime_pattern": "proprietary_runtime",
-                "runtime_version": "momcozy-agent-v5",
+                "runtime_version": "momcozy-agent-v1",
                 "invocations": [
                     {
                         "sequence": 1,
@@ -149,7 +149,7 @@ class FakeReplayRepository:
                 ],
             },
             context_state={
-                "schema_version": "agent_run_context.v2",
+                "schema_version": "agent_run_context.v1",
                 "checkpoint": {
                     "id": str(uuid4()),
                     "summary_sha256": "b" * 64,
@@ -201,7 +201,7 @@ class FakeReplayRepository:
     ) -> Any:
         return SimpleNamespace(
             id=UUID(run.context_state["checkpoint"]["id"]),
-            schema_version="agent_context_checkpoint.v2",
+            schema_version="agent_context_checkpoint.v1",
             generation=1,
             source_cutoff_run_id=uuid4(),
             source_cutoff_sequence=7,
@@ -212,12 +212,12 @@ class FakeReplayRepository:
             token_counter_version="v1",
             source_input_tokens=100_001,
             summary_output_tokens=1_900,
-            prompt_version="agent_context_compaction.v2",
+            prompt_version="agent_context_compaction.v1",
             materializer_version="agent_context_materializer.v1",
-            context_schema_version="agent_context_checkpoint.v2",
+            context_schema_version="agent_context_checkpoint.v1",
             summary_policy_version="agent_context_summary_policy.v1",
             checkpoint={
-                "schema_version": "agent_context_checkpoint.v2",
+                "schema_version": "agent_context_checkpoint.v1",
                 "user_claims": [],
                 "verified_tool_facts": [],
                 "confirmed_decisions": [],

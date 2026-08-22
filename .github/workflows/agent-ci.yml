@@ -25,13 +25,21 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Lint
-        run: python -m ruff check app tests scripts/run_behavior_eval.py
+        run: python -m ruff check app tests scripts
 
       - name: Type-check
         run: python -m mypy app tests
 
+      - name: Reject Runtime contract catalog drift
+        run: python scripts/export_runtime_contract_catalog.py --check
+
       - name: Test
         run: python -m pytest
+
+      - name: Run deterministic Runtime v1 harness
+        run: >-
+          python scripts/run_runtime_v1_harness.py
+          --junit /tmp/runtime-v1-harness.xml
 
       - name: Validate behavior eval release contract
         run: |
@@ -47,6 +55,8 @@ jobs:
           python scripts/check_product_backend_contract.py --help
           python scripts/run_behavior_eval.py --help
           python scripts/run_replay_eval.py --help
+          python scripts/run_runtime_v1_harness.py --help
+          python scripts/export_runtime_contract_catalog.py --help
 
   postgres-migration:
     runs-on: ubuntu-latest
@@ -117,6 +127,8 @@ jobs:
         run: |
           docker run --rm agent:local \
             python scripts/check_product_backend_contract.py
+          docker run --rm agent:local \
+            python scripts/export_runtime_contract_catalog.py --check
           docker run --rm agent:local \
             python scripts/run_behavior_eval.py \
               --validate-only \

@@ -212,6 +212,7 @@ def test_agent_stream_delivers_transient_delta_before_durable_final() -> None:
                     owner_user_id=principal.user_id,
                     run_id=service.run_id,
                     after_sequence=1,
+                    after_transient_cursor="9-0",
                     limit=20,
                     follow=True,
                     poll_interval_seconds=0.01,
@@ -229,6 +230,7 @@ def test_agent_stream_delivers_transient_delta_before_durable_final() -> None:
         '"type":"run.completed"'
     )
     assert '"transient":true' in streamed
+    assert transient.after_cursors[0] == "9-0"
 
 
 def test_agent_stream_releases_service_scope_between_database_polls() -> None:
@@ -307,7 +309,7 @@ class FakeAgentService:
             actor_user_id=owner_user_id,
             status="queued",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v5",
+            runtime_version="momcozy-agent-v1",
             agent_name="",
             request_id="request-id",
             trace_id="request-id",
@@ -451,8 +453,10 @@ class FakeTransientStream:
     def __init__(self, event: RuntimeTransientEvent) -> None:
         self.event = event
         self.returned = False
+        self.after_cursors: list[str] = []
 
-    async def read(self, **_kwargs: object) -> list[RuntimeTransientEvent]:
+    async def read(self, **kwargs: object) -> list[RuntimeTransientEvent]:
+        self.after_cursors.append(str(kwargs["after_cursor"]))
         if self.returned:
             return []
         self.returned = True

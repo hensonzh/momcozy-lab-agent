@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, timezone
+import hashlib
 import json
 import logging
 from types import SimpleNamespace
@@ -33,7 +34,12 @@ from app.agent_runtime.orchestration.testing import (
 )
 from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
-from app.bootstrap import RUNTIME_DEFINITION, build_runtime_tool_registry
+from app.auth import RuntimePrincipal
+from app.bootstrap import (
+    RUNTIME_DEFINITION,
+    build_runtime_contract_catalog_snapshot,
+    build_runtime_tool_registry,
+)
 from app.core.errors import ApiError
 
 
@@ -164,7 +170,7 @@ def test_loop_persists_provider_execution_manifest_before_completion() -> None:
     assert len(repository.execution_manifests) == 1
     manifest = repository.execution_manifests[0]
     assert manifest["schema_version"] == (
-        "agent_model_execution.v2"
+        "agent_model_execution.v1"
     )
     assert manifest["agent_name"] == "cozymate"
     assert "branch_id" not in manifest
@@ -272,6 +278,33 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     )
 
     assert publisher.deltas == ["你", "好"]
+    assert publisher.events == [
+        {
+            "delta": "你",
+            "stream_schema_version": "append-only.v1",
+            "segment_index": 0,
+            "prefix_utf8_bytes": 3,
+            "prefix_sha256": hashlib.sha256("你".encode()).hexdigest(),
+        },
+        {
+            "delta": "好",
+            "stream_schema_version": "append-only.v1",
+            "segment_index": 1,
+            "prefix_utf8_bytes": 6,
+            "prefix_sha256": hashlib.sha256("你好".encode()).hexdigest(),
+        },
+    ]
+    completed_payload = next(
+        event.payload
+        for event in repository.events
+        if event.event_type == "message.completed"
+    )
+    assert completed_payload["stream_schema_version"] == "append-only.v1"
+    assert completed_payload["segment_count"] == 2
+    assert completed_payload["content_utf8_bytes"] == 6
+    assert completed_payload["content_sha256"] == hashlib.sha256(
+        "你好".encode()
+    ).hexdigest()
     assert "message.delta" not in repository.event_types
     control_repository = MemoryLedger()
     asyncio.run(
@@ -398,6 +431,11 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     asyncio.run(loop.process(repository.run.id))
 
     assert executor.calls == [("profile_read", "profile-call", {"infant_scope": "all"})]
+    assert executor.actors == [
+        RuntimePrincipal.from_authorization_context(
+            repository.run.authorization_context
+        )
+    ]
     assert executor.as_of_dates == [date(2026, 7, 27)]
     assert provider.requests[1].input_items[0]["role"] == "user"
     assert '"locale":"zh-CN"' in provider.requests[1].input_items[0][
@@ -705,6 +743,9 @@ def _loop(
             model_name="scripted",
             tool_registry=repository.tool_registry,
             runtime=RUNTIME_DEFINITION,
+            runtime_contract_catalog=(
+                build_runtime_contract_catalog_snapshot()
+            ),
             max_turns=8,
         ),
         tool_executor=tool_executor or cast(ToolExecutor, RecordingToolExecutor(repository)),
@@ -740,12 +781,14 @@ class RecordingToolExecutor:
         self.crash_before_execute = crash_before_execute
         self.result = result or ToolResult.json({"profile": "ok"})
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
+        self.actors: list[RuntimePrincipal] = []
         self.as_of_dates: list[date | None] = []
 
     async def execute(self, **kwargs: Any) -> Any:
         if self.crash_before_execute:
             raise SimulatedProcessDeath
         self.calls.append((kwargs["tool_name"], kwargs["call_id"], kwargs["args"]))
+        self.actors.append(kwargs["actor"])
         self.as_of_dates.append(kwargs.get("as_of_date"))
         result = self.result
         await self.repository.append_context_items(
@@ -777,7 +820,7 @@ class MemoryLedger:
             actor_user_id=owner,
             status="queued",
             runtime_pattern="proprietary_runtime",
-            runtime_version="momcozy-agent-v5",
+            runtime_version="momcozy-agent-v1",
             agent_name="",
             request_id="request-id",
             trace_id="trace-id",
@@ -787,6 +830,15 @@ class MemoryLedger:
             error_code="",
             error_details={},
             context_state={},
+            authorization_context=RuntimePrincipal(
+                user_id=owner,
+                subject=str(owner),
+                session_id=uuid4(),
+                token_id="run-token-id",
+                token_version=1,
+                roles=frozenset({"user"}),
+                permissions=frozenset({"agent:run", "profile:read"}),
+            ).authorization_context(),
         )
         self.tool_registry = build_runtime_tool_registry()
         self.context: list[Any] = [
@@ -1072,9 +1124,19 @@ def _assert_function_context_is_paired(
 class RecordingDeltaPublisher:
     def __init__(self) -> None:
         self.deltas: list[str] = []
+        self.events: list[dict[str, Any]] = []
 
-    async def publish_text_delta(self, *, delta: str, **_kwargs: Any) -> None:
+    async def publish_text_delta(self, *, delta: str, **kwargs: Any) -> None:
         self.deltas.append(delta)
+        self.events.append(
+            {
+                "delta": delta,
+                "stream_schema_version": kwargs["stream_schema_version"],
+                "segment_index": kwargs["segment_index"],
+                "prefix_utf8_bytes": kwargs["prefix_utf8_bytes"],
+                "prefix_sha256": kwargs["prefix_sha256"],
+            }
+        )
 
 
 class FailingDeltaPublisher:

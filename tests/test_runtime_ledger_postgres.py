@@ -21,6 +21,7 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
+from app.auth import RuntimePrincipal
 from app.core.settings import Settings
 from app.infrastructure.db import create_db_engine, create_session_factory
 
@@ -83,6 +84,7 @@ async def _postgres_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-runtime-ledger",
@@ -106,6 +108,7 @@ async def _postgres_scenario() -> None:
                 await repository.create_run(
                     thread_id=thread.id,
                     actor_user_id=other_user_id,
+                    authorization_context=_authorization_context(other_user_id),
                     runtime_pattern="proprietary_runtime",
                     runtime_version="test",
                     request_id="req-cross-owner",
@@ -137,7 +140,8 @@ async def _run_lease_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
-                    runtime_pattern="proprietary_runtime",
+                authorization_context=_authorization_context(owner_user_id),
+                runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-lease-fencing",
                 trace_id="trace-lease-fencing",
@@ -262,6 +266,7 @@ async def _row_lock_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-row-lock-expiry",
@@ -349,6 +354,7 @@ async def _confirmation_expiry_scenario() -> None:
             run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-confirmation-expiry",
@@ -438,6 +444,7 @@ async def _context_compaction_scenario() -> None:
             prior = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-prior",
@@ -477,6 +484,7 @@ async def _context_compaction_scenario() -> None:
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-current",
@@ -495,6 +503,7 @@ async def _context_compaction_scenario() -> None:
             next_run = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-next",
@@ -609,6 +618,7 @@ async def _context_recovery_scenario() -> None:
             prior = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-recovery-prior",
@@ -631,6 +641,7 @@ async def _context_recovery_scenario() -> None:
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
+                authorization_context=_authorization_context(owner_user_id),
                 runtime_pattern="proprietary_runtime",
                 runtime_version="test",
                 request_id="req-context-recovery-current",
@@ -723,6 +734,18 @@ def _postgres_context_service(
     )
 
 
+def _authorization_context(owner_user_id: UUID) -> dict[str, Any]:
+    return RuntimePrincipal(
+        user_id=owner_user_id,
+        subject=str(owner_user_id),
+        session_id=uuid4(),
+        token_id="runtime-ledger-postgres-test",
+        token_version=1,
+        roles=frozenset({"user"}),
+        permissions=frozenset({"agent:run"}),
+    ).authorization_context()
+
+
 class FixedPostgresTokenCounter:
     counter = "fake.input_tokens"
     version = "v1"
@@ -738,7 +761,7 @@ class FixedPostgresTokenCounter:
 
 class RecordingPostgresCompactor:
     model = "gpt-5.6-terra"
-    prompt_version = "agent_context_compaction.v2"
+    prompt_version = "agent_context_compaction.v1"
 
     def __init__(self) -> None:
         self.input_items: tuple[dict[str, Any], ...] = ()

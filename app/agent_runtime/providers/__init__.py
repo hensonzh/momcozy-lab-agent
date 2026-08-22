@@ -1,3 +1,4 @@
+from .contracts import ModelProviderProfile, openai_responses_profile
 from .openai_context import (
     OpenAIContextCompactor,
     OpenAIContextTokenCounter,
@@ -6,4 +7,6 @@ from .openai_context import (
 __all__ = [
     "OpenAIContextCompactor",
     "OpenAIContextTokenCounter",
+    "ModelProviderProfile",
+    "openai_responses_profile",
 ]

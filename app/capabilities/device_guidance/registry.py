@@ -11,6 +11,9 @@ def device_guidance_tool_registry() -> ToolContractRegistry:
     registry.register(
         ToolContract(
             name="devices_guidance_manage",
+            domain="device",
+            operation="runtime_internal",
+            required_permissions=("device:read",),
             description=(
                 "读取 Momcozy 官方设备指导资料，并管理连续开箱指导流程。"
                 "当回答受支持设备的安装、清洁、充电、蓝牙、法兰或操作问题需要官方指导，"
@@ -20,6 +23,8 @@ def device_guidance_tool_registry() -> ToolContractRegistry:
                 "devices_guidance_manage"
             ),
             output_schema=object_output_schema(),
+            safe_arg_fields=("operation",),
+            safe_output_fields=("status", "operation"),
             timeout_seconds=10,
         )
     )

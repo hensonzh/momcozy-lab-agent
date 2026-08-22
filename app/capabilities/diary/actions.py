@@ -21,15 +21,18 @@ DIARY_ACTION_TYPES = frozenset(
 )
 DIARY_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     "diary.entry.save": ActionPolicyRule(
-        "diary.entry.save",
-        "diary_entry",
-        "low",
+        action_type="diary.entry.save",
+        target_type="diary_entry",
+        side_effect_level="low",
+        required_permissions=frozenset({"diary:write"}),
     ),
     "diary.entry.delete": ActionPolicyRule(
-        "diary.entry.delete",
-        "diary_entry",
-        "medium",
+        action_type="diary.entry.delete",
+        target_type="diary_entry",
+        side_effect_level="medium",
+        required_permissions=frozenset({"diary:write"}),
         requires_confirmation=True,
+        blocking_policy="wait_for_confirmation",
     ),
 }
 

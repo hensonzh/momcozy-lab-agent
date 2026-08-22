@@ -1,8 +1,8 @@
 {
-  "schema_version": "momcozy.behavior_eval_suite.v3",
+  "schema_version": "momcozy.behavior_eval_suite.v1",
   "suite_id": "runtime-release",
-  "description": "Runtime 单智能体 Skill 加载、工具、副作用与高风险回复质量的发布场景。结构断言自动执行；回复质量必须由 live model judge 或人工复核。",
-  "replay_contract_version": "agent_run_replay.v3",
+  "description": "Runtime v1 单智能体 Skill 加载、工具、副作用与高风险回复质量的发布场景。结构断言自动执行；回复质量必须由 live model judge 或人工复核。",
+  "replay_contract_version": "agent_run_replay.v1",
   "cases": [
     {
       "id": "general_health_answer",

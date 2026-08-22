@@ -26,15 +26,15 @@ from app.bootstrap import TOOL_CATALOG
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = (
-    REPOSITORY_ROOT / "evals" / "behavior" / "v3" / "scenarios.json"
+    REPOSITORY_ROOT / "evals" / "behavior" / "v1" / "scenarios.json"
 )
 
 
 def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> None:
     suite = load_behavior_suite(CATALOG_PATH)
 
-    assert suite.schema_version == "momcozy.behavior_eval_suite.v3"
-    assert suite.replay_contract_version == "agent_run_replay.v3"
+    assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
+    assert suite.replay_contract_version == "agent_run_replay.v1"
     assert {case.id for case in suite.cases} == {
         "general_health_answer",
         "prenatal_skill_workflow",
@@ -64,7 +64,7 @@ def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> 
         BehaviorEvalSuite.model_validate(payload)
 
     payload = _suite_payload()
-    payload["schema_version"] = "momcozy.behavior_eval_suite.v1"
+    payload["schema_version"] = "momcozy.behavior_eval_suite.v2"
     with pytest.raises(ValidationError):
         BehaviorEvalSuite.model_validate(payload)
 
@@ -305,7 +305,7 @@ def test_structural_engine_requires_durable_safety_escalation_trace() -> None:
     )
     model_called = deepcopy(observed)
     model_called["execution_manifest"] = {
-        "schema_version": "agent_run_execution_manifest.v2",
+        "schema_version": "agent_run_execution_manifest.v1",
         "executions": [{"agent_name": "cozymate"}],
     }
     model_called_result = asyncio.run(
@@ -505,10 +505,10 @@ class RecordingJudge:
 
 def _suite_payload() -> dict[str, Any]:
     return {
-        "schema_version": "momcozy.behavior_eval_suite.v3",
+        "schema_version": "momcozy.behavior_eval_suite.v1",
         "suite_id": "test-suite",
         "description": "test",
-        "replay_contract_version": "agent_run_replay.v3",
+        "replay_contract_version": "agent_run_replay.v1",
         "cases": [
             {
                 "id": "general_health_answer",
@@ -556,7 +556,7 @@ def _observed_replay(*, run_id: UUID) -> ObservedReplay:
 
 def _replay_bundle(*, run_id: UUID) -> dict[str, Any]:
     return {
-        "schema_version": "agent_run_replay.v3",
+        "schema_version": "agent_run_replay.v1",
         "run": {
             "id": str(run_id),
             "status": "completed",
