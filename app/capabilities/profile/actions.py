@@ -17,6 +17,10 @@ PROFILE_UPDATE_ACTION = "profile.update"
 PROFILE_CURRENT_INFANTS_REPLACE_ACTION = (
     "profile.current_infants.replace"
 )
+PROFILE_ACTION_TYPES = (
+    PROFILE_UPDATE_ACTION,
+    PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
+)
 PROFILE_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     PROFILE_UPDATE_ACTION: ActionPolicyRule(
         action_type=PROFILE_UPDATE_ACTION,
@@ -86,11 +90,7 @@ class ProfileUpdateActionApplicator:
     @staticmethod
     def _validate_action_binding(action: AgentAction) -> None:
         if (
-            action.action_type
-            not in {
-                PROFILE_UPDATE_ACTION,
-                PROFILE_CURRENT_INFANTS_REPLACE_ACTION,
-            }
+            action.action_type not in PROFILE_ACTION_TYPES
             or action.target_type != "profile"
             or action.target_id != str(action.actor_user_id)
         ):
@@ -99,3 +99,12 @@ class ProfileUpdateActionApplicator:
                 message="Profile update action scope is invalid.",
                 status=403,
             )
+
+
+__all__ = [
+    "PROFILE_ACTION_POLICY_RULES",
+    "PROFILE_ACTION_TYPES",
+    "PROFILE_CURRENT_INFANTS_REPLACE_ACTION",
+    "PROFILE_UPDATE_ACTION",
+    "ProfileUpdateActionApplicator",
+]

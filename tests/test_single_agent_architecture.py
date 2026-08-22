@@ -7,13 +7,15 @@ from uuid import UUID
 
 from app.agent import (
     AGENT,
-    EAGER_TOOL_NAMES,
     LOAD_SERVICE_SKILL_TOOL_NAME,
-    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
     SERVICE_SKILL_REGISTRY,
-    TOOL_NAMESPACE_DEFINITIONS,
     LoadServiceSkillToolHandler,
+)
+from app.capability_catalog import (
+    EAGER_TOOL_NAMES,
+    NAMESPACED_TOOL_NAMES,
+    TOOL_NAMESPACE_DEFINITIONS,
 )
 from app.agent_runtime.tools import ToolHandlerContext
 from app.auth import RuntimePrincipal

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent import SERVICE_SKILL_NAMES, TOOL_NAMESPACE_DEFINITIONS
+from app.agent import SERVICE_SKILL_NAMES
+from app.capability_catalog import TOOL_NAMESPACE_DEFINITIONS
 from app.agent_runtime.actions import ActionPolicyRule
 from app.agent_runtime.tools import ToolContract, ToolContractRegistry
 from app.bootstrap import (

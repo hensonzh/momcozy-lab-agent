@@ -4,7 +4,7 @@ from app.agent_runtime.tools import (
     internal_input_schema,
 )
 from app.capabilities._internal.schemas import object_output_schema
-from app.capabilities.model_input_schemas import input_schema_for_tool
+from .model_schemas import model_input_schema
 
 from .contracts import ConversationHistoryImageReadArguments
 
@@ -26,7 +26,7 @@ def conversation_history_image_tool_registry() -> ToolContractRegistry:
                 "将当前对话历史中由智能体展示过的一张图片重新载入模型上下文。"
                 "当本轮请求依赖该历史图片、但模型无法直接查看其内容时使用。"
             ),
-            input_schema=input_schema_for_tool(
+            input_schema=model_input_schema(
                 "conversation_history_image_read"
             ),
             internal_input_schema=internal_input_schema(

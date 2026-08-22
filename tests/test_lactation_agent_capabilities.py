@@ -7,9 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.agent_runtime.ledger import AgentAction
-from app.capabilities.lactation_analysis import (
-    LactationRecordActionApplicator,
-)
+from app.capabilities.timeline import RecordActionApplicator
 from app.core.errors import ApiError
 from app.infrastructure.product_backend import (
     LactationRecordApplyResponse,
@@ -36,7 +34,7 @@ def test_lactation_record_action_binds_identity_target_and_retry_key() -> None:
     )
 
     result = asyncio.run(
-        LactationRecordActionApplicator(client=client)(action)
+        RecordActionApplicator(client=client)(action)
     )
 
     assert result.resource_type == "pumping_record"
@@ -63,7 +61,7 @@ def test_lactation_record_action_rejects_mismatched_target() -> None:
     )
 
     with pytest.raises(ApiError) as error:
-        asyncio.run(LactationRecordActionApplicator(client=client)(action))
+        asyncio.run(RecordActionApplicator(client=client)(action))
 
     assert error.value.code == "agent_action_scope_violation"
     assert client.call is None

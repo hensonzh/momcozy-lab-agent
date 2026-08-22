@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 
 from app.agent import (
-    EAGER_TOOL_NAMES,
     LOAD_SERVICE_SKILL_TOOL_NAME,
-    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
-    TOOL_NAMESPACE_DEFINITIONS,
     service_skill_tool_registry,
+)
+from app.capability_catalog import (
+    EAGER_TOOL_NAMES,
+    NAMESPACED_TOOL_NAMES,
+    TOOL_NAMESPACE_DEFINITIONS,
 )
 from app.agent_runtime.tools import ToolResult
 from app.bootstrap import TOOL_CATALOG

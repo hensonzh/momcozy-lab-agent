@@ -8,8 +8,10 @@ from app.agent_runtime.tools import (
     ToolContractRegistry,
     internal_input_schema,
 )
-from app.capabilities.model_input_schemas import input_schema_for_tool
 from app.infrastructure.product_backend import ProfileReadResponse
+
+from .actions import PROFILE_ACTION_TYPES
+from .model_schemas import model_input_schema
 
 
 PROFILE_TOOL_NAMES = ("profile_read", "profile_update")
@@ -27,7 +29,7 @@ def profile_tool_registry() -> ToolContractRegistry:
                 "读取当前用户的妈妈资料和宝宝资料，不包含奶量产出和摄入记录或完整病史。"
                 "当回答母婴资料问题、进行奶量分析需要基础背景，或更新前需要定位宝宝时使用。"
             ),
-            input_schema=input_schema_for_tool("profile_read"),
+            input_schema=model_input_schema("profile_read"),
             output_schema=ProfileReadResponse.model_json_schema(),
             safe_arg_fields=("infant_scope",),
             retry_policy="safe_read",
@@ -45,7 +47,7 @@ def profile_tool_registry() -> ToolContractRegistry:
                 "不更新奶量或生长记录。当用户在对话中提供需要持久化的新资料、"
                 "更正现有资料或要求清空资料时使用。"
             ),
-            input_schema=input_schema_for_tool("profile_update"),
+            input_schema=model_input_schema("profile_update"),
             internal_input_schema=internal_input_schema(
                 _PROFILE_WRITE_INPUT_SCHEMA,
                 trusted_properties={
@@ -80,10 +82,7 @@ def profile_tool_registry() -> ToolContractRegistry:
                 required=("runtime_local_date",),
             ),
             output_schema=deepcopy(_PROFILE_WRITE_OUTPUT_SCHEMA),
-            action_types=(
-                "profile.update",
-                "profile.current_infants.replace",
-            ),
+            action_types=PROFILE_ACTION_TYPES,
             safe_output_fields=(
                 "action_status",
                 "action_type",
@@ -108,18 +107,6 @@ _NULLABLE_SEX: dict[str, Any] = {
         },
         {"type": "null"},
     ]
-}
-
-_PROFILE_READ_INPUT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "infant_scope": {
-            "type": "string",
-            "enum": ["current_delivery", "all"],
-            "default": "current_delivery",
-        }
-    },
 }
 
 _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {

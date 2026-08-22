@@ -245,7 +245,10 @@ def test_capability_implementations_are_owned_by_domain_packages() -> None:
         path.name for path in internal_root.iterdir() if path.is_file()
     } == {
         "__init__.py",
+        "action_proposals.py",
         "execution.py",
+        "model_schemas.py",
+        "plans_actions.py",
         "schemas.py",
     }
 
@@ -262,3 +265,34 @@ def test_capability_implementations_are_owned_by_domain_packages() -> None:
                 violations.append(str(path.relative_to(REPOSITORY_ROOT)))
 
     assert violations == []
+
+
+def test_model_visible_schemas_are_owned_by_domain_capabilities() -> None:
+    capabilities_root = REPOSITORY_ROOT / "app" / "capabilities"
+
+    assert not (capabilities_root / "model_input_schemas.py").exists()
+    for package_name in (
+        "conversation_history_image",
+        "device_guidance",
+        "ibclc",
+        "lactation_analysis",
+        "plans",
+        "profile",
+        "pump_models",
+        "support_ticket",
+        "timeline",
+    ):
+        package_root = capabilities_root / package_name
+        assert (package_root / "model_schemas.py").is_file()
+        assert (package_root / "module.py").is_file()
+
+
+def test_plans_and_timeline_capabilities_have_distinct_ownership() -> None:
+    plans_root = REPOSITORY_ROOT / "app" / "capabilities" / "plans"
+    timeline_root = REPOSITORY_ROOT / "app" / "capabilities" / "timeline"
+
+    assert timeline_root.is_dir()
+    for path in plans_root.glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert "ScheduleTimeline" not in source
+        assert "schedule_timeline" not in source

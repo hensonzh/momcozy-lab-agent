@@ -1,6 +1,6 @@
 from app.agent_runtime.tools import ToolContract, ToolContractRegistry
 from app.capabilities._internal.schemas import object_output_schema
-from app.capabilities.model_input_schemas import input_schema_for_tool
+from .model_schemas import model_input_schema
 
 
 DEVICE_GUIDANCE_TOOL_NAMES = ("devices_guidance_manage",)
@@ -19,7 +19,7 @@ def device_guidance_tool_registry() -> ToolContractRegistry:
                 "当回答受支持设备的安装、清洁、充电、蓝牙、法兰或操作问题需要官方指导，"
                 "或当前开箱流程需要启动、恢复、推进或取消时使用。"
             ),
-            input_schema=input_schema_for_tool(
+            input_schema=model_input_schema(
                 "devices_guidance_manage"
             ),
             output_schema=object_output_schema(),

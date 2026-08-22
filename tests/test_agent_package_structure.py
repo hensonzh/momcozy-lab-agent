@@ -5,11 +5,13 @@ from pathlib import Path
 from app.agent import (
     AGENT,
     AGENT_NAME,
-    EAGER_TOOL_NAMES,
-    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_NAMES,
     SERVICE_SKILL_REGISTRY,
     AgentDefinition,
+)
+from app.capability_catalog import (
+    EAGER_TOOL_NAMES,
+    NAMESPACED_TOOL_NAMES,
 )
 from app.bootstrap import RUNTIME_DEFINITION, TOOL_CATALOG
 
@@ -81,7 +83,6 @@ def test_agent_package_has_canonical_single_agent_files() -> None:
         "definition.py",
         "skill_registry.py",
         "system_prompt.md",
-        "tool_catalog.py",
     }
     assert {
         path.relative_to(agent_root / "skills").as_posix()

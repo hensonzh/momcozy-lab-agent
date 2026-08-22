@@ -12,19 +12,22 @@ from app.agent_runtime.actions import (
     ActionProposal,
     ActionProposed,
 )
-from app.capabilities.plans import (
+from app.capabilities._internal.plans_actions import (
     PlansActionApplicator,
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.tools import ToolHandlerContext
 from app.capabilities.plans import (
     PLAN_TOOL_NAMES,
-    SCHEDULE_TIMELINE_TOOL_NAMES,
     PlanMutateToolHandler,
     PlanReadToolHandler,
+    plans_tool_registry,
+)
+from app.capabilities.timeline import (
+    TIMELINE_TOOL_NAMES,
     ScheduleTimelineMutateToolHandler,
     ScheduleTimelineReadToolHandler,
-    plans_tool_registry,
+    timeline_tool_registry,
 )
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
@@ -37,19 +40,20 @@ from app.infrastructure.product_backend.plans_contracts import (
 )
 
 
-def test_plans_registry_exposes_four_canonical_tools() -> None:
-    registry = plans_tool_registry()
+def test_plans_and_timeline_registries_expose_four_canonical_tools() -> None:
+    plans_registry = plans_tool_registry()
+    timeline_registry = timeline_tool_registry()
 
     assert PLAN_TOOL_NAMES == ("plan_read", "plan_mutate")
-    assert SCHEDULE_TIMELINE_TOOL_NAMES == (
+    assert TIMELINE_TOOL_NAMES == (
         "schedule_timeline_read",
         "schedule_timeline_mutate",
     )
-    assert set(registry.names_for_sdk()) == {
-        *PLAN_TOOL_NAMES,
-        *SCHEDULE_TIMELINE_TOOL_NAMES,
-    }
-    assert registry.get("plan_mutate").action_types == (
+    assert set(plans_registry.names_for_sdk()) == set(PLAN_TOOL_NAMES)
+    assert set(timeline_registry.names_for_sdk()) == set(
+        TIMELINE_TOOL_NAMES
+    )
+    assert plans_registry.get("plan_mutate").action_types == (
         "plans.plan.update",
         "plans.plan.delete",
     )
@@ -333,7 +337,12 @@ def test_plan_applicator_rejects_mismatched_target_before_http() -> None:
     )
 
     with pytest.raises(ApiError) as error:
-        asyncio.run(PlansActionApplicator(client=client)(action))
+        asyncio.run(
+            PlansActionApplicator(
+                client=client,
+                allowed_action_types={"plans.task.delete"},
+            )(action)
+        )
 
     assert error.value.code == "agent_action_scope_violation"
     assert client.command is None

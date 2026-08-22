@@ -12,8 +12,8 @@ from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.tools import ToolHandlerContext
 from app.capabilities.plans import (
     PlanMutateToolHandler,
-    ScheduleTimelineMutateToolHandler,
 )
+from app.capabilities.timeline import ScheduleTimelineMutateToolHandler
 from app.capabilities.device_guidance import (
     DeviceGuidanceManageToolHandler,
 )

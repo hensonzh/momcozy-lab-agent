@@ -12,10 +12,14 @@ Tool 发现、契约、执行、权限、输出、Action 副作用、持久化�
 
 代码和生成物仍是可执行事实来源：
 
-- Tool 契约与 handler 由各 `app/capabilities/<capability>/` 模块维护。
-- Tool namespace 与 eager/deferred 关系由 `app/agent/tool_catalog.py` 维护。
-- Action policy 与 applicator 由 capability 的 `actions.py` 维护。
+- Tool 契约、handler、模型输入 Schema、Action policy/applicator 由各
+  `app/capabilities/<capability>/` 领域包维护。
+- 每个领域通过 `module.py` 暴露一个显式 `CapabilityModule`；
+  `app/capability_catalog.py` 的 `CAPABILITY_MODULES` 是唯一组合清单，并由它生成
+  namespace 与 eager/deferred Tool 目录。
 - 运行时组合与一致性校验位于 `app/bootstrap/agent_runtime.py`。
+- 与产品领域无关的 Tool/Action 执行内核位于 `app/agent_runtime/`，不依赖
+  `app/agent`、`app/bootstrap` 或 `app/capabilities`。
 - 跨模块版本统一位于 `app/agent_runtime/runtime_metadata.py`。
 - 完整 JSON Schema、策略与内容哈希快照位于
   `docs/runtime-contract-catalog.generated.json`。
@@ -55,6 +59,29 @@ Cozymate
 
 `ToolSearchTool` 是 SDK/Provider 的服务端工具搜索能力，不是 Momcozy 业务 Tool，
 不计入 18 个 Tool，也不经过 `ToolExecutor`；它是否启用会写入执行清单。
+
+### 1.1 代码组织与依赖方向
+
+当前工具实现采用“独立 Runtime 内核 + 领域能力模块 + 显式 composition root”：
+
+```text
+app/bootstrap/agent_runtime.py
+  └─ app/capability_catalog.py                  # 显式 CAPABILITY_MODULES
+       ├─ app/capability_module.py              # 通用组合协议
+       └─ app/capabilities/<domain>/module.py
+            ├─ contract / handler / model_schemas / actions
+            └─ app/agent_runtime/               # 领域无关执行内核
+```
+
+每个 `CapabilityModule` 必须同时声明自己的 Tool registry、handler factory、
+namespace/eager 属性，以及可选的 Action policy 与 applicator factory。模块构造时
+先校验 Tool—Action 绑定；bootstrap 再统一校验 registry、handler、目录、policy、
+applicator 和权限覆盖，任一侧缺失都 fail closed。
+
+不会通过文件扫描、import 副作用或 decorator 自动注册 Tool。新增能力必须显式加入
+`CAPABILITY_MODULES`，使代码审查能直接看出运行时暴露面。多个能力可以共享同一个
+模型 namespace，但仍分别拥有自己的契约和依赖。当前 `plans` 只负责计划资源，
+`timeline` 独立负责日程及实际喂养/吸奶/生长记录，避免聚合 Tool 继续挤在 plans 包中。
 
 ## 2. ToolContract v1
 
@@ -304,11 +331,14 @@ Action policy 声明所有 Action 必须审计。当前实际审计链是 durabl
 | 修改 eager/deferred、namespace、Skill 或 ToolSearch | 发现与加载章节、执行清单说明 |
 | 修改 ToolExecutor、输出持久化、错误或隐私规则 | 执行与输出、持久化和限制章节 |
 | 引入并行、outbox、Action worker 或新 owner scope | 架构图、生命周期、限制和部署/恢复说明 |
+| 修改 CapabilityModule、领域所有权或组合清单 | 代码组织、namespace、Tool/Action 清单与目录哈希 |
 
 每个工具方案变更的 Definition of Done：
 
-1. 修改 capability 内的 contract、handler、policy 或 applicator。
-2. 通过 `validate_runtime_composition`，确保 registry、handler、namespace、Action
+1. 修改 capability 内的 contract、handler、`model_schemas.py`、policy 或
+   applicator，并同步该领域的 `module.py`。
+2. 新增能力时显式加入 `CAPABILITY_MODULES`；通过模块构造校验和
+   `validate_runtime_composition`，确保 registry、handler、namespace、Action
    policy 和 applicator 一一对应且权限覆盖完整。
 3. 若是破坏性契约变更，只提升受影响版本，并补充数据、Replay 和 rollout 策略。
 4. 运行 `python scripts/export_runtime_contract_catalog.py` 重生成机器目录。

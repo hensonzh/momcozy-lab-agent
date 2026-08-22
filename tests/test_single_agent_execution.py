@@ -18,9 +18,9 @@ from app.agent_runtime.orchestration.testing import (
 )
 from app.agent import (
     LOAD_SERVICE_SKILL_TOOL_NAME,
-    NAMESPACED_TOOL_NAMES,
     SERVICE_SKILL_REGISTRY,
 )
+from app.capability_catalog import NAMESPACED_TOOL_NAMES
 from app.bootstrap import (
     RUNTIME_DEFINITION,
     build_runtime_contract_catalog_snapshot,

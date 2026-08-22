@@ -3,9 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.agent_runtime.tools.trusted import _visible_image_urls
+from app.bootstrap import build_runtime_tool_registry
 from app.capabilities.ibclc.handlers import _ibclc_consult_allowed
 from app.capabilities.plans.registry import plans_tool_registry
-from app.capabilities.runtime import runtime_capability_tool_registry
 from app.capabilities.support_ticket.handlers import (
     _support_ticket_creation_confirmed,
 )
@@ -47,7 +47,7 @@ def test_support_draft_requires_current_turn_confirmation() -> None:
 
 
 def test_model_schemas_never_expose_runtime_consent_or_form_state() -> None:
-    registry = runtime_capability_tool_registry()
+    registry = build_runtime_tool_registry()
     ibclc = registry.get("ibclc_consult_card_create")
     support = registry.get("support_ticket_draft_create")
 

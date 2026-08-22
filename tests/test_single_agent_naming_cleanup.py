@@ -18,7 +18,6 @@ def test_application_owns_one_singular_agent_package() -> None:
         "definition.py",
         "skill_registry.py",
         "system_prompt.md",
-        "tool_catalog.py",
     }
     assert not (AGENT_ROOT / "shared").exists()
     assert not (AGENT_ROOT / "registry.py").exists()
@@ -30,8 +29,10 @@ def test_single_agent_uses_product_identity_and_global_tool_catalog() -> None:
     from app.agent import (  # noqa: PLC0415
         AGENT,
         AGENT_NAME,
-        EAGER_TOOL_NAMES,
         LOAD_SERVICE_SKILL_TOOL_NAME,
+    )
+    from app.capability_catalog import (  # noqa: PLC0415
+        EAGER_TOOL_NAMES,
         NAMESPACED_TOOL_NAMES,
     )
     from app.bootstrap import (  # noqa: PLC0415

@@ -4,7 +4,7 @@ from app.agent_runtime.tools import (
     internal_input_schema,
 )
 from app.capabilities._internal.schemas import object_output_schema
-from app.capabilities.model_input_schemas import input_schema_for_tool
+from .model_schemas import model_input_schema
 
 from .contracts import SupportTicketDraftCreateArguments
 
@@ -24,7 +24,7 @@ def support_ticket_tool_registry() -> ToolContractRegistry:
                 "创建可编辑的 Momcozy 售后工单草稿，不提交正式工单。"
                 "当用户本轮明确同意整理售后工单，且已提供可概括的问题事实时使用。"
             ),
-            input_schema=input_schema_for_tool(
+            input_schema=model_input_schema(
                 "support_ticket_draft_create"
             ),
             internal_input_schema=internal_input_schema(

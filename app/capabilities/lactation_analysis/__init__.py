@@ -1,8 +1,3 @@
-from .actions import (
-    LACTATION_ACTION_POLICY_RULES,
-    LACTATION_RECORD_ACTION_TYPES,
-    LactationRecordActionApplicator,
-)
 from .handlers import (
     GetFeedingRecordsToolHandler,
     GetFeedingSummaryToolHandler,
@@ -11,16 +6,15 @@ from .handlers import (
     GetLactationRecordsToolHandler,
     GetLactationSummaryToolHandler,
 )
+from .module import CAPABILITY_MODULE
 from .registry import (
     LACTATION_ANALYSIS_TOOL_NAMES,
     lactation_analysis_tool_registry,
 )
 
 __all__ = [
+    "CAPABILITY_MODULE",
     "LACTATION_ANALYSIS_TOOL_NAMES",
-    "LACTATION_ACTION_POLICY_RULES",
-    "LACTATION_RECORD_ACTION_TYPES",
-    "LactationRecordActionApplicator",
     "GetFeedingRecordsToolHandler",
     "GetFeedingSummaryToolHandler",
     "GetGrowthRecordsToolHandler",

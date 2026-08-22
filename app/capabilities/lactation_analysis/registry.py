@@ -9,7 +9,7 @@ from app.agent_runtime.tools import (
     ToolContractRegistry,
     internal_input_schema,
 )
-from app.capabilities.model_input_schemas import input_schema_for_tool
+from .model_schemas import model_input_schema
 
 from .contracts import (
     FeedingRecordsArguments,
@@ -97,7 +97,7 @@ def lactation_analysis_tool_registry() -> ToolContractRegistry:
                 operation="read",
                 required_permissions=("records:read",),
                 description=description,
-                input_schema=input_schema_for_tool(name),
+                input_schema=model_input_schema(name),
                 internal_input_schema=_internal_schema(arguments),
                 output_schema=result.model_json_schema(),
                 safe_arg_fields=("window_days",),

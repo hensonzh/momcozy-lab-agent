@@ -28,7 +28,7 @@ from app.capabilities.pump_models import (
     PUMP_MODELS_TOOL_NAMES,
     PumpModelsReadToolHandler,
 )
-from app.capabilities.runtime import runtime_capability_tool_registry
+from app.bootstrap import build_runtime_tool_registry
 from app.capabilities.support_ticket import (
     SUPPORT_TICKET_TOOL_NAMES,
     SupportTicketDraftCreateToolHandler,
@@ -38,15 +38,15 @@ from app.core.errors import ApiError
 
 
 def test_capability_registry_matches_global_catalog_and_action_boundary() -> None:
-    registry = runtime_capability_tool_registry()
+    registry = build_runtime_tool_registry()
 
-    assert set(registry.names_for_sdk()) == {
+    assert {
         "conversation_history_image_read",
         "devices_guidance_manage",
         "ibclc_consult_card_create",
         "pump_models_read",
         "support_ticket_draft_create",
-    }
+    }.issubset(registry.names_for_sdk())
     assert CONVERSATION_HISTORY_IMAGE_TOOL_NAMES == (
         "conversation_history_image_read",
     )

@@ -4,7 +4,7 @@ from app.agent_runtime.tools import (
     internal_input_schema,
 )
 from app.capabilities._internal.schemas import object_output_schema
-from app.capabilities.model_input_schemas import input_schema_for_tool
+from .model_schemas import model_input_schema
 
 from .contracts import IbclcConsultCardCreateArguments
 
@@ -24,7 +24,7 @@ def ibclc_tool_registry() -> ToolContractRegistry:
                 "创建 IBCLC 咨询入口卡片。"
                 "当用户明确要求联系顾问，或明确同意上一轮的 IBCLC 咨询建议时使用。"
             ),
-            input_schema=input_schema_for_tool(
+            input_schema=model_input_schema(
                 "ibclc_consult_card_create"
             ),
             internal_input_schema=internal_input_schema(

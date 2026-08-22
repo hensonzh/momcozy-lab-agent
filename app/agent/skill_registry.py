@@ -15,10 +15,8 @@ from app.agent_runtime.tools import (
 from app.agent_runtime.runtime_metadata import SERVICE_SKILL_SCHEMA_VERSION
 from app.core.errors import ApiError
 
-from .tool_catalog import LOAD_SERVICE_SKILL_TOOL_NAME
-
-
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
+LOAD_SERVICE_SKILL_TOOL_NAME = "load_service_skill"
 ServiceSkillName = Literal["lactation", "device"]
 SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = (
     "lactation",

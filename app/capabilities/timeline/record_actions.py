@@ -13,12 +13,12 @@ from app.infrastructure.product_backend import (
     LactationRecordApplyResponse,
 )
 
-LACTATION_RECORD_ACTION_TYPES = frozenset(
+RECORD_ACTION_TYPES = tuple(
     f"records.{item_type}_record.{operation}"
     for item_type in ("feeding", "pumping", "growth")
     for operation in ("create", "update", "delete")
 )
-LACTATION_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
+RECORD_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
     action_type: ActionPolicyRule(
         action_type=action_type,
         target_type=action_type.removeprefix("records.").rsplit(".", 1)[0],
@@ -32,7 +32,7 @@ LACTATION_ACTION_POLICY_RULES: Mapping[str, ActionPolicyRule] = {
             else ""
         ),
     )
-    for action_type in LACTATION_RECORD_ACTION_TYPES
+    for action_type in RECORD_ACTION_TYPES
 }
 
 
@@ -46,7 +46,7 @@ class _LactationRecordApplyClient(Protocol):
     ) -> LactationRecordApplyResponse: ...
 
 
-class LactationRecordActionApplicator:
+class RecordActionApplicator:
     def __init__(self, *, client: _LactationRecordApplyClient) -> None:
         self.client = client
 
@@ -94,7 +94,7 @@ def _validate_binding(
     )
     target_type = f"{payload.item_type}_record"
     if (
-        action.action_type not in LACTATION_RECORD_ACTION_TYPES
+        action.action_type not in RECORD_ACTION_TYPES
         or action.action_type != action_type
         or action.target_type != target_type
     ):
@@ -116,3 +116,10 @@ def _scope_error() -> ApiError:
         message="Lactation record action scope is invalid.",
         status=403,
     )
+
+
+__all__ = [
+    "RECORD_ACTION_POLICY_RULES",
+    "RECORD_ACTION_TYPES",
+    "RecordActionApplicator",
+]
