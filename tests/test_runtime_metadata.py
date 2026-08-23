@@ -21,6 +21,7 @@ from app.agent_runtime.runtime_metadata import (
     COMPACTION_PROMPT_VERSION,
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
     CONTEXT_EVAL_SCHEMA_VERSION,
+    CONTEXT_HISTORY_POLICY_VERSION,
     CONTEXT_PLAN_SCHEMA_VERSION,
     CONTEXT_STATE_SCHEMA_VERSION,
     DEFAULT_RUNTIME_VERSION,
@@ -28,6 +29,7 @@ from app.agent_runtime.runtime_metadata import (
     MODEL_CONTEXT_SCHEMA_VERSION,
     MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
     REPLAY_SCHEMA_VERSION,
+    RECENT_COMPLETED_RUN_LIMIT,
     RESPONSE_QUALITY_RUBRIC_VERSION,
     RUN_EXECUTION_MANIFEST_SCHEMA_VERSION,
     RUNTIME_CONTRACT_CATALOG_SCHEMA_VERSION,
@@ -59,7 +61,7 @@ GENERATED_CATALOG = (
 TOOLS_DOCUMENT = REPOSITORY_ROOT / "docs/tools.md"
 
 
-def test_all_first_party_contract_versions_use_v1_baseline() -> None:
+def test_first_party_contract_versions_match_current_baseline() -> None:
     assert {
         "action_catalog": ACTION_CATALOG_SCHEMA_VERSION,
         "action_policy": ACTION_POLICY_SCHEMA_VERSION,
@@ -72,6 +74,7 @@ def test_all_first_party_contract_versions_use_v1_baseline() -> None:
         "compaction_prompt": COMPACTION_PROMPT_VERSION,
         "context_checkpoint": CONTEXT_CHECKPOINT_SCHEMA_VERSION,
         "context_eval": CONTEXT_EVAL_SCHEMA_VERSION,
+        "context_history_policy": CONTEXT_HISTORY_POLICY_VERSION,
         "context_materializer": MATERIALIZER_VERSION,
         "context_plan": CONTEXT_PLAN_SCHEMA_VERSION,
         "context_state": CONTEXT_STATE_SCHEMA_VERSION,
@@ -102,10 +105,11 @@ def test_all_first_party_contract_versions_use_v1_baseline() -> None:
         "compaction_prompt": "agent_context_compaction.v1",
         "context_checkpoint": "agent_context_checkpoint.v1",
         "context_eval": "agent_context_eval_suite.v1",
+        "context_history_policy": "agent_context_history_policy.v1",
         "context_materializer": "agent_context_materializer.v1",
-        "context_plan": "agent_context_plan.v1",
-        "context_state": "agent_run_context.v1",
-        "context_summary_policy": "agent_context_summary_policy.v1",
+        "context_plan": "agent_context_plan.v2",
+        "context_state": "agent_run_context.v2",
+        "context_summary_policy": "agent_context_summary_policy.v2",
         "context_token_counter": "v1",
         "model_context": "agent.model_context.v1",
         "model_execution_manifest": "agent_model_execution.v1",
@@ -122,6 +126,7 @@ def test_all_first_party_contract_versions_use_v1_baseline() -> None:
         "tool_contract": "agent.tool_contract.v1",
     }
     assert AUTH_TOKEN_VERSION == 1
+    assert RECENT_COMPLETED_RUN_LIMIT == 10
 
 
 def test_runtime_metadata_is_the_canonical_version_source() -> None:
@@ -147,6 +152,12 @@ def test_runtime_metadata_is_the_canonical_version_source() -> None:
     )
     assert metadata["business_context_schema_version"] == (
         BUSINESS_CONTEXT_SCHEMA_VERSION
+    )
+    assert metadata["context_history_policy_version"] == (
+        CONTEXT_HISTORY_POLICY_VERSION
+    )
+    assert metadata["context_recent_completed_run_limit"] == (
+        RECENT_COMPLETED_RUN_LIMIT
     )
 
 

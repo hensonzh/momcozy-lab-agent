@@ -8,6 +8,11 @@ from uuid import UUID, uuid4
 from app.agent_runtime.evals import RuntimeEvalService
 from app.agent_runtime.ledger import AgentEvalCase
 from app.agent_runtime.replay import RuntimeReplayService
+from app.agent_runtime.runtime_metadata import (
+    CONTEXT_HISTORY_POLICY_VERSION,
+    CONTEXT_STATE_SCHEMA_VERSION,
+    SUMMARY_POLICY_VERSION,
+)
 
 
 def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
@@ -156,7 +161,12 @@ class FakeReplayRepository:
                 ],
             },
             context_state={
-                "schema_version": "agent_run_context.v1",
+                "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
+                "history_window": {
+                    "policy_version": CONTEXT_HISTORY_POLICY_VERSION,
+                    "recent_completed_run_limit": 10,
+                    "retained_run_ids": [],
+                },
                 "checkpoint": {
                     "id": str(uuid4()),
                     "summary_sha256": "b" * 64,
@@ -237,7 +247,7 @@ class FakeReplayRepository:
             prompt_version="agent_context_compaction.v1",
             materializer_version="agent_context_materializer.v1",
             context_schema_version="agent_context_checkpoint.v1",
-            summary_policy_version="agent_context_summary_policy.v1",
+            summary_policy_version=SUMMARY_POLICY_VERSION,
             checkpoint={
                 "schema_version": "agent_context_checkpoint.v1",
                 "user_claims": [],

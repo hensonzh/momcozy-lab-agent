@@ -21,9 +21,16 @@ recoverable, and safe for attachments.
   SDK. The request is accepted only when input tokens plus
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
   guard therefore also runs after Skill loading and ordinary Tool calls.
-- A checkpoint replaces all history through a completed-Run cutoff. There is no
-  separately configured raw tail. The cutoff cannot split a function call from
-  its output.
+- When compaction is needed, a checkpoint replaces history only through the end
+  of the **11th most recent completed Run**. The latest 10 completed Runs remain
+  as an atomic raw tail; the current Run is separate and is never counted in
+  those 10.
+- Every retained Run keeps its complete model-visible chain: normalized client
+  context, user message/attachment references, assistant messages, function and
+  Action calls, and their safe contract-projected results. A cutoff cannot split
+  a Run or a function call from its output.
+- Failed, cancelled, and active Runs remain available to ledger/Replay but do
+  not count toward the normal history window.
 - Checkpoint output is capped by
   `AGENT_CONTEXT_SUMMARY_MAX_TOKENS` (default `2000`).
 - The triggering Run normally continues on its frozen ready generation while
@@ -36,6 +43,27 @@ recoverable, and safe for attachments.
 `CanonicalContextPlan` contains only stable ledger IDs, sequences, immutable
 Product file IDs, checkpoint references, trust labels, and raw provider items.
 Its SHA-256 never contains a model-fetch capability URL.
+
+The versioned history policy is
+`agent_context_history_policy.v1`, with
+`recent_completed_run_limit=10`. Each Run's durable `context_state` records the
+latest completed cutoff, the older compaction cutoff, the retained Run IDs, and
+the retained tail's first sequence. The model-history plan is counted in full,
+while the compaction-source plan stops at the older cutoff. This separation
+prevents a token-triggered job from accidentally summarizing the protected raw
+tail. Recursive compaction combines the ready checkpoint only with complete Runs
+that have since aged out of that tail.
+
+This incompatible planning change advances `agent_context_plan` and
+`agent_run_context` to `v2`, and the compaction summary policy to `v2`; the
+typed checkpoint document remains `agent_context_checkpoint.v1` because its
+shape did not change. During rollout, workers must first drain all queued,
+retry-wait, and running jobs pinned to the old summary policy. A stored v1 Run
+context is recomputed on its next execution, and a ready checkpoint produced by
+the old policy is ignored for model projection; the append-only ledger remains
+the source for rebuilding a safe v2 checkpoint. Old states and checkpoints stay
+available to Replay rather than being rewritten or deleted. No relational
+schema migration is required.
 
 Immediately before any token-count, compaction, or SDK Agent model call, the shared
 `AgentAttachmentService` converts `asset_id` blocks to opaque Product
@@ -163,6 +191,13 @@ There is no in-worker sleep/poll loop. Process restarts do not lose the wait
 state. A second hard-limit rejection fails explicitly; Runtime never silently
 drops input.
 
+If there is no older complete Run available to compact—or the ready checkpoint
+already reaches the current compaction cutoff—Runtime returns
+`recent_context_exceeds_limit`. It never shrinks the 10-Run contract, splits a
+Run, drops a ToolResult, or recompacts the same checkpoint merely to force the
+request under budget. Large results must instead be corrected at their Tool
+result policy (`full`, `summary`, or `ref_only`) boundary.
+
 ## Dead-letter recovery
 
 While the head is blocked, new Run creation fails with
@@ -178,15 +213,16 @@ queried as permanent Thread poison.
 
 ## Replay, evals, and operations
 
-Replay v1 exports the frozen Run context state, typed checkpoint metadata, and
-the current Thread Context Head. Checkpoint content remains redacted unless the
-existing privileged content flag is enabled.
+Replay v1 exports the frozen Run context state—including the history policy,
+retained Run IDs, and both cutoffs—typed checkpoint metadata, and the current
+Thread Context Head. Checkpoint content remains redacted unless the existing
+privileged content flag is enabled.
 
 The deterministic Context eval catalog is
 `evals/context/v1/scenarios.json`. It covers attachment materialization,
 prompt-injection trust, typed-summary preservation, recursive compaction,
-crash-attempt bounds, dead-letter recovery, pinned-version drift, and durable
-hard-limit resume.
+complete-Run raw-tail preservation, crash-attempt bounds, dead-letter recovery,
+pinned-version drift, and durable hard-limit resume.
 
 Worker controls:
 

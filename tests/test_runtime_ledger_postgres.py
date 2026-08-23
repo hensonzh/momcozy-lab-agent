@@ -481,6 +481,35 @@ async def _context_compaction_scenario() -> None:
                 run=prior,
                 completed_at=datetime.now(timezone.utc),
             )
+            for index in range(10):
+                retained = await repository.create_run(
+                    thread_id=thread.id,
+                    actor_user_id=owner_user_id,
+                    authorization_context=_authorization_context(
+                        owner_user_id
+                    ),
+                    runtime_pattern="proprietary_runtime",
+                    runtime_version="test",
+                    request_id=f"req-context-retained-{index}",
+                    trace_id=f"trace-context-retained-{index}",
+                )
+                await repository.append_context_items(
+                    thread_id=thread.id,
+                    run_id=retained.id,
+                    items=(
+                        ContextItemAppend(
+                            item_key=f"context-retained-{index}",
+                            item={
+                                "role": "user",
+                                "content": f"retained-{index}",
+                            },
+                        ),
+                    ),
+                )
+                await repository.mark_run_completed(
+                    run=retained,
+                    completed_at=datetime.now(timezone.utc),
+                )
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,
@@ -638,6 +667,41 @@ async def _context_recovery_scenario() -> None:
                 run=prior,
                 completed_at=datetime.now(timezone.utc),
             )
+            for index in range(10):
+                retained = await repository.create_run(
+                    thread_id=thread.id,
+                    actor_user_id=owner_user_id,
+                    authorization_context=_authorization_context(
+                        owner_user_id
+                    ),
+                    runtime_pattern="proprietary_runtime",
+                    runtime_version="test",
+                    request_id=(
+                        f"req-context-recovery-retained-{index}"
+                    ),
+                    trace_id=(
+                        f"trace-context-recovery-retained-{index}"
+                    ),
+                )
+                await repository.append_context_items(
+                    thread_id=thread.id,
+                    run_id=retained.id,
+                    items=(
+                        ContextItemAppend(
+                            item_key=(
+                                f"context-recovery-retained-{index}"
+                            ),
+                            item={
+                                "role": "user",
+                                "content": f"retained-{index}",
+                            },
+                        ),
+                    ),
+                )
+                await repository.mark_run_completed(
+                    run=retained,
+                    completed_at=datetime.now(timezone.utc),
+                )
             current = await repository.create_run(
                 thread_id=thread.id,
                 actor_user_id=owner_user_id,

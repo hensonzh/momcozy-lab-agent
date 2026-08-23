@@ -1,7 +1,7 @@
 """Canonical cross-cutting Runtime contract versions and catalog metadata.
 
-The current product baseline starts every contract enumerated here at v1. A
-future incompatible change must bump only the affected contract, update its
+The initial product baseline started every contract enumerated here at v1.
+Incompatible changes bump only the affected contract, update its
 migration/replay policy, and regenerate the checked-in catalog.
 """
 
@@ -77,13 +77,17 @@ BUSINESS_CONTEXT_SCHEMA_VERSION: Final[BusinessContextSchemaVersion] = (
 )
 BUSINESS_CONTEXT_ITEM_KEY_PREFIX: Final = "business-context:"
 
-CONTEXT_PLAN_SCHEMA_VERSION: Final = "agent_context_plan.v1"
-CONTEXT_STATE_SCHEMA_VERSION: Final = "agent_run_context.v1"
+CONTEXT_PLAN_SCHEMA_VERSION: Final = "agent_context_plan.v2"
+CONTEXT_STATE_SCHEMA_VERSION: Final = "agent_run_context.v2"
 CONTEXT_CHECKPOINT_SCHEMA_VERSION: Final = (
     "agent_context_checkpoint.v1"
 )
 MATERIALIZER_VERSION: Final = "agent_context_materializer.v1"
-SUMMARY_POLICY_VERSION: Final = "agent_context_summary_policy.v1"
+SUMMARY_POLICY_VERSION: Final = "agent_context_summary_policy.v2"
+CONTEXT_HISTORY_POLICY_VERSION: Final = (
+    "agent_context_history_policy.v1"
+)
+RECENT_COMPLETED_RUN_LIMIT: Final = 10
 TOKEN_COUNTER_VERSION: Final = "v1"
 COMPACTION_PROMPT_VERSION: Final = "agent_context_compaction.v1"
 
@@ -141,6 +145,12 @@ def runtime_metadata_snapshot() -> dict[str, str | int]:
         ),
         "context_materializer_version": MATERIALIZER_VERSION,
         "context_summary_policy_version": SUMMARY_POLICY_VERSION,
+        "context_history_policy_version": (
+            CONTEXT_HISTORY_POLICY_VERSION
+        ),
+        "context_recent_completed_run_limit": (
+            RECENT_COMPLETED_RUN_LIMIT
+        ),
         "context_token_counter_version": TOKEN_COUNTER_VERSION,
         "context_compaction_prompt_version": COMPACTION_PROMPT_VERSION,
         "replay_schema_version": REPLAY_SCHEMA_VERSION,
@@ -265,6 +275,7 @@ __all__ = [
     "COMPACTION_PROMPT_VERSION",
     "CONTEXT_CHECKPOINT_SCHEMA_VERSION",
     "CONTEXT_EVAL_SCHEMA_VERSION",
+    "CONTEXT_HISTORY_POLICY_VERSION",
     "CONTEXT_PLAN_SCHEMA_VERSION",
     "CONTEXT_STATE_SCHEMA_VERSION",
     "DEFAULT_RUNTIME_VERSION",
@@ -272,6 +283,7 @@ __all__ = [
     "MODEL_CONTEXT_SCHEMA_VERSION",
     "MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION",
     "PROPRIETARY_RUNTIME_PATTERN",
+    "RECENT_COMPLETED_RUN_LIMIT",
     "REPLAY_SCHEMA_VERSION",
     "RESPONSE_QUALITY_RUBRIC_VERSION",
     "RUNTIME_CONTRACT_CATALOG_SCHEMA_VERSION",

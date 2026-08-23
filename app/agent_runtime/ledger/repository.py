@@ -23,7 +23,11 @@ from app.infrastructure.db.session import (
     run_after_commit_callbacks,
 )
 
-from .contracts import ContextItemAppend
+from .contracts import (
+    CompletedContextCutoff,
+    CompletedContextWindow,
+    ContextItemAppend,
+)
 from .models import (
     ACTIVE_RUN_STATUSES,
     AgentAction,
@@ -849,16 +853,28 @@ class RuntimeLedgerRepository:
         )
         return list(result.all())
 
-    async def get_prior_completed_context_cutoff(
+    async def get_completed_context_window(
         self,
         *,
         thread_id: UUID,
         before_run_id: UUID,
-    ) -> Any | None:
+        recent_completed_run_limit: int,
+    ) -> CompletedContextWindow:
+        if recent_completed_run_limit < 1:
+            raise ValueError(
+                "recent_completed_run_limit must be positive"
+            )
+        first_sequence = func.min(AgentContextItem.sequence).label(
+            "first_sequence"
+        )
+        last_sequence = func.max(AgentContextItem.sequence).label(
+            "last_sequence"
+        )
         statement = (
             select(
                 AgentContextItem.run_id,
-                AgentContextItem.sequence,
+                first_sequence,
+                last_sequence,
             )
             .join(AgentRun, AgentRun.id == AgentContextItem.run_id)
             .where(
@@ -867,20 +883,46 @@ class RuntimeLedgerRepository:
                 AgentRun.id != before_run_id,
                 AgentRun.status == "completed",
             )
-            .order_by(AgentContextItem.sequence.desc())
-            .limit(1)
+            .group_by(AgentContextItem.run_id)
+            .order_by(last_sequence.desc(), AgentContextItem.run_id.desc())
+            .limit(recent_completed_run_limit + 1)
         )
-        row = (await self.session.execute(statement)).first()
-        if row is None or row.run_id is None:
-            return None
-        return type(
-            "CompletedContextCutoff",
-            (),
-            {
-                "run_id": row.run_id,
-                "sequence": int(row.sequence),
-            },
-        )()
+        rows = list((await self.session.execute(statement)).all())
+        if not rows:
+            return CompletedContextWindow(
+                latest_cutoff=None,
+                compaction_cutoff=None,
+                retained_run_ids=(),
+                retained_start_sequence=None,
+            )
+        latest = rows[0]
+        retained_rows = rows[:recent_completed_run_limit]
+        retained_chronological = tuple(reversed(retained_rows))
+        compactable = (
+            rows[recent_completed_run_limit]
+            if len(rows) > recent_completed_run_limit
+            else None
+        )
+        return CompletedContextWindow(
+            latest_cutoff=CompletedContextCutoff(
+                run_id=latest.run_id,
+                sequence=int(latest.last_sequence),
+            ),
+            compaction_cutoff=(
+                CompletedContextCutoff(
+                    run_id=compactable.run_id,
+                    sequence=int(compactable.last_sequence),
+                )
+                if compactable is not None
+                else None
+            ),
+            retained_run_ids=tuple(
+                row.run_id for row in retained_chronological
+            ),
+            retained_start_sequence=int(
+                retained_chronological[0].first_sequence
+            ),
+        )
 
     async def get_or_create_context_head(
         self,

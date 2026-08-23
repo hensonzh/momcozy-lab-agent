@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -122,6 +123,54 @@ def test_completed_history_queries_exclude_prior_run_business_snapshots() -> Non
     assert BUSINESS_CONTEXT_ITEM_KEY_PREFIX in projection_sql
 
 
+def test_completed_context_window_selects_ten_recent_runs_plus_cutoff() -> None:
+    session = RecordingSession()
+    repository = RuntimeLedgerRepository(session)  # type: ignore[arg-type]
+
+    asyncio.run(
+        repository.get_completed_context_window(
+            thread_id=uuid4(),
+            before_run_id=uuid4(),
+            recent_completed_run_limit=10,
+        )
+    )
+
+    sql = _compiled_sql(session.statement)
+    assert "agent_runs.status = 'completed'" in sql
+    assert "GROUP BY agent_context_items.run_id" in sql
+    assert "max(agent_context_items.sequence)" in sql
+    assert "ORDER BY" in sql
+    assert "LIMIT 11" in sql
+
+
+def test_completed_context_window_maps_run_boundaries_chronologically() -> None:
+    run_ids = [uuid4() for _ in range(12)]
+    rows = [
+        SimpleNamespace(
+            run_id=run_id,
+            first_sequence=index * 10 + 1,
+            last_sequence=index * 10 + 9,
+        )
+        for index, run_id in reversed(list(enumerate(run_ids)))
+    ]
+    session = WindowRecordingSession(rows=rows)
+
+    window = asyncio.run(
+        RuntimeLedgerRepository(session).get_completed_context_window(  # type: ignore[arg-type]
+            thread_id=uuid4(),
+            before_run_id=uuid4(),
+            recent_completed_run_limit=10,
+        )
+    )
+
+    assert window.latest_cutoff is not None
+    assert window.latest_cutoff.run_id == run_ids[-1]
+    assert window.compaction_cutoff is not None
+    assert window.compaction_cutoff.run_id == run_ids[1]
+    assert window.retained_run_ids == tuple(run_ids[-10:])
+    assert window.retained_start_sequence == 21
+
+
 def test_run_context_item_lookup_is_owner_scoped() -> None:
     session = RecordingSession()
 
@@ -157,6 +206,24 @@ class RecordingSession:
 class EmptyScalarResult:
     def all(self) -> list[Any]:
         return []
+
+
+class WindowRecordingSession(RecordingSession):
+    def __init__(self, *, rows: list[Any]) -> None:
+        super().__init__()
+        self.rows = rows
+
+    async def execute(self, statement: Any) -> "WindowResult":
+        self.statement = statement
+        return WindowResult(rows=self.rows)
+
+
+class WindowResult(EmptyScalarResult):
+    def __init__(self, *, rows: list[Any]) -> None:
+        self.rows = rows
+
+    def all(self) -> list[Any]:
+        return list(self.rows)
 
 
 def _compiled_sql(statement: Any) -> str:

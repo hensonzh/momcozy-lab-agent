@@ -1,6 +1,10 @@
 """Durable state owned by the Agent Runtime service."""
 
-from app.agent_runtime.ledger.contracts import ContextItemAppend
+from app.agent_runtime.ledger.contracts import (
+    CompletedContextCutoff,
+    CompletedContextWindow,
+    ContextItemAppend,
+)
 from app.agent_runtime.ledger.models import (
     AgentAction,
     AgentArtifact,
@@ -35,5 +39,7 @@ __all__ = [
     "AgentToolOutput",
     "AgentWorkflowEvent",
     "AgentWorkflowState",
+    "CompletedContextCutoff",
+    "CompletedContextWindow",
     "ContextItemAppend",
 ]

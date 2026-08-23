@@ -7,26 +7,26 @@ import json
 import logging
 from time import monotonic
 from types import SimpleNamespace
-from typing import Any, Protocol, cast
+from typing import Any, NoReturn, Protocol, cast
 from uuid import UUID
 
+from app.agent_runtime.ledger.contracts import (
+    CompletedContextCutoff,
+    CompletedContextWindow,
+)
 from app.agent_runtime.runtime_metadata import (
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
+    CONTEXT_HISTORY_POLICY_VERSION,
     CONTEXT_PLAN_SCHEMA_VERSION,
     CONTEXT_STATE_SCHEMA_VERSION,
     MATERIALIZER_VERSION,
+    RECENT_COMPLETED_RUN_LIMIT,
     SUMMARY_POLICY_VERSION,
 )
 from app.core.errors import ApiError
 from app.core.observability import emit_operation_metric
 
 LOGGER = logging.getLogger("agent_runtime.context")
-
-
-@dataclass(frozen=True)
-class CompletedContextCutoff:
-    run_id: UUID
-    sequence: int
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,8 @@ class CanonicalContextPlan:
     def canonical_json(self) -> str:
         payload = {
             "schema_version": CONTEXT_PLAN_SCHEMA_VERSION,
+            "history_policy_version": CONTEXT_HISTORY_POLICY_VERSION,
+            "recent_completed_run_limit": RECENT_COMPLETED_RUN_LIMIT,
             "thread_id": str(self.thread_id),
             "actor_user_id": str(self.actor_user_id),
             "cutoff_run_id": (
@@ -147,12 +149,13 @@ class ContextRepository(Protocol):
         thread_id: UUID,
     ) -> Any: ...
 
-    async def get_prior_completed_context_cutoff(
+    async def get_completed_context_window(
         self,
         *,
         thread_id: UUID,
         before_run_id: UUID,
-    ) -> Any: ...
+        recent_completed_run_limit: int,
+    ) -> CompletedContextWindow: ...
 
     async def get_context_checkpoint(
         self,
@@ -331,43 +334,59 @@ class ContextCompactionService:
                 status=503,
                 details={"retryable": True},
             )
-        cutoff = await self.repository.get_prior_completed_context_cutoff(
+        window = await self.repository.get_completed_context_window(
             thread_id=run.thread_id,
             before_run_id=run.id,
+            recent_completed_run_limit=RECENT_COMPLETED_RUN_LIMIT,
         )
         checkpoint = await self._ready_checkpoint(
             head=head,
-            cutoff=cutoff,
+            latest_cutoff=window.latest_cutoff,
+            compaction_cutoff=window.compaction_cutoff,
             thread_id=run.thread_id,
         )
-        plan = await self._build_plan(
+        history_plan = await self._build_plan(
             thread_id=run.thread_id,
             actor_user_id=run.actor_user_id,
-            cutoff=cutoff,
+            cutoff=window.latest_cutoff,
             checkpoint=checkpoint,
         )
         count = await self._count_plan(
-            plan=plan,
+            plan=history_plan,
             request_id=f"context-preflight:{run.id}",
         )
         job = pending_job
         if (
-            cutoff is not None
-            and count.input_tokens > self.threshold_tokens
+            count.input_tokens > self.threshold_tokens
+            and self._can_advance_checkpoint(
+                checkpoint=checkpoint,
+                cutoff=window.compaction_cutoff,
+            )
             and job is None
         ):
+            assert window.compaction_cutoff is not None
+            compaction_plan = await self._build_plan(
+                thread_id=run.thread_id,
+                actor_user_id=run.actor_user_id,
+                cutoff=window.compaction_cutoff,
+                checkpoint=checkpoint,
+            )
+            source_count = await self._count_plan(
+                plan=compaction_plan,
+                request_id=f"context-compaction-source:{run.id}",
+            )
             job = await self._enqueue_job(
                 run=run,
                 head=head,
-                cutoff=cutoff,
+                cutoff=window.compaction_cutoff,
                 checkpoint=checkpoint,
-                plan=plan,
-                source_input_tokens=count.input_tokens,
-                token_counter=count.counter,
-                token_counter_version=count.version,
+                plan=compaction_plan,
+                source_input_tokens=source_count.input_tokens,
+                token_counter=source_count.counter,
+                token_counter_version=source_count.version,
             )
         state = self._run_context_state(
-            cutoff=cutoff,
+            window=window,
             checkpoint=checkpoint,
             count=count,
             head=head,
@@ -507,13 +526,12 @@ class ContextCompactionService:
                 status=400,
                 details={"retryable": False},
             )
-        history_cutoff = state.get("history_cutoff")
-        if not isinstance(history_cutoff, dict):
+        history_window = state.get("history_window")
+        if not isinstance(history_window, dict):
             raise ApiError(
-                code="model_context_window_exceeded",
-                message="Current request cannot be compacted safely.",
-                status=400,
-                details={"retryable": False},
+                code="context_state_invalid",
+                message="Run context state is invalid.",
+                status=500,
             )
         head = await self.repository.get_or_create_context_head(
             thread_id=run.thread_id
@@ -525,36 +543,43 @@ class ContextCompactionService:
                 run=run,
                 state=state,
             )
-            cutoff = CompletedContextCutoff(
-                run_id=UUID(str(history_cutoff["run_id"])),
-                sequence=int(history_cutoff["sequence"]),
+            raw_compaction_cutoff = history_window.get(
+                "compaction_cutoff"
             )
+            if not isinstance(raw_compaction_cutoff, dict):
+                self._raise_recent_context_exceeds_limit(
+                    history_window=history_window,
+                )
+            cutoff = CompletedContextCutoff(
+                run_id=UUID(str(raw_compaction_cutoff["run_id"])),
+                sequence=int(raw_compaction_cutoff["sequence"]),
+            )
+            if not self._can_advance_checkpoint(
+                checkpoint=checkpoint,
+                cutoff=cutoff,
+            ):
+                self._raise_recent_context_exceeds_limit(
+                    history_window=history_window,
+                )
             plan = await self._build_plan(
                 thread_id=run.thread_id,
                 actor_user_id=run.actor_user_id,
                 cutoff=cutoff,
                 checkpoint=checkpoint,
             )
-            token_counter = state.get("token_counter")
-            if not isinstance(token_counter, dict):
-                raise ApiError(
-                    code="context_state_invalid",
-                    message="Run context state is invalid.",
-                    status=500,
-                )
+            source_count = await self._count_plan(
+                plan=plan,
+                request_id=f"context-compaction-source:{run.id}",
+            )
             job = await self._enqueue_job(
                 run=run,
                 head=head,
                 cutoff=cutoff,
                 checkpoint=checkpoint,
                 plan=plan,
-                source_input_tokens=int(
-                    state.get("history_input_tokens", 0)
-                ),
-                token_counter=str(token_counter["name"]),
-                token_counter_version=str(
-                    token_counter["version"]
-                ),
+                source_input_tokens=int(source_count.input_tokens),
+                token_counter=str(source_count.counter),
+                token_counter_version=str(source_count.version),
             )
         if job.status == "completed":
             await self._adopt_completed_job(
@@ -895,7 +920,8 @@ class ContextCompactionService:
         self,
         *,
         head: Any,
-        cutoff: Any | None,
+        latest_cutoff: CompletedContextCutoff | None,
+        compaction_cutoff: CompletedContextCutoff | None,
         thread_id: UUID,
     ) -> Any | None:
         checkpoint_id = getattr(head, "ready_checkpoint_id", None)
@@ -905,11 +931,20 @@ class ContextCompactionService:
             checkpoint_id=checkpoint_id,
         )
         if (
+            checkpoint is not None
+            and str(getattr(checkpoint, "summary_policy_version", ""))
+            != SUMMARY_POLICY_VERSION
+        ):
+            return None
+        if (
             checkpoint is None
             or checkpoint.thread_id != thread_id
-            or cutoff is None
+            or latest_cutoff is None
             or int(checkpoint.source_cutoff_sequence)
-            > int(cutoff.sequence)
+            > int(latest_cutoff.sequence)
+            or compaction_cutoff is None
+            or int(checkpoint.source_cutoff_sequence)
+            > int(compaction_cutoff.sequence)
         ):
             raise ApiError(
                 code="context_checkpoint_invalid",
@@ -918,6 +953,46 @@ class ContextCompactionService:
             )
         validate_checkpoint_document(_checkpoint_document(checkpoint))
         return checkpoint
+
+    @staticmethod
+    def _can_advance_checkpoint(
+        *,
+        checkpoint: Any | None,
+        cutoff: CompletedContextCutoff | None,
+    ) -> bool:
+        if cutoff is None:
+            return False
+        return (
+            checkpoint is None
+            or int(checkpoint.source_cutoff_sequence)
+            < int(cutoff.sequence)
+        )
+
+    @staticmethod
+    def _raise_recent_context_exceeds_limit(
+        *,
+        history_window: dict[str, Any],
+    ) -> NoReturn:
+        retained_run_ids = history_window.get("retained_run_ids", [])
+        raise ApiError(
+            code="recent_context_exceeds_limit",
+            message=(
+                "The current request and protected recent Runs exceed "
+                "the configured model context budget."
+            ),
+            status=400,
+            details={
+                "retryable": False,
+                "recent_completed_run_limit": (
+                    RECENT_COMPLETED_RUN_LIMIT
+                ),
+                "retained_run_count": (
+                    len(retained_run_ids)
+                    if isinstance(retained_run_ids, list)
+                    else 0
+                ),
+            },
+        )
 
     async def _checkpoint_for_state(
         self,
@@ -938,6 +1013,10 @@ class ContextCompactionService:
             != raw.get("summary_sha256")
             or int(checkpoint.generation)
             != int(raw.get("generation", -1))
+            or str(
+                getattr(checkpoint, "summary_policy_version", "")
+            )
+            != SUMMARY_POLICY_VERSION
         ):
             raise ApiError(
                 code="context_checkpoint_invalid",
@@ -1024,7 +1103,7 @@ class ContextCompactionService:
     @staticmethod
     def _run_context_state(
         *,
-        cutoff: Any | None,
+        window: CompletedContextWindow,
         checkpoint: Any | None,
         count: Any,
         head: Any,
@@ -1032,14 +1111,26 @@ class ContextCompactionService:
     ) -> dict[str, Any]:
         return {
             "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
-            "history_cutoff": (
-                {
-                    "run_id": str(cutoff.run_id),
-                    "sequence": int(cutoff.sequence),
-                }
-                if cutoff is not None
-                else None
-            ),
+            "history_window": {
+                "policy_version": CONTEXT_HISTORY_POLICY_VERSION,
+                "recent_completed_run_limit": (
+                    RECENT_COMPLETED_RUN_LIMIT
+                ),
+                "latest_completed_cutoff": _cutoff_state(
+                    window.latest_cutoff
+                ),
+                "compaction_cutoff": _cutoff_state(
+                    window.compaction_cutoff
+                ),
+                "retained_run_ids": [
+                    str(run_id) for run_id in window.retained_run_ids
+                ],
+                "retained_start_sequence": (
+                    int(window.retained_start_sequence)
+                    if window.retained_start_sequence is not None
+                    else None
+                ),
+            },
             "history_input_tokens": int(count.input_tokens),
             "token_counter": {
                 "name": str(count.counter),
@@ -1059,6 +1150,17 @@ class ContextCompactionService:
             "hard_limit_retry_count": 0,
             "emergency_compaction": False,
         }
+
+
+def _cutoff_state(
+    cutoff: CompletedContextCutoff | None,
+) -> dict[str, Any] | None:
+    if cutoff is None:
+        return None
+    return {
+        "run_id": str(cutoff.run_id),
+        "sequence": int(cutoff.sequence),
+    }
 
 
 def checkpoint_provider_item(
@@ -1288,6 +1390,7 @@ __all__ = [
     "SUMMARY_POLICY_VERSION",
     "CanonicalContextPlan",
     "CompletedContextCutoff",
+    "CompletedContextWindow",
     "ContextCompactionService",
     "ContextSourceEntry",
     "MaterializedProviderInput",

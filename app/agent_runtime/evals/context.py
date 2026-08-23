@@ -32,6 +32,7 @@ KNOWN_CONTEXT_ASSERTIONS = frozenset(
         "business_context.low_trust",
         "business_context.current_run_only",
         "business_context.owner_scoped",
+        "history.completed_run_tail",
     }
 )
 
@@ -251,6 +252,55 @@ def _evaluate_assertion(
                 for item in reads
             )
         )
+    if assertion.type == "history.completed_run_tail":
+        state = trace.get("run_context_state", {})
+        window = (
+            state.get("history_window", {})
+            if isinstance(state, dict)
+            else {}
+        )
+        completed_run_ids = trace.get("completed_run_ids", [])
+        ledger_context = trace.get("ledger_context", [])
+        projected_context = trace.get("projected_context", [])
+        compaction_source_run_ids = trace.get(
+            "compaction_source_run_ids", []
+        )
+        if not (
+            isinstance(window, dict)
+            and isinstance(completed_run_ids, list)
+            and isinstance(ledger_context, list)
+            and isinstance(projected_context, list)
+            and isinstance(compaction_source_run_ids, list)
+        ):
+            return False
+        limit = window.get("recent_completed_run_limit")
+        retained_run_ids = window.get("retained_run_ids")
+        if (
+            limit != 10
+            or not isinstance(retained_run_ids, list)
+            or retained_run_ids != completed_run_ids[-limit:]
+            or set(retained_run_ids) & set(compaction_source_run_ids)
+        ):
+            return False
+        for run_id in retained_run_ids:
+            expected_keys = [
+                str(item.get("item_key"))
+                for item in ledger_context
+                if isinstance(item, dict)
+                and item.get("run_id") == run_id
+                and not str(item.get("item_key") or "").startswith(
+                    "business-context:"
+                )
+            ]
+            projected_keys = [
+                str(item.get("item_key"))
+                for item in projected_context
+                if isinstance(item, dict)
+                and item.get("run_id") == run_id
+            ]
+            if not expected_keys or projected_keys != expected_keys:
+                return False
+        return True
     raise AssertionError(assertion.type)
 
 

@@ -34,6 +34,7 @@ def test_context_eval_catalog_covers_v1_release_risks() -> None:
         "authoritative_business_context_boundary",
         "typed_summary_preservation",
         "recursive_compaction",
+        "completed_run_raw_tail",
         "crash_attempt_ceiling",
         "deadletter_operator_recovery",
         "pinned_worker_versions",
@@ -127,7 +128,44 @@ def test_context_eval_assertion_engine_detects_breakpoint_after_dynamic_attachme
     assert failures[0].assertion == "provider.stable_prefix_breakpoint"
 
 
+def test_context_eval_detects_split_tool_chain_in_recent_run_tail() -> None:
+    suite = load_context_eval_suite(CATALOG_PATH)
+    case = next(
+        case for case in suite.cases if case.id == "completed_run_raw_tail"
+    )
+    trace = _release_trace()
+    trace["projected_context"] = [
+        item
+        for item in trace["projected_context"]
+        if item.get("item_key") != "run-12:tool-output"
+    ]
+
+    failures = evaluate_context_case(case=case, trace=trace)
+
+    assert [failure.assertion for failure in failures] == [
+        "history.completed_run_tail"
+    ]
+
+
 def _release_trace() -> dict[str, Any]:
+    completed_run_ids = [f"run-{index:02d}" for index in range(1, 13)]
+    retained_run_ids = completed_run_ids[-10:]
+    ledger_context = [
+        {
+            "run_id": run_id,
+            "item_key": item_key,
+        }
+        for run_id in completed_run_ids
+        for item_key in (
+            f"{run_id}:client-context",
+            f"{run_id}:user",
+            f"{run_id}:tool-call",
+            f"{run_id}:tool-output",
+            f"{run_id}:action-result",
+            f"{run_id}:assistant",
+            f"business-context:{run_id}:core",
+        )
+    ]
     checkpoint = {
         "schema_version": CONTEXT_CHECKPOINT_SCHEMA_VERSION,
         "user_claims": [],
@@ -199,7 +237,15 @@ def _release_trace() -> dict[str, Any]:
         "business_context_reads": [
             {"actor_user_id": "actor-current"}
         ],
+        "completed_run_ids": completed_run_ids,
+        "ledger_context": ledger_context,
+        "compaction_source_run_ids": completed_run_ids[:-10],
         "projected_context": [
+            item
+            for item in ledger_context
+            if item["run_id"] in retained_run_ids
+            and not item["item_key"].startswith("business-context:")
+        ] + [
             {
                 "run_id": "run-current",
                 "item_key": "business-context:run-current:core",
@@ -213,7 +259,7 @@ def _release_trace() -> dict[str, Any]:
                 CONTEXT_CHECKPOINT_SCHEMA_VERSION
             ),
             "summary_policy_version": (
-                "agent_context_summary_policy.v1"
+                "agent_context_summary_policy.v2"
             ),
             "attempts": 3,
             "max_attempts": 3,
@@ -223,6 +269,10 @@ def _release_trace() -> dict[str, Any]:
         "run_context_state": {
             "hard_limit_retry_count": 1,
             "waiting_for_context": True,
+            "history_window": {
+                "recent_completed_run_limit": 10,
+                "retained_run_ids": retained_run_ids,
+            },
         },
         "error_code": "context_worker_incompatible",
     }

@@ -73,6 +73,18 @@
       ]}
     },
     {
+      "id": "completed_run_raw_tail",
+      "priority": "p0",
+      "status": "active",
+      "scenario": "发生压缩时，第 11 个最近 completed Run 及更早历史进入 checkpoint；最近 10 个 completed Run 的完整模型可见链路原子保留，历史业务快照除外。",
+      "tags": ["history", "raw_tail", "tool_chain", "compaction"],
+      "turns": [{"role": "runtime_event", "content": "线程已有 12 个 completed Run，历史超过压缩阈值。"}],
+      "expected": {"assertions": [
+        {"type": "history.completed_run_tail"},
+        {"type": "business_context.current_run_only"}
+      ]}
+    },
+    {
       "id": "crash_attempt_ceiling",
       "priority": "p0",
       "status": "active",

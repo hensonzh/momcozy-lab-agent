@@ -30,7 +30,9 @@ Every provider model turn is preceded by
 `agent_runtime_model_request_budget`. It counts the final materialized input and
 the exact provider Tool schemas, then reserves the configured response budget.
 An `outcome="exceeded"` record precedes durable compaction recovery or an
-explicit `model_context_budget_exceeded` failure.
+explicit `model_context_budget_exceeded`/`recent_context_exceeds_limit`
+failure. The latter means the protected 10 completed-Run tail cannot be reduced
+without violating the history contract.
 
 Deterministic safety escalations are persisted as versioned `safety.decision`
 Run events containing only the bounded category, severity, rule ID, and policy
@@ -83,8 +85,8 @@ correlation.
 - Context-compaction retry/dead-letter rate, queued-job age, lease-renewal
   failures, and Thread Context Heads stuck in `compacting`. A `blocked` head
   rejects new Runs until an audited supersede recovery succeeds.
-- Complete-request budget exceedances and durable `safety.decision`
-  escalations by their bounded category/severity.
+- Complete-request budget exceedances, protected recent-Run overflows, and
+  durable `safety.decision` escalations by their bounded category/severity.
 - `http.request.unhandled` events, grouped by route and exception type.
 - Missing worker heartbeat or repeated `worker.heartbeat.failed` events.
 

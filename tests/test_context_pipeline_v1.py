@@ -71,6 +71,10 @@ def test_context_v1_plan_hash_uses_stable_asset_reference_not_materialized_url()
 
     assert plan.source_sha256 == first_hash
     assert str(asset_id) in plan.canonical_json
+    assert '"history_policy_version":"agent_context_history_policy.v1"' in (
+        plan.canonical_json
+    )
+    assert '"recent_completed_run_limit":10' in plan.canonical_json
     assert "signed.example" not in plan.canonical_json
     assert materialized.materializer_version == MATERIALIZER_VERSION
     assert (
@@ -611,6 +615,21 @@ class PipelineRepository:
             sequence=1,
         )
 
+    async def get_completed_context_window(
+        self,
+        **_kwargs: Any,
+    ) -> Any:
+        cutoff = SimpleNamespace(
+            run_id=self.prior_run_id,
+            sequence=1,
+        )
+        return SimpleNamespace(
+            latest_cutoff=cutoff,
+            compaction_cutoff=cutoff,
+            retained_run_ids=(),
+            retained_start_sequence=None,
+        )
+
     async def get_context_checkpoint(
         self,
         *,
@@ -697,6 +716,7 @@ class PipelineRepository:
             source_cutoff_sequence=1,
             source_sha256=self.job.source_sha256,
             summary_sha256="a" * 64,
+            summary_policy_version=SUMMARY_POLICY_VERSION,
             checkpoint=document,
         )
         self.job.status = "completed"
@@ -759,6 +779,17 @@ class FirstRunPipelineRepository(PipelineRepository):
         **_kwargs: Any,
     ) -> Any:
         return None
+
+    async def get_completed_context_window(
+        self,
+        **_kwargs: Any,
+    ) -> Any:
+        return SimpleNamespace(
+            latest_cutoff=None,
+            compaction_cutoff=None,
+            retained_run_ids=(),
+            retained_start_sequence=None,
+        )
 
 
 class TokenInput:
