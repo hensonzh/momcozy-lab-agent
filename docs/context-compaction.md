@@ -43,9 +43,10 @@ capability URLs. Materialized input is ephemeral. `image_url` and `file_url`
 values are not written to the ledger or Replay.
 
 Normalized `client_context` is projected as a bounded `user` item with an
-explicit untrusted-data envelope. It can inform locale, device, screen, and
-workflow context but cannot gain developer/system authority merely because it
-was supplied by the client.
+explicit untrusted-data envelope. The model projection contains only locale,
+timezone, and the Runtime-derived local `as_of_date`; request source and raw
+send time remain Runtime-side metadata. Client data cannot gain
+developer/system authority merely because it was supplied by the client.
 
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
 materializes attachments, then renders the active Agent instructions as the
@@ -74,6 +75,15 @@ Every derived entry cites a stable source reference. Runtime rejects unknown
 references. A checkpoint is projected back to the model as an explicitly
 `untrusted_historical_context` user-data envelope; it is never inserted as
 assistant, developer, or system authority.
+
+The `user` role is deliberate. `developer` or `system` would incorrectly
+promote derived historical data to instructions, while `assistant` would
+misrepresent it as a prior authoritative model response. OpenAI Responses also
+defines a `type=compaction` input item, but that item contains opaque encrypted
+content produced by the provider's `/responses/compact` API; it cannot carry
+this Runtime's typed, source-cited checkpoint document. Adopting provider-native
+compaction would therefore be a separate context format and migration, not a
+role-only replacement for this checkpoint.
 
 ## Thread Context Head and jobs
 

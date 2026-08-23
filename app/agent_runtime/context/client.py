@@ -4,12 +4,11 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
-    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -51,128 +50,6 @@ class _StrictClientContextModel(BaseModel):
     )
 
 
-class HospitalBagCartItem(_StrictClientContextModel):
-    id: str = Field(min_length=1, max_length=160)
-    name: str = Field(min_length=1, max_length=240)
-    desc: str = Field(default="", max_length=1000)
-    qty: int = Field(ge=0, le=999)
-    price: float = Field(ge=0, le=10_000_000, allow_inf_nan=False)
-    currency: str | None = Field(default=None, min_length=1, max_length=16)
-    price_label: str | None = Field(default=None, min_length=1, max_length=80)
-    sale_price_label: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=80,
-    )
-    official_price_usd: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    sale_price_usd: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    exchange_rate_usd_cny: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000,
-        allow_inf_nan=False,
-    )
-    product_url: str | None = Field(default=None, min_length=1, max_length=2048)
-    image_url: str | None = Field(default=None, min_length=1, max_length=2048)
-    image_alt: str | None = Field(default=None, min_length=1, max_length=240)
-    sku_id: str | None = Field(default=None, min_length=1, max_length=160)
-    model: str | None = Field(default=None, min_length=1, max_length=160)
-    keywords: list[str] = Field(default_factory=list, max_length=20)
-
-    @field_validator("keywords")
-    @classmethod
-    def validate_keywords(cls, values: list[str]) -> list[str]:
-        for value in values:
-            if not value or len(value) > 120:
-                raise ValueError("cart keywords must contain 1-120 characters")
-        return values
-
-
-class HospitalBagCartGroup(_StrictClientContextModel):
-    title: str = Field(min_length=1, max_length=120)
-    tone: Literal["rose", "mint", "sky"]
-    items: list[HospitalBagCartItem] = Field(
-        default_factory=list,
-        max_length=120,
-    )
-
-
-class HospitalBagCurrencyTotal(_StrictClientContextModel):
-    currency: str | None = Field(default=None, min_length=1, max_length=16)
-    subtotal: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    item_count: int | None = Field(
-        default=None,
-        validation_alias=AliasChoices("itemCount", "item_count"),
-        serialization_alias="itemCount",
-        ge=0,
-        le=9999,
-    )
-    discount: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    shipping: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    total: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-
-
-class HospitalBagCartTotals(HospitalBagCurrencyTotal):
-    exchange_rate_usd_cny: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000,
-        allow_inf_nan=False,
-    )
-    converted_usd_subtotal: float | None = Field(
-        default=None,
-        ge=0,
-        le=10_000_000,
-        allow_inf_nan=False,
-    )
-    currency_totals: list[HospitalBagCurrencyTotal] = Field(
-        default_factory=list,
-        max_length=8,
-    )
-    mixed_currency: bool | None = None
-
-
-class HospitalBagCartContext(_StrictClientContextModel):
-    groups: list[HospitalBagCartGroup] = Field(max_length=12)
-    totals: HospitalBagCartTotals
-
-    @model_validator(mode="after")
-    def validate_total_item_count(self) -> HospitalBagCartContext:
-        if sum(len(group.items) for group in self.groups) > 120:
-            raise ValueError("hospital bag cart accepts at most 120 items")
-        return self
-
-
 class AgentClientContext(_StrictClientContextModel):
     source: str | None = Field(
         default=None,
@@ -192,8 +69,6 @@ class AgentClientContext(_StrictClientContextModel):
         min_length=1,
         max_length=80,
     )
-    hospital_bag_cart: HospitalBagCartContext | None = None
-
     _limits: ClassVar[BoundedJsonLimits] = CLIENT_CONTEXT_LIMITS
 
     @model_validator(mode="before")
@@ -359,75 +234,13 @@ def _aware_utc(value: datetime) -> datetime:
 
 
 def _compact_model_data(data: dict[str, Any]) -> dict[str, Any]:
-    compact = {
+    return {
         key: data[key]
         for key in (
             "locale",
             "timezone",
         )
         if key in data
-    }
-    cart = data.get("hospital_bag_cart")
-    if not isinstance(cart, dict):
-        return compact
-    raw_groups = cart.get("groups")
-    groups: list[dict[str, Any]] = []
-    if isinstance(raw_groups, list):
-        for raw_group in raw_groups:
-            if not isinstance(raw_group, dict):
-                continue
-            raw_items = raw_group.get("items")
-            items = (
-                [
-                    _compact_cart_item(item)
-                    for item in raw_items
-                    if isinstance(item, dict)
-                ]
-                if isinstance(raw_items, list)
-                else []
-            )
-            groups.append(
-                {
-                    "title": raw_group.get("title", ""),
-                    "items": items,
-                }
-            )
-    totals = cart.get("totals")
-    compact["hospital_bag_cart"] = {
-        "groups": groups,
-        "totals": (
-            {
-                key: totals[key]
-                for key in (
-                    "subtotal",
-                    "itemCount",
-                    "discount",
-                    "shipping",
-                    "total",
-                    "mixed_currency",
-                )
-                if key in totals
-            }
-            if isinstance(totals, dict)
-            else {}
-        ),
-    }
-    return compact
-
-
-def _compact_cart_item(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        key: item[key]
-        for key in (
-            "id",
-            "name",
-            "qty",
-            "price",
-            "currency",
-            "sku_id",
-            "model",
-        )
-        if key in item
     }
 
 
