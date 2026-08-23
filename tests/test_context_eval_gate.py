@@ -39,6 +39,7 @@ def test_context_eval_catalog_covers_v1_release_risks() -> None:
         "deadletter_operator_recovery",
         "pinned_worker_versions",
         "durable_hard_limit_resume",
+        "hard_limit_retry_exhausted",
     }
     assert all(case.status == "active" for case in suite.cases)
 
@@ -289,4 +290,6 @@ def _trace_for_case(
     }
     if case_id == "deadletter_operator_recovery":
         trace["head"]["status"] = "compacting"
+    if case_id == "hard_limit_retry_exhausted":
+        trace["error_code"] = "recent_context_exceeds_limit"
     return trace

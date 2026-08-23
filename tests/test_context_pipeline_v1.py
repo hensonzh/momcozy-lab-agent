@@ -437,6 +437,15 @@ def test_hard_limit_suspends_run_and_resumes_once_from_ready_head() -> None:
         projected[0].item["content"]
     )
 
+    with pytest.raises(ApiError) as exc_info:
+        asyncio.run(
+            service.recover_context_overflow(run=repository.run)
+        )
+
+    assert exc_info.value.code == "recent_context_exceeds_limit"
+    assert exc_info.value.details["recent_completed_run_limit"] == 10
+    assert exc_info.value.details["retryable"] is False
+
 
 def test_dead_letter_recovery_supersedes_job_and_writes_audit() -> None:
     repository = RecoveryRepository()

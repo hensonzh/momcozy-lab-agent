@@ -188,15 +188,18 @@ On the first `model_context_window_exceeded`, Runtime:
 5. restores the checkpoint plus the exact current-Run items and retries once.
 
 There is no in-worker sleep/poll loop. Process restarts do not lose the wait
-state. A second hard-limit rejection fails explicitly; Runtime never silently
-drops input.
+state. If the one post-checkpoint retry still exceeds the complete request
+budget, Runtime returns the non-retryable `recent_context_exceeds_limit` error;
+it never silently drops input.
 
 If there is no older complete Run available to compact—or the ready checkpoint
 already reaches the current compaction cutoff—Runtime returns
-`recent_context_exceeds_limit`. It never shrinks the 10-Run contract, splits a
-Run, drops a ToolResult, or recompacts the same checkpoint merely to force the
-request under budget. Large results must instead be corrected at their Tool
-result policy (`full`, `summary`, or `ref_only`) boundary.
+`recent_context_exceeds_limit`. The same terminal code is used when compaction
+was performed successfully but the single restored retry still does not fit.
+Runtime never shrinks the 10-Run contract, splits a Run, drops a ToolResult, or
+recompacts the same checkpoint merely to force the request under budget. Large
+results must instead be corrected at their Tool result policy (`full`,
+`summary`, or `ref_only`) boundary.
 
 ## Dead-letter recovery
 

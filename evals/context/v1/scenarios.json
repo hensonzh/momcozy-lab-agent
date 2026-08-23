@@ -127,6 +127,18 @@
         {"type": "run.context_state_equal", "field": "hard_limit_retry_count", "value": 1},
         {"type": "run.context_state_equal", "field": "waiting_for_context", "value": true}
       ]}
+    },
+    {
+      "id": "hard_limit_retry_exhausted",
+      "priority": "p0",
+      "status": "active",
+      "scenario": "checkpoint ready 后的唯一一次模型重试仍然超出完整请求预算时，统一返回不可重试的 recent_context_exceeds_limit。",
+      "tags": ["hard_limit", "retry", "error_contract"],
+      "turns": [{"role": "runtime_event", "content": "hard_limit_retry_count=1 且模型请求再次超限。"}],
+      "expected": {"assertions": [
+        {"type": "run.context_state_equal", "field": "hard_limit_retry_count", "value": 1},
+        {"type": "error.required_code", "value": "recent_context_exceeds_limit"}
+      ]}
     }
   ]
 }

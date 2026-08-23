@@ -519,19 +519,16 @@ class ContextCompactionService:
         if state.get("schema_version") != CONTEXT_STATE_SCHEMA_VERSION:
             await self.prepare_run(run=run)
             state = dict(getattr(run, "context_state", None) or {})
-        if int(state.get("hard_limit_retry_count", 0)) >= 1:
-            raise ApiError(
-                code="model_context_window_exceeded",
-                message="Current request still exceeds the model context.",
-                status=400,
-                details={"retryable": False},
-            )
         history_window = state.get("history_window")
         if not isinstance(history_window, dict):
             raise ApiError(
                 code="context_state_invalid",
                 message="Run context state is invalid.",
                 status=500,
+            )
+        if int(state.get("hard_limit_retry_count", 0)) >= 1:
+            self._raise_recent_context_exceeds_limit(
+                history_window=history_window,
             )
         head = await self.repository.get_or_create_context_head(
             thread_id=run.thread_id
