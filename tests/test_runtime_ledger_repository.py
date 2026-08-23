@@ -123,7 +123,7 @@ def test_completed_history_queries_exclude_prior_run_business_snapshots() -> Non
     assert BUSINESS_CONTEXT_ITEM_KEY_PREFIX in projection_sql
 
 
-def test_completed_context_window_selects_ten_recent_runs_plus_cutoff() -> None:
+def test_completed_context_window_selects_five_recent_runs_plus_cutoff() -> None:
     session = RecordingSession()
     repository = RuntimeLedgerRepository(session)  # type: ignore[arg-type]
 
@@ -131,7 +131,7 @@ def test_completed_context_window_selects_ten_recent_runs_plus_cutoff() -> None:
         repository.get_completed_context_window(
             thread_id=uuid4(),
             before_run_id=uuid4(),
-            recent_completed_run_limit=10,
+            recent_completed_run_limit=5,
         )
     )
 
@@ -140,11 +140,11 @@ def test_completed_context_window_selects_ten_recent_runs_plus_cutoff() -> None:
     assert "GROUP BY agent_context_items.run_id" in sql
     assert "max(agent_context_items.sequence)" in sql
     assert "ORDER BY" in sql
-    assert "LIMIT 11" in sql
+    assert "LIMIT 6" in sql
 
 
 def test_completed_context_window_maps_run_boundaries_chronologically() -> None:
-    run_ids = [uuid4() for _ in range(12)]
+    run_ids = [uuid4() for _ in range(7)]
     rows = [
         SimpleNamespace(
             run_id=run_id,
@@ -159,7 +159,7 @@ def test_completed_context_window_maps_run_boundaries_chronologically() -> None:
         RuntimeLedgerRepository(session).get_completed_context_window(  # type: ignore[arg-type]
             thread_id=uuid4(),
             before_run_id=uuid4(),
-            recent_completed_run_limit=10,
+            recent_completed_run_limit=5,
         )
     )
 
@@ -167,7 +167,7 @@ def test_completed_context_window_maps_run_boundaries_chronologically() -> None:
     assert window.latest_cutoff.run_id == run_ids[-1]
     assert window.compaction_cutoff is not None
     assert window.compaction_cutoff.run_id == run_ids[1]
-    assert window.retained_run_ids == tuple(run_ids[-10:])
+    assert window.retained_run_ids == tuple(run_ids[-5:])
     assert window.retained_start_sequence == 21
 
 

@@ -85,9 +85,9 @@ CONTEXT_CHECKPOINT_SCHEMA_VERSION: Final = (
 MATERIALIZER_VERSION: Final = "agent_context_materializer.v1"
 SUMMARY_POLICY_VERSION: Final = "agent_context_summary_policy.v2"
 CONTEXT_HISTORY_POLICY_VERSION: Final = (
-    "agent_context_history_policy.v1"
+    "agent_context_history_policy.v2"
 )
-RECENT_COMPLETED_RUN_LIMIT: Final = 10
+RECENT_COMPLETED_RUN_LIMIT: Final = 5
 TOKEN_COUNTER_VERSION: Final = "v1"
 COMPACTION_PROMPT_VERSION: Final = "agent_context_compaction.v1"
 

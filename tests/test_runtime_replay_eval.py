@@ -164,7 +164,7 @@ class FakeReplayRepository:
                 "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
                 "history_window": {
                     "policy_version": CONTEXT_HISTORY_POLICY_VERSION,
-                    "recent_completed_run_limit": 10,
+                    "recent_completed_run_limit": 5,
                     "retained_run_ids": [],
                 },
                 "checkpoint": {

@@ -205,6 +205,7 @@ class OpenAIAgentsExecutionEngine:
         runtime: RuntimeDefinition,
         runtime_contract_catalog: Mapping[str, Any],
         max_turns: int = 10,
+        max_output_tokens: int = 800,
         reasoning_effort: str = "low",
         text_verbosity: str = "low",
         store: bool = False,
@@ -214,6 +215,8 @@ class OpenAIAgentsExecutionEngine:
     ) -> None:
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
+        if max_output_tokens < 1:
+            raise ValueError("max_output_tokens must be positive")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         self.model = model
@@ -238,6 +241,7 @@ class OpenAIAgentsExecutionEngine:
                 "runtime contract catalog does not match Tool registry"
             )
         self.max_turns = max_turns
+        self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
         self.text_verbosity = text_verbosity
         self.store = store
@@ -440,6 +444,7 @@ class OpenAIAgentsExecutionEngine:
             model_settings=ModelSettings(
                 parallel_tool_calls=False,
                 truncation="disabled",
+                max_tokens=self.max_output_tokens,
                 reasoning={"effort": self.reasoning_effort},
                 verbosity=cast(Any, self.text_verbosity),
                 store=self.store,
@@ -657,6 +662,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
             ),
             tools=tuple(agent.tools),
             model_name=self.engine.model_name,
+            max_output_tokens=self.engine.max_output_tokens,
             reasoning_effort=self.engine.reasoning_effort,
             text_verbosity=self.engine.text_verbosity,
             parallel_tool_calls=(
@@ -830,6 +836,7 @@ def _execution_manifest(
     input_items: tuple[dict[str, Any], ...],
     tools: tuple[Tool, ...],
     model_name: str,
+    max_output_tokens: int,
     reasoning_effort: str,
     text_verbosity: str,
     parallel_tool_calls: bool,
@@ -881,6 +888,7 @@ def _execution_manifest(
         "tools": tool_items,
         "tool_search": has_tool_search,
         "model": model_name,
+        "max_output_tokens": max_output_tokens,
         "reasoning_effort": reasoning_effort,
         "text_verbosity": text_verbosity,
         "parallel_tool_calls": parallel_tool_calls,
@@ -932,6 +940,7 @@ def _execution_manifest(
             "sdk_version": _package_version("openai-agents"),
             "openai_sdk_version": _package_version("openai"),
             "model": model_name,
+            "max_output_tokens": max_output_tokens,
             "reasoning_effort": reasoning_effort,
             "text_verbosity": text_verbosity,
             "parallel_tool_calls": parallel_tool_calls,

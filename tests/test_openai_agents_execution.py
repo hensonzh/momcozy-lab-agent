@@ -170,6 +170,7 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     assert manifest["model"]["timeout_scope"] == (
         "per_model_call_wall_clock"
     )
+    assert manifest["model"]["max_output_tokens"] == 800
     assert "content" not in manifest["prompt"]
     assert "internal-asset" not in str(manifest)
     assert len(manifest["request_payload_sha256"]) == 64
@@ -337,6 +338,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     assert request["parallel_tool_calls"] is False
     assert request["truncation"] == "disabled"
     assert request["store"] is False
+    assert request["max_output_tokens"] == 800
     assert request["reasoning"].effort == "medium"
     assert request["text"] == {"verbosity": "low"}
     assert request["prompt_cache_options"] == {

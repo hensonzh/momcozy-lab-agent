@@ -105,7 +105,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "compaction_prompt": "agent_context_compaction.v1",
         "context_checkpoint": "agent_context_checkpoint.v1",
         "context_eval": "agent_context_eval_suite.v1",
-        "context_history_policy": "agent_context_history_policy.v1",
+        "context_history_policy": "agent_context_history_policy.v2",
         "context_materializer": "agent_context_materializer.v1",
         "context_plan": "agent_context_plan.v2",
         "context_state": "agent_run_context.v2",
@@ -126,7 +126,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "tool_contract": "agent.tool_contract.v1",
     }
     assert AUTH_TOKEN_VERSION == 1
-    assert RECENT_COMPLETED_RUN_LIMIT == 10
+    assert RECENT_COMPLETED_RUN_LIMIT == 5
 
 
 def test_runtime_metadata_is_the_canonical_version_source() -> None:

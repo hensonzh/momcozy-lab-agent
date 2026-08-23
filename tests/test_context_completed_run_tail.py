@@ -11,6 +11,8 @@ import pytest
 from app.agent_runtime.context.compaction import ContextCompactionService
 from app.agent_runtime.runtime_metadata import (
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
+    CONTEXT_HISTORY_POLICY_VERSION,
+    CONTEXT_STATE_SCHEMA_VERSION,
     MATERIALIZER_VERSION,
     RECENT_COMPLETED_RUN_LIMIT,
     SUMMARY_POLICY_VERSION,
@@ -18,8 +20,8 @@ from app.agent_runtime.runtime_metadata import (
 from app.core.errors import ApiError
 
 
-def test_compaction_cutoff_is_end_of_eleventh_most_recent_completed_run() -> None:
-    repository = CompletedRunWindowRepository(completed_run_count=12)
+def test_compaction_cutoff_is_end_of_sixth_most_recent_completed_run() -> None:
+    repository = CompletedRunWindowRepository(completed_run_count=7)
     service = _service(repository, input_tokens=100_001)
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -35,14 +37,14 @@ def test_compaction_cutoff_is_end_of_eleventh_most_recent_completed_run() -> Non
         repository.last_sequence_by_run[repository.completed_run_ids[1]],
     )
     history_window = repository.run.context_state["history_window"]
-    assert history_window["recent_completed_run_limit"] == 10
+    assert history_window["recent_completed_run_limit"] == 5
     assert history_window["retained_run_ids"] == [
-        str(run_id) for run_id in repository.completed_run_ids[-10:]
+        str(run_id) for run_id in repository.completed_run_ids[-5:]
     ]
 
 
-def test_hard_limit_does_not_compact_any_of_only_ten_completed_runs() -> None:
-    repository = CompletedRunWindowRepository(completed_run_count=10)
+def test_hard_limit_does_not_compact_any_of_only_five_completed_runs() -> None:
+    repository = CompletedRunWindowRepository(completed_run_count=5)
     service = _service(repository, input_tokens=100_001)
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -52,12 +54,12 @@ def test_hard_limit_does_not_compact_any_of_only_ten_completed_runs() -> None:
         asyncio.run(service.recover_context_overflow(run=repository.run))
 
     assert exc_info.value.code == "recent_context_exceeds_limit"
-    assert exc_info.value.details["recent_completed_run_limit"] == 10
+    assert exc_info.value.details["recent_completed_run_limit"] == 5
     assert repository.created_job == {}
 
 
-def test_ready_checkpoint_is_followed_by_ten_complete_raw_runs() -> None:
-    repository = CompletedRunWindowRepository(completed_run_count=12)
+def test_ready_checkpoint_is_followed_by_five_complete_raw_runs() -> None:
+    repository = CompletedRunWindowRepository(completed_run_count=7)
     repository.install_ready_checkpoint(cutoff_run_index=1)
     service = _service(repository, input_tokens=10)
 
@@ -70,9 +72,9 @@ def test_ready_checkpoint_is_followed_by_ten_complete_raw_runs() -> None:
         if record.run_id in repository.completed_run_ids
     ]
     assert [record.run_id for record in historical[::6]] == (
-        repository.completed_run_ids[-10:]
+        repository.completed_run_ids[-5:]
     )
-    for run_id in repository.completed_run_ids[-10:]:
+    for run_id in repository.completed_run_ids[-5:]:
         run_records = [
             record for record in historical if record.run_id == run_id
         ]
@@ -94,7 +96,7 @@ def test_ready_checkpoint_is_followed_by_ten_complete_raw_runs() -> None:
 
 
 def test_recursive_compaction_adds_only_run_that_aged_out_of_tail() -> None:
-    repository = CompletedRunWindowRepository(completed_run_count=13)
+    repository = CompletedRunWindowRepository(completed_run_count=8)
     repository.install_ready_checkpoint(cutoff_run_index=1)
     service = _service(repository, input_tokens=100_001)
 
@@ -114,8 +116,8 @@ def test_recursive_compaction_adds_only_run_that_aged_out_of_tail() -> None:
 
 
 def test_checkpoint_from_old_summary_policy_is_not_projected() -> None:
-    repository = CompletedRunWindowRepository(completed_run_count=12)
-    repository.install_ready_checkpoint(cutoff_run_index=11)
+    repository = CompletedRunWindowRepository(completed_run_count=7)
+    repository.install_ready_checkpoint(cutoff_run_index=6)
     assert repository.checkpoint is not None
     repository.checkpoint.summary_policy_version = (
         "agent_context_summary_policy.v1"
@@ -130,6 +132,51 @@ def test_checkpoint_from_old_summary_policy_is_not_projected() -> None:
         not record.item_key.startswith("context-checkpoint:")
         for record in records
     )
+
+
+def test_run_state_from_prior_history_policy_is_recomputed() -> None:
+    repository = CompletedRunWindowRepository(completed_run_count=7)
+    repository.run.context_state = {
+        "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
+        "history_window": {
+            "policy_version": "agent_context_history_policy.v1",
+            "recent_completed_run_limit": 10,
+            "retained_run_ids": [],
+        },
+    }
+    service = _service(repository, input_tokens=10)
+
+    asyncio.run(service.prepare_run(run=repository.run))
+
+    history_window = repository.run.context_state["history_window"]
+    assert history_window["policy_version"] == (
+        CONTEXT_HISTORY_POLICY_VERSION
+    )
+    assert history_window["recent_completed_run_limit"] == 5
+
+
+def test_waiting_run_finishes_prior_policy_job_before_recompute() -> None:
+    repository = CompletedRunWindowRepository(completed_run_count=7)
+    repository.run.context_state = {
+        "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
+        "history_window": {
+            "policy_version": "agent_context_history_policy.v1",
+            "recent_completed_run_limit": 10,
+            "retained_run_ids": [],
+        },
+        "compaction_job_id": str(repository.job.id),
+        "required_generation": 1,
+        "waiting_for_context": True,
+        "hard_limit_retry_count": 1,
+    }
+    service = _service(repository, input_tokens=10)
+
+    with pytest.raises(ApiError) as exc_info:
+        asyncio.run(service.prepare_run(run=repository.run))
+
+    assert exc_info.value.code == "context_compaction_pending"
+    assert repository.run.context_state["waiting_for_context"] is True
+    assert repository.run.context_state["hard_limit_retry_count"] == 1
 
 
 def _service(
@@ -316,7 +363,13 @@ class CompletedRunWindowRepository:
             return self.checkpoint
         return None
 
-    async def get_context_compaction_job(self, **_kwargs: Any) -> Any:
+    async def get_context_compaction_job(
+        self,
+        *,
+        job_id: UUID,
+    ) -> Any:
+        if job_id == self.job.id:
+            return self.job
         return None
 
     async def get_prior_completed_context_cutoff(

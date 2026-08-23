@@ -136,6 +136,9 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     )
                 ),
                 max_turns=settings.agent_max_turns,
+                max_output_tokens=(
+                    settings.agent_model_max_output_tokens
+                ),
                 reasoning_effort=(
                     settings.openai_reasoning_effort
                 ),

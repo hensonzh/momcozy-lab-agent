@@ -21,10 +21,15 @@ recoverable, and safe for attachments.
   SDK. The request is accepted only when input tokens plus
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
   guard therefore also runs after Skill loading and ordinary Tool calls.
+- Normal Agent calls set `max_output_tokens` from
+  `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `800`). OpenAI counts both visible
+  output and reasoning tokens against this hard response limit. The complete
+  request therefore reserves at least the same amount through
+  `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `800`).
 - When compaction is needed, a checkpoint replaces history only through the end
-  of the **11th most recent completed Run**. The latest 10 completed Runs remain
+  of the **6th most recent completed Run**. The latest 5 completed Runs remain
   as an atomic raw tail; the current Run is separate and is never counted in
-  those 10.
+  those 5.
 - Every retained Run keeps its complete model-visible chain: normalized client
   context, user message/attachment references, assistant messages, function and
   Action calls, and their safe contract-projected results. A cutoff cannot split
@@ -45,8 +50,8 @@ Product file IDs, checkpoint references, trust labels, and raw provider items.
 Its SHA-256 never contains a model-fetch capability URL.
 
 The versioned history policy is
-`agent_context_history_policy.v1`, with
-`recent_completed_run_limit=10`. Each Run's durable `context_state` records the
+`agent_context_history_policy.v2`, with
+`recent_completed_run_limit=5`. Each Run's durable `context_state` records the
 latest completed cutoff, the older compaction cutoff, the retained Run IDs, and
 the retained tail's first sequence. The model-history plan is counted in full,
 while the compaction-source plan stops at the older cutoff. This separation
@@ -54,16 +59,19 @@ prevents a token-triggered job from accidentally summarizing the protected raw
 tail. Recursive compaction combines the ready checkpoint only with complete Runs
 that have since aged out of that tail.
 
-This incompatible planning change advances `agent_context_plan` and
-`agent_run_context` to `v2`, and the compaction summary policy to `v2`; the
-typed checkpoint document remains `agent_context_checkpoint.v1` because its
-shape did not change. During rollout, workers must first drain all queued,
-retry-wait, and running jobs pinned to the old summary policy. A stored v1 Run
-context is recomputed on its next execution, and a ready checkpoint produced by
-the old policy is ignored for model projection; the append-only ledger remains
-the source for rebuilding a safe v2 checkpoint. Old states and checkpoints stay
-available to Replay rather than being rewritten or deleted. No relational
-schema migration is required.
+Reducing the protected raw tail from 10 Runs to 5 advances only the history
+policy from `v1` to `v2`; `agent_context_plan.v2`, `agent_run_context.v2`,
+`agent_context_summary_policy.v2`, and the typed
+`agent_context_checkpoint.v1` shapes remain unchanged. A stored Run state whose
+embedded history policy or limit differs is recomputed on its next execution.
+Existing typed checkpoints remain valid recursive-compaction bases because
+their source cutoff and document shape do not change. Old states and
+checkpoints stay available to Replay rather than being rewritten or deleted.
+Runs already waiting for a compaction job finish that durable job before their
+history window is recomputed, preserving the single hard-limit retry. Because a
+job's source hash includes the history policy, deployment must drain queued,
+retry-wait, and running compaction jobs created under `v1` before replacing the
+workers with `v2`. No relational schema migration is required.
 
 Immediately before any token-count, compaction, or SDK Agent model call, the shared
 `AgentAttachmentService` converts `asset_id` blocks to opaque Product
@@ -108,6 +116,11 @@ initial snapshot.
 The snapshot is inserted after checkpoint/history and before the current
 Run's `client_context` and user message. It is usable by every model turn in
 that Run, but it is not ordinary conversation history:
+
+- although names and identity fields are relatively stable, postpartum days,
+  infant ages, feeding mode, missing-field state, and data-quality state are
+  time-varying, so the snapshot remains one current-Run unit rather than being
+  moved ahead of historical context or split into cache-oriented fragments;
 
 - completed-Run business snapshots are excluded from future model projection;
 - they are also excluded from compaction input, so checkpoints cannot preserve
@@ -196,7 +209,7 @@ If there is no older complete Run available to compact—or the ready checkpoint
 already reaches the current compaction cutoff—Runtime returns
 `recent_context_exceeds_limit`. The same terminal code is used when compaction
 was performed successfully but the single restored retry still does not fit.
-Runtime never shrinks the 10-Run contract, splits a Run, drops a ToolResult, or
+Runtime never shrinks the 5-Run contract, splits a Run, drops a ToolResult, or
 recompacts the same checkpoint merely to force the request under budget. Large
 results must instead be corrected at their Tool result policy (`full`,
 `summary`, or `ref_only`) boundary.
@@ -232,8 +245,9 @@ Worker controls:
 - `AGENT_CONTEXT_COMPACTION_BATCH_SIZE` (default `2`)
 - `AGENT_CONTEXT_COMPACTION_CONCURRENCY` (default `1`)
 - `AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS` (default `3`)
-- `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `8000`; must be below the
-  compaction threshold)
+- `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `800`)
+- `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `800`; must cover the model
+  output limit and remain below the compaction threshold)
 
 Context jobs use the existing worker database lease duration and renewal
 interval; startup validation requires the batch size to cover configured

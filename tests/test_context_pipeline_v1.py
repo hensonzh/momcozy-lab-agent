@@ -71,10 +71,10 @@ def test_context_v1_plan_hash_uses_stable_asset_reference_not_materialized_url()
 
     assert plan.source_sha256 == first_hash
     assert str(asset_id) in plan.canonical_json
-    assert '"history_policy_version":"agent_context_history_policy.v1"' in (
+    assert '"history_policy_version":"agent_context_history_policy.v2"' in (
         plan.canonical_json
     )
-    assert '"recent_completed_run_limit":10' in plan.canonical_json
+    assert '"recent_completed_run_limit":5' in plan.canonical_json
     assert "signed.example" not in plan.canonical_json
     assert materialized.materializer_version == MATERIALIZER_VERSION
     assert (
@@ -443,7 +443,7 @@ def test_hard_limit_suspends_run_and_resumes_once_from_ready_head() -> None:
         )
 
     assert exc_info.value.code == "recent_context_exceeds_limit"
-    assert exc_info.value.details["recent_completed_run_limit"] == 10
+    assert exc_info.value.details["recent_completed_run_limit"] == 5
     assert exc_info.value.details["retryable"] is False
 
 

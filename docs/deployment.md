@@ -22,6 +22,9 @@ recreating the Runtime database before this baseline is deployed.
    the outbound Product service key, the inbound Runtime admin service key, and
    the model-provider secret.
 2. Validate `docker-compose.prod.yml`.
+   Before rolling out `agent_context_history_policy.v2`, stop new Run admission
+   and drain queued, retry-wait, and running Context jobs created under `v1`;
+   their source hashes intentionally include the history policy.
 3. Apply `alembic upgrade head` to the new empty Runtime database.
 4. Start the API and run worker.
 5. Validate the pinned Product OpenAPI contract and the exact Product release
@@ -43,8 +46,9 @@ recreating the Runtime database before this baseline is deployed.
    `AGENT_WORKER_DB_LEASE_DURATION_SECONDS` at least one lease-renewal interval
    longer. The execution contract gate must prove that the single Agent stream
    stops at the configured wall-clock deadline.
-12. Set `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` below
-    `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`, and verify the complete-request
+12. Set `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `800`) and keep
+    `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` at least that large but below
+    `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`. Verify the complete-request
     budget gate with production Tool schemas. A Skill loader result must remain
     complete; handlers for ordinary large ToolResults must define an explicit,
     bounded `model_output`.

@@ -213,6 +213,26 @@ def test_worker_rejects_unknown_model_provider() -> None:
         ).validate_for_worker()
 
 
+def test_worker_model_output_budget_defaults_to_eight_hundred_tokens() -> None:
+    settings = Settings()
+
+    assert settings.agent_model_max_output_tokens == 800
+    assert settings.agent_context_response_reserve_tokens == 800
+
+
+def test_worker_response_reserve_must_cover_model_output_limit() -> None:
+    with pytest.raises(
+        ValueError,
+        match="AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS.*AGENT_MODEL_MAX_OUTPUT_TOKENS",
+    ):
+        Settings(
+            app_env="test",
+            openai_api_key="test-openai-key",
+            agent_model_max_output_tokens=801,
+            agent_context_response_reserve_tokens=800,
+        ).validate_for_worker()
+
+
 def test_worker_requires_explicit_responses_compatibility_for_gateway() -> None:
     with pytest.raises(
         ValueError,

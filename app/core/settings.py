@@ -77,6 +77,7 @@ class Settings:
     openai_responses_store: bool = False
     agent_max_turns: int = 10
     agent_model_timeout_seconds: float = 60.0
+    agent_model_max_output_tokens: int = 800
     agent_worker_batch_size: int = 8
     agent_worker_concurrency: int = 4
     agent_worker_poll_interval_seconds: float = 0.5
@@ -85,7 +86,7 @@ class Settings:
     agent_worker_lock_ttl_seconds: int = 120
     agent_context_compaction_threshold_tokens: int = 100_000
     agent_context_summary_max_tokens: int = 2_000
-    agent_context_response_reserve_tokens: int = 8_000
+    agent_context_response_reserve_tokens: int = 800
     agent_context_compaction_max_attempts: int = 3
     agent_context_compaction_batch_size: int = 2
     agent_context_compaction_concurrency: int = 1
@@ -236,6 +237,10 @@ class Settings:
             agent_model_timeout_seconds=_env_float(
                 "AGENT_MODEL_TIMEOUT_SECONDS",
                 cls.agent_model_timeout_seconds,
+            ),
+            agent_model_max_output_tokens=_env_int(
+                "AGENT_MODEL_MAX_OUTPUT_TOKENS",
+                cls.agent_model_max_output_tokens,
             ),
             agent_worker_batch_size=_env_int(
                 "AGENT_WORKER_BATCH_SIZE",
@@ -496,6 +501,10 @@ class Settings:
             errors.append("OPENAI_TEXT_VERBOSITY is invalid")
         for name, timing_value in (
             ("AGENT_MAX_TURNS", self.agent_max_turns),
+            (
+                "AGENT_MODEL_MAX_OUTPUT_TOKENS",
+                self.agent_model_max_output_tokens,
+            ),
             ("AGENT_WORKER_BATCH_SIZE", self.agent_worker_batch_size),
             ("AGENT_WORKER_CONCURRENCY", self.agent_worker_concurrency),
             (
@@ -582,6 +591,14 @@ class Settings:
             errors.append(
                 "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS must be below "
                 "AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS"
+            )
+        if (
+            self.agent_context_response_reserve_tokens
+            < self.agent_model_max_output_tokens
+        ):
+            errors.append(
+                "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS must be at least "
+                "AGENT_MODEL_MAX_OUTPUT_TOKENS"
             )
         if (
             self.agent_context_compaction_batch_size

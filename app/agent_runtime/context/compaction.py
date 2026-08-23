@@ -282,7 +282,7 @@ class ContextCompactionService:
         model: str,
         threshold_tokens: int = 100_000,
         summary_max_tokens: int = 2_000,
-        response_reserve_tokens: int = 8_000,
+        response_reserve_tokens: int = 800,
         max_attempts: int = 3,
     ) -> None:
         if threshold_tokens < 1:
@@ -314,9 +314,13 @@ class ContextCompactionService:
 
     async def prepare_run(self, *, run: Any) -> None:
         state = dict(getattr(run, "context_state", None) or {})
-        if state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION:
-            if state.get("waiting_for_context") is True:
-                await self._resume_waiting_run(run=run, state=state)
+        if (
+            state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION
+            and state.get("waiting_for_context") is True
+        ):
+            await self._resume_waiting_run(run=run, state=state)
+            return
+        if _context_state_is_current(state):
             return
         started_at = monotonic()
         head = await self.repository.get_or_create_context_head(
@@ -413,7 +417,7 @@ class ContextCompactionService:
 
     async def list_context_records(self, *, run: Any) -> list[Any]:
         state = dict(getattr(run, "context_state", None) or {})
-        if state.get("schema_version") != CONTEXT_STATE_SCHEMA_VERSION:
+        if not _context_state_is_current(state):
             await self.prepare_run(run=run)
             state = dict(getattr(run, "context_state", None) or {})
         checkpoint = await self._checkpoint_for_state(
@@ -516,7 +520,7 @@ class ContextCompactionService:
         """Durably suspend the Run until one checkpoint generation is ready."""
 
         state = dict(getattr(run, "context_state", None) or {})
-        if state.get("schema_version") != CONTEXT_STATE_SCHEMA_VERSION:
+        if not _context_state_is_current(state):
             await self.prepare_run(run=run)
             state = dict(getattr(run, "context_state", None) or {})
         history_window = state.get("history_window")
@@ -1158,6 +1162,18 @@ def _cutoff_state(
         "run_id": str(cutoff.run_id),
         "sequence": int(cutoff.sequence),
     }
+
+
+def _context_state_is_current(state: dict[str, Any]) -> bool:
+    history_window = state.get("history_window")
+    return (
+        state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION
+        and isinstance(history_window, dict)
+        and history_window.get("policy_version")
+        == CONTEXT_HISTORY_POLICY_VERSION
+        and history_window.get("recent_completed_run_limit")
+        == RECENT_COMPLETED_RUN_LIMIT
+    )
 
 
 def checkpoint_provider_item(

@@ -138,7 +138,7 @@ def test_context_eval_detects_split_tool_chain_in_recent_run_tail() -> None:
     trace["projected_context"] = [
         item
         for item in trace["projected_context"]
-        if item.get("item_key") != "run-12:tool-output"
+        if item.get("item_key") != "run-07:tool-output"
     ]
 
     failures = evaluate_context_case(case=case, trace=trace)
@@ -149,8 +149,8 @@ def test_context_eval_detects_split_tool_chain_in_recent_run_tail() -> None:
 
 
 def _release_trace() -> dict[str, Any]:
-    completed_run_ids = [f"run-{index:02d}" for index in range(1, 13)]
-    retained_run_ids = completed_run_ids[-10:]
+    completed_run_ids = [f"run-{index:02d}" for index in range(1, 8)]
+    retained_run_ids = completed_run_ids[-5:]
     ledger_context = [
         {
             "run_id": run_id,
@@ -240,7 +240,7 @@ def _release_trace() -> dict[str, Any]:
         ],
         "completed_run_ids": completed_run_ids,
         "ledger_context": ledger_context,
-        "compaction_source_run_ids": completed_run_ids[:-10],
+        "compaction_source_run_ids": completed_run_ids[:-5],
         "projected_context": [
             item
             for item in ledger_context
@@ -271,7 +271,7 @@ def _release_trace() -> dict[str, Any]:
             "hard_limit_retry_count": 1,
             "waiting_for_context": True,
             "history_window": {
-                "recent_completed_run_limit": 10,
+                "recent_completed_run_limit": 5,
                 "retained_run_ids": retained_run_ids,
             },
         },

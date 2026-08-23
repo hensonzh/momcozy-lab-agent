@@ -13,6 +13,7 @@ from app.agent_runtime.context.compaction import (
 )
 from app.agent_runtime.runtime_metadata import (
     CONTEXT_EVAL_SCHEMA_VERSION,
+    RECENT_COMPLETED_RUN_LIMIT,
     ContextEvalSchemaVersion,
 )
 from app.core.errors import ApiError
@@ -276,7 +277,7 @@ def _evaluate_assertion(
         limit = window.get("recent_completed_run_limit")
         retained_run_ids = window.get("retained_run_ids")
         if (
-            limit != 10
+            limit != RECENT_COMPLETED_RUN_LIMIT
             or not isinstance(retained_run_ids, list)
             or retained_run_ids != completed_run_ids[-limit:]
             or set(retained_run_ids) & set(compaction_source_run_ids)
