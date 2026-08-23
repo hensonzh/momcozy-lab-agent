@@ -11,7 +11,10 @@ from time import monotonic
 from typing import Any, Protocol, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from app.agent_runtime.context import context_as_of_date
+from app.agent_runtime.context import (
+    context_as_of_date,
+    is_business_context_item,
+)
 from app.agent_runtime.ledger import AgentRun, ContextItemAppend
 from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
@@ -1212,6 +1215,10 @@ def _base_input_before_agent_records(
         for record in context_records
         if first_agent_sequence is None
         or int(record.sequence) < first_agent_sequence
+        or (
+            record.run_id == run_id
+            and is_business_context_item(record)
+        )
     ]
 
 

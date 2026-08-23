@@ -29,6 +29,10 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
     }
     assert bundle["context_head"]["generation"] == 1
     assert bundle["messages"][0]["content"] == {"redacted": True}
+    assert bundle["context_items"][0]["item_key"].startswith(
+        "business-context:"
+    )
+    assert bundle["context_items"][0]["item"] == {"redacted": True}
     assert bundle["tool_outputs"][0]["output"] == {"redacted": True}
     assert bundle["events"][0]["payload"] == {"redacted": True}
 
@@ -47,6 +51,9 @@ def test_replay_bundle_includes_sanitized_content_only_when_requested() -> None:
     )
 
     assert bundle["messages"][0]["content"] == {"text": "private"}
+    assert "authoritative_business_context" in str(
+        bundle["context_items"][0]["item"]
+    )
     assert bundle["tool_outputs"][0]["output"] == {"ok": True}
     assert bundle["events"][0]["payload"]["token"] == "[redacted]"
     assert bundle["context_checkpoint"]["checkpoint"] == {
@@ -182,7 +189,22 @@ class FakeReplayRepository:
         ]
 
     async def list_context_through_run(self, *, run: Any) -> list[Any]:
-        return []
+        return [
+            SimpleNamespace(
+                id=uuid4(),
+                run_id=run.id,
+                item_key=f"business-context:{run.id}:core",
+                item_type="message",
+                sequence=2,
+                item={
+                    "role": "user",
+                    "content": (
+                        "facts:"
+                        '{"type":"authoritative_business_context"}'
+                    ),
+                },
+            )
+        ]
 
     async def list_events(self, *, run_id: UUID) -> list[Any]:
         return [

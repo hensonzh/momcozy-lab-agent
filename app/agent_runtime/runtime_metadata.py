@@ -32,6 +32,9 @@ BehaviorRunMapSchemaVersion: TypeAlias = Literal[
 ContextEvalSchemaVersion: TypeAlias = Literal[
     "agent_context_eval_suite.v1"
 ]
+BusinessContextSchemaVersion: TypeAlias = Literal[
+    "agent.authoritative_business_context.v1"
+]
 ReplaySchemaVersion: TypeAlias = Literal["agent_run_replay.v1"]
 ResponseQualityRubricVersion: TypeAlias = Literal[
     "momcozy.response_quality.v1"
@@ -69,6 +72,10 @@ AUTHORIZATION_CONTEXT_SCHEMA_VERSION: Final = (
 )
 AUTH_TOKEN_VERSION: Final = 1
 CLIENT_CONTEXT_SCHEMA_VERSION: Final = "client_context.v1"
+BUSINESS_CONTEXT_SCHEMA_VERSION: Final[BusinessContextSchemaVersion] = (
+    "agent.authoritative_business_context.v1"
+)
+BUSINESS_CONTEXT_ITEM_KEY_PREFIX: Final = "business-context:"
 
 CONTEXT_PLAN_SCHEMA_VERSION: Final = "agent_context_plan.v1"
 CONTEXT_STATE_SCHEMA_VERSION: Final = "agent_run_context.v1"
@@ -126,6 +133,7 @@ def runtime_metadata_snapshot() -> dict[str, str | int]:
         ),
         "auth_token_version": AUTH_TOKEN_VERSION,
         "client_context_schema_version": CLIENT_CONTEXT_SCHEMA_VERSION,
+        "business_context_schema_version": BUSINESS_CONTEXT_SCHEMA_VERSION,
         "context_plan_schema_version": CONTEXT_PLAN_SCHEMA_VERSION,
         "context_state_schema_version": CONTEXT_STATE_SCHEMA_VERSION,
         "context_checkpoint_schema_version": (
@@ -251,6 +259,8 @@ __all__ = [
     "BEHAVIOR_REPORT_SCHEMA_VERSION",
     "BEHAVIOR_RUN_MAP_SCHEMA_VERSION",
     "BEHAVIOR_SUITE_SCHEMA_VERSION",
+    "BUSINESS_CONTEXT_ITEM_KEY_PREFIX",
+    "BUSINESS_CONTEXT_SCHEMA_VERSION",
     "CLIENT_CONTEXT_SCHEMA_VERSION",
     "COMPACTION_PROMPT_VERSION",
     "CONTEXT_CHECKPOINT_SCHEMA_VERSION",
@@ -277,6 +287,7 @@ __all__ = [
     "ActionPolicySchemaVersion",
     "BehaviorRunMapSchemaVersion",
     "BehaviorSuiteSchemaVersion",
+    "BusinessContextSchemaVersion",
     "ContextEvalSchemaVersion",
     "ReplaySchemaVersion",
     "ResponseQualityRubricVersion",

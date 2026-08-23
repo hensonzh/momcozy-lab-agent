@@ -55,6 +55,12 @@ def test_stable_prompt_contains_skill_manifest_but_not_full_skill_bodies() -> No
         assert skill.content not in AGENT.instructions
 
 
+def test_stable_prompt_defines_current_run_business_context_trust_boundary() -> None:
+    assert "authoritative_business_context" in AGENT.instructions
+    assert "只在当前 Run" in AGENT.instructions
+    assert "字符串字段" in AGENT.instructions
+
+
 def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
     result = LoadServiceSkillToolHandler(

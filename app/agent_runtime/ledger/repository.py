@@ -8,12 +8,13 @@ import json
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 
 from app.agent_runtime.runtime_metadata import (
+    BUSINESS_CONTEXT_ITEM_KEY_PREFIX,
     MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
     RUN_EXECUTION_MANIFEST_SCHEMA_VERSION,
 )
@@ -827,6 +828,27 @@ class RuntimeLedgerRepository:
         context_items.reverse()
         return context_items
 
+    async def list_context_items_for_run(
+        self,
+        *,
+        run_id: UUID,
+        owner_user_id: UUID,
+    ) -> list[AgentContextItem]:
+        result = await self.session.scalars(
+            select(AgentContextItem)
+            .join(
+                AgentThread,
+                AgentThread.id == AgentContextItem.thread_id,
+            )
+            .where(
+                AgentContextItem.run_id == run_id,
+                AgentThread.owner_user_id == owner_user_id,
+                AgentThread.deleted_at.is_(None),
+            )
+            .order_by(AgentContextItem.sequence)
+        )
+        return list(result.all())
+
     async def get_prior_completed_context_cutoff(
         self,
         *,
@@ -961,6 +983,9 @@ class RuntimeLedgerRepository:
                 AgentContextItem.sequence > after_sequence,
                 AgentContextItem.sequence <= through_sequence,
                 AgentRun.status == "completed",
+                AgentContextItem.item_key.not_like(
+                    f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"
+                ),
             )
             .order_by(AgentContextItem.sequence)
         )
@@ -986,7 +1011,12 @@ class RuntimeLedgerRepository:
                 AgentContextItem.sequence > after_sequence,
                 or_(
                     AgentContextItem.run_id == current_run_id,
-                    completed_run,
+                    and_(
+                        completed_run,
+                        AgentContextItem.item_key.not_like(
+                            f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"
+                        ),
+                    ),
                 ),
             )
             .order_by(AgentContextItem.sequence)

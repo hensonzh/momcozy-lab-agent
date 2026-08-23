@@ -16,6 +16,7 @@ from app.agent_runtime.runtime_metadata import (
     BEHAVIOR_REPORT_SCHEMA_VERSION,
     BEHAVIOR_RUN_MAP_SCHEMA_VERSION,
     BEHAVIOR_SUITE_SCHEMA_VERSION,
+    BUSINESS_CONTEXT_SCHEMA_VERSION,
     CLIENT_CONTEXT_SCHEMA_VERSION,
     COMPACTION_PROMPT_VERSION,
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
@@ -66,6 +67,7 @@ def test_all_first_party_contract_versions_use_v1_baseline() -> None:
         "behavior_report": BEHAVIOR_REPORT_SCHEMA_VERSION,
         "behavior_run_map": BEHAVIOR_RUN_MAP_SCHEMA_VERSION,
         "behavior_suite": BEHAVIOR_SUITE_SCHEMA_VERSION,
+        "business_context": BUSINESS_CONTEXT_SCHEMA_VERSION,
         "client_context": CLIENT_CONTEXT_SCHEMA_VERSION,
         "compaction_prompt": COMPACTION_PROMPT_VERSION,
         "context_checkpoint": CONTEXT_CHECKPOINT_SCHEMA_VERSION,
@@ -95,6 +97,7 @@ def test_all_first_party_contract_versions_use_v1_baseline() -> None:
         "behavior_report": "momcozy.behavior_eval_report.v1",
         "behavior_run_map": "momcozy.behavior_eval_run_map.v1",
         "behavior_suite": "momcozy.behavior_eval_suite.v1",
+        "business_context": "agent.authoritative_business_context.v1",
         "client_context": "client_context.v1",
         "compaction_prompt": "agent_context_compaction.v1",
         "context_checkpoint": "agent_context_checkpoint.v1",
@@ -141,6 +144,9 @@ def test_runtime_metadata_is_the_canonical_version_source() -> None:
     )
     assert metadata["run_execution_manifest_schema_version"] == (
         RUN_EXECUTION_MANIFEST_SCHEMA_VERSION
+    )
+    assert metadata["business_context_schema_version"] == (
+        BUSINESS_CONTEXT_SCHEMA_VERSION
     )
 
 

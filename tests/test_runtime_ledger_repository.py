@@ -7,6 +7,9 @@ from uuid import uuid4
 from sqlalchemy.dialects import postgresql
 
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
+from app.agent_runtime.runtime_metadata import (
+    BUSINESS_CONTEXT_ITEM_KEY_PREFIX,
+)
 
 
 def test_thread_lookup_is_always_owner_scoped() -> None:
@@ -89,6 +92,50 @@ def test_due_confirmation_scan_uses_database_clock_and_skip_locked() -> None:
     assert "agent_actions.expires_at <= clock_timestamp()" in sql
     assert "FOR UPDATE OF agent_actions, agent_runs SKIP LOCKED" in sql
     assert "LIMIT 64" in sql
+
+
+def test_completed_history_queries_exclude_prior_run_business_snapshots() -> None:
+    session = RecordingSession()
+    repository = RuntimeLedgerRepository(session)  # type: ignore[arg-type]
+
+    asyncio.run(
+        repository.list_completed_context_items(
+            thread_id=uuid4(),
+            after_sequence=0,
+            through_sequence=20,
+        )
+    )
+    compaction_sql = _compiled_sql(session.statement)
+
+    asyncio.run(
+        repository.list_context_items_for_projection(
+            thread_id=uuid4(),
+            current_run_id=uuid4(),
+            after_sequence=0,
+        )
+    )
+    projection_sql = _compiled_sql(session.statement)
+
+    assert "NOT LIKE" in compaction_sql
+    assert BUSINESS_CONTEXT_ITEM_KEY_PREFIX in compaction_sql
+    assert "NOT LIKE" in projection_sql
+    assert BUSINESS_CONTEXT_ITEM_KEY_PREFIX in projection_sql
+
+
+def test_run_context_item_lookup_is_owner_scoped() -> None:
+    session = RecordingSession()
+
+    asyncio.run(
+        RuntimeLedgerRepository(session).list_context_items_for_run(  # type: ignore[arg-type]
+            run_id=uuid4(),
+            owner_user_id=uuid4(),
+        )
+    )
+
+    sql = _compiled_sql(session.statement)
+    assert "JOIN agent_threads" in sql
+    assert "agent_threads.owner_user_id" in sql
+    assert "agent_threads.deleted_at IS NULL" in sql
 
 
 class RecordingSession:

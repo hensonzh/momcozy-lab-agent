@@ -52,6 +52,47 @@ never persisted or projected to the model. Runtime only strips a bounded copy
 of that field at ingress so already-installed legacy mobile clients continue to
 create Runs during the retirement window.
 
+## Current-Run authoritative business context
+
+Before the first model call of a Run, `AuthoritativeBusinessContextService`
+uses the Run's frozen authorization snapshot and local `as_of_date` to call the
+existing Product Backend `GET /v1/internal/agent/profile` contract. The call is
+made only when the Run has `profile:read`; `actor_user_id` always comes from the
+validated authorization context, never from model or client input.
+
+Runtime persists one idempotent
+`business-context:<run_id>:core` item with schema
+`agent.authoritative_business_context.v1`. The deliberately small projection
+contains the preferred name, postpartum days, current feeding mode, current
+infant IDs/names/ages/prematurity, and missing/data-quality codes. Dates,
+measurements, history, plans, records, and other full business payloads remain
+behind owner-scoped read Tools. The item records `source`, `owner_scope`,
+`as_of_date`, and `loaded_at`, and its schema version is copied into Runtime
+metadata and every model execution manifest.
+
+The provider projection remains a `user` message with an
+`authoritative_business_context` data envelope. Backend provenance makes its
+values authoritative business facts; it does not turn user-editable string
+fields into instructions. The model must never follow text embedded in a name
+or another value. Within the Run, a later Tool or Action result supersedes the
+initial snapshot.
+
+The snapshot is inserted after checkpoint/history and before the current
+Run's `client_context` and user message. It is usable by every model turn in
+that Run, but it is not ordinary conversation history:
+
+- completed-Run business snapshots are excluded from future model projection;
+- they are also excluded from compaction input, so checkpoints cannot preserve
+  stale copies;
+- the original ledger items remain durable and are available to privileged,
+  redacted Replay for audit and exact reconstruction of the source Run.
+
+For example, Run A may persist `postpartum_days=40`, while Run B two weeks
+later loads `postpartum_days=54`. Reinjecting Run A's snapshot as chat history
+would give the model conflicting values; repeating that over many Runs would
+accumulate stale facts and waste tokens. Current-Run-only projection preserves
+auditability without treating old snapshots as current truth.
+
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
 materializes attachments, then renders the active Agent instructions as the
 first developer `input_text` block and writes one explicit cache breakpoint on it.

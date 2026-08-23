@@ -19,7 +19,9 @@ from app.bootstrap import (
 from app.agent_runtime.actions import ConfirmationExpiryService
 from app.agent_runtime.context import (
     AgentAttachmentService,
+    AuthoritativeBusinessContextService,
     ContextCompactionService,
+    RuntimeContextCoordinator,
 )
 from app.agent_runtime.events import RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
@@ -162,7 +164,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 ),
             )
 
-            def context_service(
+            def context_compaction_service(
                 repository: RuntimeLedgerRepository,
                 model_input_resolver: AgentAttachmentService | None = None,
             ) -> ContextCompactionService:
@@ -190,6 +192,21 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     ),
                     max_attempts=(
                         settings.agent_context_compaction_max_attempts
+                    ),
+                )
+
+            def context_coordinator(
+                repository: RuntimeLedgerRepository,
+                model_input_resolver: AgentAttachmentService,
+            ) -> RuntimeContextCoordinator:
+                return RuntimeContextCoordinator(
+                    business_context=AuthoritativeBusinessContextService(
+                        repository=repository,
+                        product_client=product_client,
+                    ),
+                    compaction=context_compaction_service(
+                        repository,
+                        model_input_resolver,
                     ),
                 )
 
@@ -239,7 +256,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                                 product_client=product_client,
                             )
                         ),
-                        context_coordinator=context_service(
+                        context_coordinator=context_coordinator(
                             repository,
                             attachments,
                         ),
@@ -270,7 +287,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     settings.agent_action_expiry_batch_size
                 ),
                 context_compaction_processor_factory=(
-                    context_service
+                    context_compaction_service
                 ),
                 context_compaction_batch_size=(
                     settings.agent_context_compaction_batch_size

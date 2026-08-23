@@ -366,12 +366,13 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "bd780da30d1aaa94bbfca004a905c04346e4c425bbc6f814462c06101fbfb3be"
   },
-  "catalog_sha256": "52ab5432fdbc725cd578938b0c3acda816e26806fe5c1b19bbf5f898f26a3448",
+  "catalog_sha256": "d057725120c277a40a9d6bf3b13cd19dcb26f6a06313a1fceb1a72e4d3c006de",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
     "auth_token_version": 1,
     "authorization_context_schema_version": "agent.authorization_context.v1",
+    "business_context_schema_version": "agent.authoritative_business_context.v1",
     "client_context_schema_version": "client_context.v1",
     "context_checkpoint_schema_version": "agent_context_checkpoint.v1",
     "context_compaction_prompt_version": "agent_context_compaction.v1",
