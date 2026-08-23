@@ -56,32 +56,28 @@ def test_client_context_rejects_structural_prompt_injection(
     assert captured.value.status == 422
 
 
-def test_client_context_rejects_retired_hospital_bag_cart() -> None:
-    with pytest.raises(ApiError) as captured:
-        normalize_client_context(
-            {
-                "hospital_bag_cart": {
-                    "groups": [],
-                    "totals": {},
-                }
-            }
-        )
+def test_client_context_discards_retired_hospital_bag_cart() -> None:
+    legacy_context = {
+        "source": "legacy-flutter-agent-hub",
+        "hospital_bag_cart": {
+            "groups": [],
+            "totals": {},
+        },
+    }
 
-    assert captured.value.code == "validation_failed"
-    assert captured.value.status == 422
+    normalized = normalize_client_context(legacy_context)
+    request = AgentRunCreate.model_validate(
+        {
+            "message": "检查待产包",
+            "client_context": legacy_context,
+        }
+    )
 
-    with pytest.raises(ValidationError):
-        AgentRunCreate.model_validate(
-            {
-                "message": "检查待产包",
-                "client_context": {
-                    "hospital_bag_cart": {
-                        "groups": [],
-                        "totals": {},
-                    }
-                },
-            }
-        )
+    assert normalized.data == {"source": "legacy-flutter-agent-hub"}
+    assert "hospital_bag_cart" not in normalized.context_item()["content"]
+    assert request.client_context.model_dump(exclude_none=True) == {
+        "source": "legacy-flutter-agent-hub"
+    }
 
 
 @pytest.mark.parametrize("field", ["workflow_reply", "workflow_command"])

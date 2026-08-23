@@ -47,6 +47,10 @@ explicit untrusted-data envelope. The model projection contains only locale,
 timezone, and the Runtime-derived local `as_of_date`; request source and raw
 send time remain Runtime-side metadata. Client data cannot gain
 developer/system authority merely because it was supplied by the client.
+The retired `hospital_bag_cart` field is absent from the public schema and is
+never persisted or projected to the model. Runtime only strips a bounded copy
+of that field at ingress so already-installed legacy mobile clients continue to
+create Runs during the retirement window.
 
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
 materializes attachments, then renders the active Agent instructions as the
