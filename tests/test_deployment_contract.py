@@ -48,8 +48,8 @@ def test_local_environment_declares_runtime_public_key_contract() -> None:
 def test_environment_examples_align_model_output_and_context_reserve() -> None:
     for path in (LOCAL_ENV, PROD_ENV):
         env = path.read_text()
-        assert "AGENT_MODEL_MAX_OUTPUT_TOKENS=800" in env
-        assert "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS=800" in env
+        assert "AGENT_MODEL_MAX_OUTPUT_TOKENS=8000" in env
+        assert "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS=8000" in env
 
 
 def test_local_api_bind_is_loopback_safe_and_overridable_for_devices() -> None:

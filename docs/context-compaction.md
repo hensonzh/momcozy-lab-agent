@@ -22,10 +22,10 @@ recoverable, and safe for attachments.
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
   guard therefore also runs after Skill loading and ordinary Tool calls.
 - Normal Agent calls set `max_output_tokens` from
-  `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `800`). OpenAI counts both visible
+  `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `8000`). OpenAI counts both visible
   output and reasoning tokens against this hard response limit. The complete
   request therefore reserves at least the same amount through
-  `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `800`).
+  `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `8000`).
 - When compaction is needed, a checkpoint replaces history only through the end
   of the **6th most recent completed Run**. The latest 5 completed Runs remain
   as an atomic raw tail; the current Run is separate and is never counted in
@@ -245,8 +245,8 @@ Worker controls:
 - `AGENT_CONTEXT_COMPACTION_BATCH_SIZE` (default `2`)
 - `AGENT_CONTEXT_COMPACTION_CONCURRENCY` (default `1`)
 - `AGENT_CONTEXT_COMPACTION_MAX_ATTEMPTS` (default `3`)
-- `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `800`)
-- `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `800`; must cover the model
+- `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `8000`)
+- `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `8000`; must cover the model
   output limit and remain below the compaction threshold)
 
 Context jobs use the existing worker database lease duration and renewal

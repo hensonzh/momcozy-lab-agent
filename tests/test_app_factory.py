@@ -213,11 +213,11 @@ def test_worker_rejects_unknown_model_provider() -> None:
         ).validate_for_worker()
 
 
-def test_worker_model_output_budget_defaults_to_eight_hundred_tokens() -> None:
+def test_worker_model_output_budget_defaults_to_eight_thousand_tokens() -> None:
     settings = Settings()
 
-    assert settings.agent_model_max_output_tokens == 800
-    assert settings.agent_context_response_reserve_tokens == 800
+    assert settings.agent_model_max_output_tokens == 8_000
+    assert settings.agent_context_response_reserve_tokens == 8_000
 
 
 def test_worker_response_reserve_must_cover_model_output_limit() -> None:
@@ -228,8 +228,8 @@ def test_worker_response_reserve_must_cover_model_output_limit() -> None:
         Settings(
             app_env="test",
             openai_api_key="test-openai-key",
-            agent_model_max_output_tokens=801,
-            agent_context_response_reserve_tokens=800,
+            agent_model_max_output_tokens=8_001,
+            agent_context_response_reserve_tokens=8_000,
         ).validate_for_worker()
 
 

@@ -205,7 +205,7 @@ class OpenAIAgentsExecutionEngine:
         runtime: RuntimeDefinition,
         runtime_contract_catalog: Mapping[str, Any],
         max_turns: int = 10,
-        max_output_tokens: int = 800,
+        max_output_tokens: int = 8_000,
         reasoning_effort: str = "low",
         text_verbosity: str = "low",
         store: bool = False,

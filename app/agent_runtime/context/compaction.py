@@ -282,7 +282,7 @@ class ContextCompactionService:
         model: str,
         threshold_tokens: int = 100_000,
         summary_max_tokens: int = 2_000,
-        response_reserve_tokens: int = 800,
+        response_reserve_tokens: int = 8_000,
         max_attempts: int = 3,
     ) -> None:
         if threshold_tokens < 1:
