@@ -36,11 +36,16 @@ recreating the Runtime database before this baseline is deployed.
    `python scripts/run_runtime_v1_harness.py --junit reports/runtime-v1.xml`.
 8. Run the deterministic Context Pipeline release gate:
    `pytest -q tests/test_context_eval_gate.py tests/test_context_pipeline_v1.py`.
-9. Run the Agents SDK execution contract gate:
-   `pytest -q tests/test_openai_agents_execution.py tests/test_single_agent_loop.py`.
-10. Verify `AGENT_MODEL_PROVIDER=openai_responses`. When a custom
-    `OPENAI_BASE_URL` is configured, explicitly attest Responses compatibility
-    with `OPENAI_RESPONSES_COMPATIBLE_BASE_URL=true`; production URLs must use
+9. Run the provider and Agents SDK execution contract gate:
+   `pytest -q tests/test_provider_contracts.py tests/test_provider_runtime.py
+   tests/test_provider_errors.py tests/test_openai_agents_execution.py
+   tests/test_single_agent_loop.py`.
+10. Select exactly one supported provider. For `openai_responses`, configure
+    `OPENAI_API_KEY`/`OPENAI_MODEL`; a custom `OPENAI_BASE_URL` additionally
+    requires `OPENAI_RESPONSES_COMPATIBLE_BASE_URL=true`. For
+    `azure_openai_responses`, configure the `/openai/v1` endpoint, deployment,
+    exact model family/version, region, deployment type, and either Entra
+    workload identity (recommended) or API key. Production endpoints must use
     remote HTTPS and contain no credentials, query, or fragment.
 11. Verify `AGENT_MODEL_TIMEOUT_SECONDS` against the production model and keep
    `AGENT_WORKER_DB_LEASE_DURATION_SECONDS` at least one lease-renewal interval
@@ -59,6 +64,11 @@ recreating the Runtime database before this baseline is deployed.
    action application, terminal events, ready health, and the durable
    context-compaction/next-Run gate described in
    [context-compaction.md](context-compaction.md).
+15. Before changing provider, drain active Runs and Context jobs, run the live
+    staging capability/error/compaction checks in
+    [model-providers.md](model-providers.md), and compare Azure estimates with
+    actual `usage.input_tokens`. Do not run two providers against the same
+    durable worker queue during a cutover.
 
 For Runtime v1, deploy Product Backend before Runtime so refreshed JWTs contain
 `agent:run` and capability permissions. The baseline migration requires an

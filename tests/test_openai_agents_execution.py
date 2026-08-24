@@ -25,17 +25,23 @@ from openai.types.responses import (
 from openai.types.responses.response_prompt_param import (
     ResponsePromptParam,
 )
+from openai import Omit
 
 from app.agent_runtime.orchestration import (
     AgentExecutionResult,
     OpenAIAgentsExecutionEngine,
+    ResponsesAgentsExecutionEngine,
 )
 from app.agent_runtime.orchestration.testing import (
     ScriptedAgentModel,
     ScriptedToolCall,
     ScriptedTurn,
 )
-from app.agent_runtime.providers import ModelProviderProfile
+from app.agent_runtime.providers import (
+    ModelProviderProfile,
+    ModelRequestPolicy,
+    azure_openai_responses_profile,
+)
 from app.bootstrap import (
     RUNTIME_DEFINITION,
     build_runtime_contract_catalog_snapshot,
@@ -165,6 +171,9 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
         "openai_agents_sdk"
     )
     assert manifest["model"]["provider"] == "openai_responses"
+    assert manifest["model"]["contract_version"] == (
+        "agent.model_provider.v1"
+    )
     assert manifest["context"]["schema_version"] == "agent.model_context.v1"
     assert manifest["model"]["sdk_package"] == "openai-agents"
     assert manifest["model"]["timeout_scope"] == (
@@ -394,6 +403,123 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     )
 
 
+def test_azure_openai_profile_drives_request_and_manifest_metadata() -> None:
+    client = RecordingOpenAIClient()
+    profile = azure_openai_responses_profile(
+        deployment="momcozy-gpt-5-6-terra",
+        endpoint=(
+            "https://momcozy-ai.openai.azure.com/openai/v1"
+        ),
+        model_family="gpt-5.6-terra",
+        model_version="2026-07-09",
+        region="eastasia",
+        deployment_type="standard",
+        auth_mode="entra",
+    )
+    port = RecordingExecutionPort()
+    engine = ResponsesAgentsExecutionEngine(
+        model=OpenAIResponsesModel(
+            model=profile.model,
+            openai_client=client,  # type: ignore[arg-type]
+        ),
+        model_name=profile.model,
+        tool_registry=build_runtime_tool_registry(),
+        runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
+        base_url=profile.base_url,
+        provider_profile=profile,
+        request_policy=ModelRequestPolicy.for_profile(profile),
+    )
+
+    result = asyncio.run(
+        engine.execute(
+            input_items=({"role": "user", "content": "你好"},),
+            port=port,
+            authorization_permissions=_all_tool_permissions(),
+        )
+    )
+
+    assert result.text == "完成。"
+    request = client.responses.kwargs
+    assert request["model"] == "momcozy-gpt-5-6-terra"
+    assert request["prompt_cache_options"] == {
+        "mode": "explicit",
+        "ttl": "30m",
+    }
+    assert request["include"] == ["reasoning.encrypted_content"]
+    manifest = port.manifests[0]["model"]
+    assert manifest["provider"] == "azure_openai_responses"
+    assert manifest["deployment"] == "momcozy-gpt-5-6-terra"
+    assert manifest["model_family"] == "gpt-5.6-terra"
+    assert manifest["model_version"] == "2026-07-09"
+    assert manifest["region"] == "eastasia"
+    assert manifest["deployment_type"] == "standard"
+    assert manifest["auth_mode"] == "entra"
+
+
+def test_provider_policy_omits_unsupported_prompt_cache_fields() -> None:
+    client = RecordingOpenAIClient()
+    profile = azure_openai_responses_profile(
+        deployment="momcozy-gpt-5-6-terra-ptu",
+        endpoint=(
+            "https://momcozy-ai.openai.azure.com/openai/v1"
+        ),
+        model_family="gpt-5.6-terra",
+        model_version="2026-07-09",
+        region="eastasia",
+        deployment_type="provisioned_managed",
+        auth_mode="entra",
+    )
+    engine = ResponsesAgentsExecutionEngine(
+        model=OpenAIResponsesModel(
+            model=profile.model,
+            openai_client=client,  # type: ignore[arg-type]
+        ),
+        model_name=profile.model,
+        tool_registry=build_runtime_tool_registry(),
+        runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
+        base_url=profile.base_url,
+        provider_profile=profile,
+        request_policy=ModelRequestPolicy.for_profile(profile),
+    )
+
+    asyncio.run(
+        engine.execute(
+            input_items=({"role": "user", "content": "你好"},),
+            port=RecordingExecutionPort(),
+            authorization_permissions=_all_tool_permissions(),
+        )
+    )
+
+    request = client.responses.kwargs
+    assert isinstance(request["prompt_cache_options"], Omit)
+    assert "prompt_cache_breakpoint" not in request["input"][0]["content"][0]
+
+
+def test_execution_engine_delegates_provider_errors_to_injected_mapper() -> None:
+    engine = ResponsesAgentsExecutionEngine(
+        model=FailingProviderModel(),
+        model_name="provider-model",
+        tool_registry=build_runtime_tool_registry(),
+        runtime=RUNTIME_DEFINITION,
+        runtime_contract_catalog=build_runtime_contract_catalog_snapshot(),
+        provider_error_mapper=MarkerErrorMapper(),
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            engine.execute(
+                input_items=({"role": "user", "content": "你好"},),
+                port=RecordingExecutionPort(),
+                authorization_permissions=_all_tool_permissions(),
+            )
+        )
+
+    assert captured.value.code == "model_rate_limited"
+    assert captured.value.details == {"retryable": True}
+
+
 def _engine(
     model: Any,
     *,
@@ -534,6 +660,56 @@ class ContinuouslyStreamingModel(Model):
                 sequence_number=sequence,
                 type="response.output_text.delta",
             )
+
+
+class FailingProviderModel(Model):
+    async def get_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> ModelResponse:
+        raise RuntimeError("provider failed")
+
+    async def stream_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> AsyncIterator[ResponseStreamEvent]:
+        del system_instructions, input, model_settings, tools
+        del output_schema, handoffs, tracing
+        del previous_response_id, conversation_id, prompt
+        if False:  # pragma: no cover - defines an async generator
+            yield ResponseStreamEvent()
+        raise RuntimeError("provider failed")
+
+
+class MarkerErrorMapper:
+    def map(self, exc: Exception) -> ApiError | None:
+        assert isinstance(exc, RuntimeError)
+        return ApiError(
+            code="model_rate_limited",
+            message="limited",
+            status=503,
+            details={"retryable": True},
+        )
 
 
 @dataclass

@@ -703,6 +703,74 @@ def test_provider_failure_marks_run_failed_and_cancelled_run_is_not_restarted() 
     assert provider.requests == []
 
 
+@pytest.mark.parametrize("retryable", (False, True))
+def test_provider_retryability_is_preserved_in_durable_failure(
+    retryable: bool,
+) -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel(
+        {
+            "cozymate": [
+                ApiError(
+                    code="model_provider_error",
+                    message="provider failed",
+                    status=502,
+                    details={"retryable": retryable},
+                )
+            ]
+        }
+    )
+
+    run = asyncio.run(
+        _loop(repository=repository, provider=provider).process(
+            repository.run.id
+        )
+    )
+
+    assert run.status == "failed"
+    assert run.error_code == "model_provider_error"
+    assert run.error_details == {"retryable": retryable}
+    assert repository.events[-1].payload == {
+        "code": "model_provider_error",
+        "retryable": retryable,
+    }
+
+
+def test_provider_correlation_metadata_is_preserved_in_durable_failure() -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel(
+        {
+            "cozymate": [
+                ApiError(
+                    code="model_rate_limited",
+                    message="limited",
+                    status=503,
+                    details={
+                        "provider": "azure_openai_responses",
+                        "provider_request_id": "azure-request-1",
+                        "provider_status": 429,
+                        "retryable": True,
+                        "untrusted": "must-not-persist",
+                    },
+                )
+            ]
+        }
+    )
+
+    run = asyncio.run(
+        _loop(repository=repository, provider=provider).process(
+            repository.run.id
+        )
+    )
+
+    assert run.error_details == {
+        "provider": "azure_openai_responses",
+        "provider_request_id": "azure-request-1",
+        "provider_status": 429,
+        "retryable": True,
+    }
+
+
 def test_restart_after_final_message_commit_only_marks_run_completed() -> None:
     repository = MemoryLedger()
     repository.run.status = "running"

@@ -37,8 +37,9 @@ Independent production Agent service owned by the Agent team.
 PostgreSQL is the durable source of truth. Redis carries run controls and
 transient stream notifications; losing Redis must not erase the durable ledger.
 The durable loop uses OpenAI Agents SDK as its inner model/Tool execution
-engine, without SDK `Session`; process recovery always rebuilds state from the
-Runtime ledger.
+engine with a provider-neutral Responses adapter for OpenAI or Azure OpenAI,
+without SDK `Session`; process recovery always rebuilds state from the Runtime
+ledger.
 
 Flutter configures exactly one Agent origin through
 `MOMCOZY_AGENT_API_BASE_URL`; runs, streams, cancellation, client events, and
@@ -147,6 +148,9 @@ limitations, and mandatory change protocol are maintained in
 Runtime v1 authorization, Tool/Action policy, double-cursor streaming,
 provider, migration, and deterministic harness contracts are defined in
 [runtime-v1.md](docs/runtime-v1.md).
+Provider configuration, capability gates, Azure migration, error normalization,
+and rollout checks are defined in
+[model-providers.md](docs/model-providers.md).
 The Context Pipeline v1 100k-token contract, typed low-trust checkpoints,
 next-Run generation gate, audited dead-letter recovery, and durable hard-limit
 resume are defined in

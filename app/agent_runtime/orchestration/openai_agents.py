@@ -42,7 +42,6 @@ from agents.run_context import RunContextWrapper
 from agents.stream_events import RawResponsesStreamEvent
 from agents.tool import Tool
 from agents.tool_context import ToolContext
-from openai import APITimeoutError, BadRequestError, OpenAIError
 from openai.types.responses import (
     ResponseFunctionToolCall,
     ResponseTextDeltaEvent,
@@ -53,13 +52,18 @@ from openai.types.responses.response_prompt_param import (
 from app.agent_runtime.tools import ToolContractRegistry
 from app.core.errors import ApiError
 from app.agent_runtime.providers.contracts import (
+    ModelProviderErrorMapper,
     ModelProviderProfile,
+    ModelRequestPolicy,
+    REQUIRED_RUNTIME_PROVIDER_CAPABILITIES,
     openai_responses_profile,
 )
+from app.agent_runtime.providers.errors import OpenAICompatibleErrorMapper
 from app.agent_runtime.runtime_metadata import (
     ACTION_POLICY_SCHEMA_VERSION,
     MODEL_CONTEXT_SCHEMA_VERSION,
     MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
+    MODEL_PROVIDER_CONTRACT_VERSION,
     TOOL_CONTRACT_SCHEMA_VERSION,
     runtime_metadata_snapshot,
     validate_runtime_contract_catalog_snapshot,
@@ -74,10 +78,6 @@ from .contracts import (
 )
 
 
-PROMPT_CACHE_OPTIONS = {
-    "mode": "explicit",
-    "ttl": "30m",
-}
 PROMPT_CACHE_BREAKPOINT = {"mode": "explicit"}
 MODEL_LOGGER = logging.getLogger("agent_runtime.model")
 
@@ -191,9 +191,10 @@ class _ExecutionState:
     model_name: str
     runtime_context: dict[str, Any]
     observation_context: dict[str, str]
+    prompt_cache_breakpoints: bool
 
 
-class OpenAIAgentsExecutionEngine:
+class ResponsesAgentsExecutionEngine:
     """Agents SDK execution engine behind the durable Runtime boundary."""
 
     def __init__(
@@ -212,6 +213,8 @@ class OpenAIAgentsExecutionEngine:
         base_url: str = "",
         timeout_seconds: float = 60,
         provider_profile: ModelProviderProfile | None = None,
+        request_policy: ModelRequestPolicy | None = None,
+        provider_error_mapper: ModelProviderErrorMapper | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
@@ -251,16 +254,26 @@ class OpenAIAgentsExecutionEngine:
             model=model_name,
             base_url=base_url,
         )
+        self.provider_profile.require_capabilities(
+            REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
+        )
         if self.provider_profile.model != model_name:
             raise ValueError("provider profile model does not match engine model")
         if self.provider_profile.api != "responses":
             raise ValueError(
-                "OpenAI Agents execution requires a Responses API provider"
+                "Agents execution requires a Responses API provider"
             )
         if self.provider_profile.base_url.rstrip("/") != base_url.rstrip("/"):
             raise ValueError(
                 "provider profile base URL does not match engine base URL"
             )
+        self.request_policy = request_policy or ModelRequestPolicy.for_profile(
+            self.provider_profile
+        )
+        self.provider_error_mapper = (
+            provider_error_mapper
+            or OpenAICompatibleErrorMapper(self.provider_profile)
+        )
 
     async def execute(
         self,
@@ -278,6 +291,9 @@ class OpenAIAgentsExecutionEngine:
             model_name=self.model_name,
             runtime_context=deepcopy(runtime_context or {}),
             observation_context=dict(observation_context or {}),
+            prompt_cache_breakpoints=(
+                self.request_policy.prompt_cache_breakpoints
+            ),
         )
         hooks = _DurableRunHooks(engine=self, state=state)
         agent = self._build_agent(
@@ -366,47 +382,22 @@ class OpenAIAgentsExecutionEngine:
                 error_code="model_provider_malformed_tool_call"
             )
             raise _model_behavior_error(exc) from exc
-        except APITimeoutError as exc:
-            hooks.emit_pending_model_failures(
-                error_code="model_provider_timeout",
-                outcome="timeout",
-            )
-            raise ApiError(
-                code="model_provider_timeout",
-                message="Model provider request timed out.",
-                status=504,
-                details={"retryable": True},
-            ) from exc
-        except BadRequestError as exc:
-            if _is_context_window_error(exc):
+        except Exception as exc:
+            mapped = self.provider_error_mapper.map(exc)
+            if mapped is None:
                 hooks.emit_pending_model_failures(
-                    error_code="model_context_window_exceeded"
+                    error_code="model_execution_failed"
                 )
-                raise ApiError(
-                    code="model_context_window_exceeded",
-                    message="Model context window exceeded.",
-                    status=400,
-                    details={"retryable": True},
-                ) from exc
+                raise
             hooks.emit_pending_model_failures(
-                error_code="model_provider_error"
+                error_code=mapped.code,
+                outcome=(
+                    "timeout"
+                    if mapped.code == "model_provider_timeout"
+                    else "error"
+                ),
             )
-            raise ApiError(
-                code="model_provider_error",
-                message="Model provider request failed.",
-                status=502,
-                details={"retryable": True},
-            ) from exc
-        except OpenAIError as exc:
-            hooks.emit_pending_model_failures(
-                error_code="model_provider_error"
-            )
-            raise ApiError(
-                code="model_provider_error",
-                message="Model provider request failed.",
-                status=502,
-                details={"retryable": True},
-            ) from exc
+            raise mapped from exc
         except BaseException:
             hooks.emit_pending_model_failures(
                 error_code="model_execution_interrupted"
@@ -449,13 +440,20 @@ class OpenAIAgentsExecutionEngine:
                 verbosity=cast(Any, self.text_verbosity),
                 store=self.store,
                 response_include=(
-                    None
-                    if self.store
-                    else ["reasoning.encrypted_content"]
+                    ["reasoning.encrypted_content"]
+                    if (
+                        not self.store
+                        and self.request_policy.include_encrypted_reasoning
+                    )
+                    else None
                 ),
                 prompt_cache_options=cast(
                     Any,
-                    dict(PROMPT_CACHE_OPTIONS),
+                    (
+                        dict(self.request_policy.prompt_cache_options)
+                        if self.request_policy.prompt_cache_options
+                        else None
+                    ),
                 ),
             ),
             tool_use_behavior="run_llm_again",
@@ -600,7 +598,12 @@ class OpenAIAgentsExecutionEngine:
         input_items = cast(
             list[TResponseInputItem],
             [
-                _stable_prefix_item(instructions),
+                _stable_prefix_item(
+                    instructions,
+                    prompt_cache_breakpoints=(
+                        state.prompt_cache_breakpoints
+                    ),
+                ),
                 *(deepcopy(item) for item in resolved),
             ],
         )
@@ -635,7 +638,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
     def __init__(
         self,
         *,
-        engine: OpenAIAgentsExecutionEngine,
+        engine: ResponsesAgentsExecutionEngine,
         state: _ExecutionState,
     ) -> None:
         self.engine = engine
@@ -669,8 +672,8 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
                 agent.model_settings.parallel_tool_calls is True
             ),
             store=self.engine.store,
-            base_url=self.engine.base_url,
             provider_profile=self.engine.provider_profile,
+            request_policy=self.engine.request_policy,
             timeout_seconds=self.engine.timeout_seconds,
             runtime_context=self.state.runtime_context,
             runtime_contract_catalog=(
@@ -813,19 +816,23 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         )
 
 
-def _stable_prefix_item(instructions: str) -> dict[str, Any]:
+def _stable_prefix_item(
+    instructions: str,
+    *,
+    prompt_cache_breakpoints: bool,
+) -> dict[str, Any]:
+    content: dict[str, Any] = {
+        "type": "input_text",
+        "text": instructions,
+    }
+    if prompt_cache_breakpoints:
+        content["prompt_cache_breakpoint"] = dict(
+            PROMPT_CACHE_BREAKPOINT
+        )
     return {
         "type": "message",
         "role": "developer",
-        "content": [
-            {
-                "type": "input_text",
-                "text": instructions,
-                "prompt_cache_breakpoint": dict(
-                    PROMPT_CACHE_BREAKPOINT
-                ),
-            }
-        ],
+        "content": [content],
     }
 
 
@@ -841,8 +848,8 @@ def _execution_manifest(
     text_verbosity: str,
     parallel_tool_calls: bool,
     store: bool,
-    base_url: str,
     provider_profile: ModelProviderProfile,
+    request_policy: ModelRequestPolicy,
     timeout_seconds: float,
     runtime_context: dict[str, Any],
     runtime_contract_catalog: Mapping[str, Any],
@@ -893,6 +900,11 @@ def _execution_manifest(
         "text_verbosity": text_verbosity,
         "parallel_tool_calls": parallel_tool_calls,
         "store": store,
+        "provider": provider_profile.provider_id,
+        "include_encrypted_reasoning": (
+            request_policy.include_encrypted_reasoning
+        ),
+        "prompt_cache_options": request_policy.prompt_cache_options,
     }
     manifest: dict[str, Any] = {
         "schema_version": (
@@ -931,11 +943,9 @@ def _execution_manifest(
             ],
         },
         "model": {
-            "provider": provider_profile.provider_id,
-            "api": provider_profile.api,
+            **provider_profile.manifest_metadata(),
+            "contract_version": MODEL_PROVIDER_CONTRACT_VERSION,
             "execution_engine": "openai_agents_sdk",
-            "base_url": base_url or None,
-            "capabilities": sorted(provider_profile.capabilities),
             "sdk_package": "openai-agents",
             "sdk_version": _package_version("openai-agents"),
             "openai_sdk_version": _package_version("openai"),
@@ -948,17 +958,23 @@ def _execution_manifest(
             "store": store,
             "truncation": "disabled",
             "include": (
-                None
-                if store
-                else ["reasoning.encrypted_content"]
+                ["reasoning.encrypted_content"]
+                if (
+                    not store
+                    and request_policy.include_encrypted_reasoning
+                )
+                else None
             ),
-            "prompt_cache": {
-                "mode": "explicit",
-                "ttl": "30m",
-                "breakpoint": (
-                    "stable_tools_and_developer_instructions"
-                ),
-            },
+            "prompt_cache": (
+                {
+                    **dict(request_policy.prompt_cache_options or {}),
+                    "breakpoint": (
+                        "stable_tools_and_developer_instructions"
+                    ),
+                }
+                if request_policy.prompt_cache_breakpoints
+                else None
+            ),
             "timeout_seconds": timeout_seconds,
             "timeout_scope": "per_model_call_wall_clock",
         },
@@ -1112,33 +1128,6 @@ def _model_behavior_error(exc: ModelBehaviorError) -> ApiError:
     )
 
 
-def _is_context_window_error(exc: Exception) -> bool:
-    body = getattr(exc, "body", None)
-    if isinstance(body, dict):
-        raw_error = body.get("error", body)
-        if isinstance(raw_error, dict):
-            code = str(raw_error.get("code") or "").lower()
-            message = str(
-                raw_error.get("message") or ""
-            ).lower()
-            if (
-                code
-                in {
-                    "context_length_exceeded",
-                    "context_window_exceeded",
-                    "max_tokens_exceeded",
-                }
-                or "maximum context length" in message
-                or "context window" in message
-            ):
-                return True
-    message = str(exc).lower()
-    return (
-        "maximum context length" in message
-        or "context window" in message
-    )
-
-
 def _package_version(package: str) -> str:
     try:
         return metadata.version(package)
@@ -1165,8 +1154,12 @@ def _canonical_json(value: Any) -> str:
     )
 
 
+OpenAIAgentsExecutionEngine = ResponsesAgentsExecutionEngine
+
+
 __all__ = [
     "AgentExecutionPort",
     "AgentExecutionResult",
     "OpenAIAgentsExecutionEngine",
+    "ResponsesAgentsExecutionEngine",
 ]

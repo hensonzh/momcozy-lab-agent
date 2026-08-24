@@ -15,15 +15,17 @@ recoverable, and safe for attachments.
   contribute to this proactive trigger.
 - Compaction is queued only when the history count is strictly greater than
   `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`.
-- Separately, immediately before **every** model call, Runtime asks the provider
-  to count the complete request: stable developer Prompt, materialized current
+- Separately, immediately before **every** model call, Runtime uses the active
+  provider's exact or conservative counter on the complete request: stable
+  developer Prompt, materialized current
   input, all current ToolResults, and the exact Tool schemas sent by the Agents
   SDK. The request is accepted only when input tokens plus
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
   guard therefore also runs after Skill loading and ordinary Tool calls.
 - Normal Agent calls set `max_output_tokens` from
-  `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `8000`). OpenAI counts both visible
-  output and reasoning tokens against this hard response limit. The complete
+  `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `8000`). The GPT-5.6 Responses
+  contract counts both visible output and reasoning tokens against this hard
+  response limit. The complete
   request therefore reserves at least the same amount through
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` (default `8000`).
 - When compaction is needed, a checkpoint replaces history only through the end
@@ -137,10 +139,11 @@ auditability without treating old snapshots as current truth.
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
 materializes attachments, then renders the active Agent instructions as the
 first developer `input_text` block and writes one explicit cache breakpoint on it.
-OpenAI injects the stable tool schemas before developer instructions, so the
+The Responses adapter injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment
 URLs remain after it. Request-wide caching uses explicit mode with a `30m`
-minimum lifetime. The same filter runs for CozyMate on its
+minimum lifetime when the provider profile supports it; Azure PTU-M omits these
+fields. The same filter runs for CozyMate on its
 initial call and every post-Tool model turn. The complete-request budget check
 uses this final filtered input and the same converted provider Tool definitions,
 not an earlier approximation of the ledger.

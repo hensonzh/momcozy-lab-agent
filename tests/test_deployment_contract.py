@@ -78,6 +78,23 @@ def test_runtime_installs_asymmetric_jwt_verification_support() -> None:
     assert "PyJWT[crypto]==2.13.0" in requirements
 
 
+def test_runtime_installs_and_documents_azure_provider_support() -> None:
+    requirements = (ROOT / "requirements.txt").read_text()
+    provider_doc = (ROOT / "docs" / "model-providers.md").read_text()
+
+    assert "azure-identity==1.25.3" in requirements
+    assert "agent.model_provider.v1" in provider_doc
+    assert "AZURE_OPENAI_TOKEN_SCOPE=https://ai.azure.com/.default" in (
+        provider_doc
+    )
+    for path in (LOCAL_ENV, PROD_ENV):
+        env = path.read_text()
+        assert "AGENT_MODEL_REASONING_EFFORT=low" in env
+        assert "AGENT_MODEL_TEXT_VERBOSITY=low" in env
+        assert "AGENT_MODEL_STORE=false" in env
+        assert "AGENT_MODEL_PROVIDER=azure_openai_responses" in env
+
+
 def test_runtime_image_contains_versioned_behavior_eval_catalog() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
 

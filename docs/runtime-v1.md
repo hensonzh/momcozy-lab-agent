@@ -110,18 +110,24 @@ completed response and all terminal state remain recoverable from PostgreSQL.
 
 ## Model provider boundary
 
-Runtime orchestration consumes a non-secret `ModelProviderProfile`; the current
-worker adapter supports the OpenAI Responses API and records provider ID, API,
-capabilities, model, SDK versions, and request/context hashes in the execution
-`agent_model_execution.v1` manifest (aggregated by
-`agent_run_execution_manifest.v1`). A provider is rejected unless it supports
-function tools, streaming, structured outputs, and tool search.
+Runtime orchestration consumes the non-secret `agent.model_provider.v1`
+`ModelProviderProfile`; the worker supports OpenAI Responses and Azure OpenAI
+Responses v1 through one `ProviderRuntimeBundle`. It records provider/API,
+capabilities, request policy, model/deployment metadata, SDK versions, and
+request/context hashes in `agent_model_execution.v1` (aggregated by
+`agent_run_execution_manifest.v1`). Credentials and tokens are never recorded.
+A provider is rejected unless it supports function tools, streaming,
+structured outputs, and tool search.
 
-`AGENT_MODEL_PROVIDER=openai_responses` is explicit. A custom
-`OPENAI_BASE_URL` is accepted only when
-`OPENAI_RESPONSES_COMPATIBLE_BASE_URL=true`; credentials, query strings, and
-fragments are forbidden in that URL. Production additionally requires a
-non-loopback HTTPS endpoint.
+`AGENT_MODEL_PROVIDER` is either `openai_responses` or
+`azure_openai_responses`. OpenAI may use an explicitly attested compatible
+gateway. Azure uses a `/openai/v1` endpoint, the deployment name as the request
+model, and either Entra or API-key authentication; its profile also pins the
+model family/version, region, and deployment type. OpenAI uses the exact
+Responses input-token counter. Azure currently uses a named, conservative local
+estimate plus multimodal reserves because its v1 endpoint lacks that operation.
+The full contract and rollout gate are in
+[model-providers.md](model-providers.md).
 
 ## Deterministic release harness
 

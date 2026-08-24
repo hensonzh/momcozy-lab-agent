@@ -298,7 +298,17 @@ class AgentLoop:
         except RunLeaseLostError:
             raise
         except ApiError as exc:
-            return await self._fail(run=run, code=exc.code)
+            explicit_retryable = exc.details.get("retryable")
+            return await self._fail(
+                run=run,
+                code=exc.code,
+                retryable=(
+                    explicit_retryable
+                    if isinstance(explicit_retryable, bool)
+                    else None
+                ),
+                provider_details=_provider_failure_details(exc),
+            )
         except Exception:
             return await self._fail(run=run, code="agent_run_failed")
 
@@ -885,31 +895,45 @@ class AgentLoop:
                     await commit()
             return ready
 
-    async def _fail(self, *, run: AgentRun, code: str) -> AgentRun:
+    async def _fail(
+        self,
+        *,
+        run: AgentRun,
+        code: str,
+        retryable: bool | None = None,
+        provider_details: dict[str, Any] | None = None,
+    ) -> AgentRun:
         async with self._persistence_lock:
             refreshed = await self.repository.refresh_run(run=run)
             if refreshed.status in TERMINAL_STATUSES:
                 return refreshed
             completed_at = _utcnow()
+            should_retry = (
+                _retryable(code) if retryable is None else retryable
+            )
+            error_details = {
+                "retryable": should_retry,
+                **dict(provider_details or {}),
+            }
             if self._lease_token is None:
                 failed = await self.repository.mark_run_failed(
                     run=refreshed,
                     completed_at=completed_at,
                     error_code=code,
-                    error_details={"retryable": _retryable(code)},
+                    error_details=error_details,
                 )
             else:
                 failed = await self.repository.mark_run_failed(
                     run=refreshed,
                     completed_at=completed_at,
                     error_code=code,
-                    error_details={"retryable": _retryable(code)},
+                    error_details=error_details,
                     lease_token=self._lease_token,
                 )
             await self.repository.append_event(
                 run_id=run.id,
                 event_type="run.failed",
-                payload={"code": code, "retryable": _retryable(code)},
+                payload={"code": code, "retryable": should_retry},
             )
             await self._checkpoint_unlocked(expected_statuses=("failed",))
             return failed
@@ -1280,9 +1304,32 @@ def _retryable(code: str) -> bool:
         "context_token_counter_timeout",
         "model_provider_error",
         "model_provider_timeout",
+        "model_provider_unavailable",
+        "model_rate_limited",
         "product_backend_timeout",
         "product_backend_unavailable",
     }
+
+
+def _provider_failure_details(exc: ApiError) -> dict[str, Any]:
+    details: dict[str, Any] = {}
+    provider = exc.details.get("provider")
+    if isinstance(provider, str) and 0 < len(provider) <= 64:
+        details["provider"] = provider
+    provider_status = exc.details.get("provider_status")
+    if (
+        isinstance(provider_status, int)
+        and not isinstance(provider_status, bool)
+        and 100 <= provider_status <= 599
+    ):
+        details["provider_status"] = provider_status
+    provider_request_id = exc.details.get("provider_request_id")
+    if (
+        isinstance(provider_request_id, str)
+        and 0 < len(provider_request_id) <= 256
+    ):
+        details["provider_request_id"] = provider_request_id
+    return details
 
 
 def _utcnow() -> datetime:

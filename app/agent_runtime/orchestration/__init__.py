@@ -8,7 +8,10 @@ from .contracts import (
     ToolNamespaceDefinition,
 )
 from .loop import AgentLoop, TransientDeltaPublisher
-from .openai_agents import OpenAIAgentsExecutionEngine
+from .openai_agents import (
+    OpenAIAgentsExecutionEngine,
+    ResponsesAgentsExecutionEngine,
+)
 
 __all__ = [
     "AgentDefinition",
@@ -17,6 +20,7 @@ __all__ = [
     "AgentExecutionResult",
     "AgentLoop",
     "OpenAIAgentsExecutionEngine",
+    "ResponsesAgentsExecutionEngine",
     "RuntimeDefinition",
     "ToolCatalog",
     "ToolNamespaceDefinition",

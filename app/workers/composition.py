@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 import httpx
-from openai import AsyncOpenAI
-from agents.models.openai_responses import OpenAIResponsesModel
 
 from app.bootstrap import (
     RUNTIME_DEFINITION,
@@ -27,12 +25,14 @@ from app.agent_runtime.events import RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
     AgentLoop,
-    OpenAIAgentsExecutionEngine,
+    ResponsesAgentsExecutionEngine,
 )
 from app.agent_runtime.providers import (
-    OpenAIContextCompactor,
-    OpenAIContextTokenCounter,
-    openai_responses_profile,
+    AzureOpenAIResponsesProviderConfig,
+    ModelProviderRuntimeConfig,
+    OpenAIResponsesProviderConfig,
+    ProviderRuntimeBundle,
+    create_model_provider_runtime,
 )
 from app.agent_runtime.runs import (
     AdmissionReleasingProcessor,
@@ -43,7 +43,7 @@ from app.agent_runtime.tools import (
     ToolExecutor,
     TrustedToolArgumentsProvider,
 )
-from app.core.settings import get_settings
+from app.core.settings import Settings, get_settings
 from app.infrastructure.db import create_db_engine, create_session_factory
 from app.infrastructure.product_backend import ProductBackendClient
 from app.infrastructure.object_storage import S3CompatibleObjectStore
@@ -84,16 +84,6 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
         interval_seconds=settings.worker_heartbeat_interval_seconds,
         ttl_seconds=settings.worker_heartbeat_ttl_seconds,
     )
-    openai_kwargs: dict[str, Any] = {
-        "api_key": settings.openai_api_key,
-        "timeout": settings.agent_model_timeout_seconds,
-    }
-    if settings.openai_base_url:
-        openai_kwargs["base_url"] = settings.openai_base_url
-    provider_profile = openai_responses_profile(
-        model=settings.openai_model,
-        base_url=settings.openai_base_url,
-    )
     output_store = (
         S3CompatibleObjectStore(
             bucket=settings.runtime_output_store_bucket,
@@ -108,26 +98,26 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
         if settings.runtime_output_store_bucket
         else None
     )
+    provider_runtime: ProviderRuntimeBundle | None = None
     try:
+        provider_runtime = create_model_provider_runtime(
+            _model_provider_config(settings)
+        )
         async with (
             worker_heartbeat.maintain(),
             httpx.AsyncClient(
                 base_url=settings.product_backend_base_url,
                 timeout=settings.product_backend_timeout_seconds,
             ) as product_http,
-            AsyncOpenAI(**openai_kwargs) as openai_client,
         ):
             product_client = ProductBackendClient(
                 http_client=product_http,
                 service_key=settings.product_backend_service_key,
             )
             registry = build_runtime_tool_registry()
-            execution_engine = OpenAIAgentsExecutionEngine(
-                model=OpenAIResponsesModel(
-                    model=settings.openai_model,
-                    openai_client=openai_client,
-                ),
-                model_name=settings.openai_model,
+            execution_engine = ResponsesAgentsExecutionEngine(
+                model=provider_runtime.model,
+                model_name=provider_runtime.profile.model,
                 tool_registry=registry,
                 runtime=RUNTIME_DEFINITION,
                 runtime_contract_catalog=(
@@ -139,32 +129,16 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 max_output_tokens=(
                     settings.agent_model_max_output_tokens
                 ),
-                reasoning_effort=(
-                    settings.openai_reasoning_effort
-                ),
-                text_verbosity=settings.openai_text_verbosity,
-                store=settings.openai_responses_store,
-                base_url=settings.openai_base_url,
+                reasoning_effort=settings.agent_model_reasoning_effort,
+                text_verbosity=settings.agent_model_text_verbosity,
+                store=settings.agent_model_store,
+                base_url=provider_runtime.profile.base_url,
                 timeout_seconds=(
                     settings.agent_model_timeout_seconds
                 ),
-                provider_profile=provider_profile,
-            )
-            context_token_counter = OpenAIContextTokenCounter(
-                client=openai_client,
-                model=settings.openai_model,
-                timeout_seconds=(
-                    settings.agent_model_timeout_seconds
-                ),
-            )
-            context_compactor = OpenAIContextCompactor(
-                client=openai_client,
-                model=settings.openai_model,
-                reasoning_effort=settings.openai_reasoning_effort,
-                text_verbosity=settings.openai_text_verbosity,
-                timeout_seconds=(
-                    settings.agent_model_timeout_seconds
-                ),
+                provider_profile=provider_runtime.profile,
+                request_policy=provider_runtime.request_policy,
+                provider_error_mapper=provider_runtime.error_mapper,
             )
 
             def context_compaction_service(
@@ -180,10 +154,11 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 )
                 return ContextCompactionService(
                     repository=repository,
-                    token_counter=context_token_counter,
-                    compactor=context_compactor,
+                    token_counter=provider_runtime.token_counter,
+                    compactor=provider_runtime.compactor,
                     model_input_resolver=resolver,
-                    model=settings.openai_model,
+                    provider=provider_runtime.profile.provider_id,
+                    model=provider_runtime.profile.model,
                     threshold_tokens=(
                         settings.agent_context_compaction_threshold_tokens
                     ),
@@ -300,5 +275,44 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 ),
             )
     finally:
-        await close_redis_client(redis_client)
-        await engine.dispose()
+        try:
+            if provider_runtime is not None:
+                await provider_runtime.aclose()
+        finally:
+            try:
+                await close_redis_client(redis_client)
+            finally:
+                await engine.dispose()
+
+
+def _model_provider_config(settings: Settings) -> ModelProviderRuntimeConfig:
+    if settings.agent_model_provider == "openai_responses":
+        return OpenAIResponsesProviderConfig(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            base_url=settings.openai_base_url,
+            timeout_seconds=settings.agent_model_timeout_seconds,
+            reasoning_effort=settings.agent_model_reasoning_effort,
+            text_verbosity=settings.agent_model_text_verbosity,
+        )
+    if settings.agent_model_provider == "azure_openai_responses":
+        return AzureOpenAIResponsesProviderConfig(
+            endpoint=settings.azure_openai_endpoint,
+            auth_mode=settings.azure_openai_auth_mode,
+            api_key=settings.azure_openai_api_key,
+            deployment=settings.azure_openai_deployment,
+            model_family=settings.azure_openai_model_family,
+            model_version=settings.azure_openai_model_version,
+            region=settings.azure_openai_region,
+            deployment_type=settings.azure_openai_deployment_type,
+            token_scope=settings.azure_openai_token_scope,
+            token_estimator_safety_factor=(
+                settings.azure_openai_token_estimator_safety_factor
+            ),
+            timeout_seconds=settings.agent_model_timeout_seconds,
+            reasoning_effort=settings.agent_model_reasoning_effort,
+            text_verbosity=settings.agent_model_text_verbosity,
+        )
+    raise ValueError(
+        f"unsupported model provider: {settings.agent_model_provider}"
+    )

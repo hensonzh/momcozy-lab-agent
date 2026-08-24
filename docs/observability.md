@@ -27,11 +27,12 @@ of truth. This avoids exporting Prompt, user content, or Tool payloads through
 an independent tracing path.
 
 Every provider model turn is preceded by
-`agent_runtime_model_request_budget`. It counts the final materialized input and
-the exact provider Tool schemas, then reserves the configured response budget.
+`agent_runtime_model_request_budget`. It measures the final materialized input
+and provider Tool schemas using the configured exact or conservative counter,
+then reserves the configured response budget.
 An `outcome="exceeded"` record precedes durable compaction recovery or an
 explicit `model_context_budget_exceeded`/`recent_context_exceeds_limit`
-failure. The latter means the protected 10 completed-Run tail cannot be reduced
+failure. The latter means the protected 5 completed-Run tail cannot be reduced
 without violating the history contract.
 
 Deterministic safety escalations are persisted as versioned `safety.decision`

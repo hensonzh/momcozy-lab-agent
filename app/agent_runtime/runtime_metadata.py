@@ -39,6 +39,9 @@ ReplaySchemaVersion: TypeAlias = Literal["agent_run_replay.v1"]
 ResponseQualityRubricVersion: TypeAlias = Literal[
     "momcozy.response_quality.v1"
 ]
+ModelProviderContractVersion: TypeAlias = Literal[
+    "agent.model_provider.v1"
+]
 
 RUNTIME_METADATA_SCHEMA_VERSION: Final[RuntimeMetadataSchemaVersion] = (
     "agent.runtime_metadata.v1"
@@ -65,6 +68,9 @@ RUN_EXECUTION_MANIFEST_SCHEMA_VERSION: Final = (
     "agent_run_execution_manifest.v1"
 )
 MODEL_CONTEXT_SCHEMA_VERSION: Final = "agent.model_context.v1"
+MODEL_PROVIDER_CONTRACT_VERSION: Final[ModelProviderContractVersion] = (
+    "agent.model_provider.v1"
+)
 TEXT_STREAM_SCHEMA_VERSION: Final = "append-only.v1"
 
 AUTHORIZATION_CONTEXT_SCHEMA_VERSION: Final = (
@@ -131,6 +137,9 @@ def runtime_metadata_snapshot() -> dict[str, str | int]:
             RUN_EXECUTION_MANIFEST_SCHEMA_VERSION
         ),
         "model_context_schema_version": MODEL_CONTEXT_SCHEMA_VERSION,
+        "model_provider_contract_version": (
+            MODEL_PROVIDER_CONTRACT_VERSION
+        ),
         "text_stream_schema_version": TEXT_STREAM_SCHEMA_VERSION,
         "authorization_context_schema_version": (
             AUTHORIZATION_CONTEXT_SCHEMA_VERSION
@@ -282,6 +291,7 @@ __all__ = [
     "MATERIALIZER_VERSION",
     "MODEL_CONTEXT_SCHEMA_VERSION",
     "MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION",
+    "MODEL_PROVIDER_CONTRACT_VERSION",
     "PROPRIETARY_RUNTIME_PATTERN",
     "RECENT_COMPLETED_RUN_LIMIT",
     "REPLAY_SCHEMA_VERSION",
@@ -301,6 +311,7 @@ __all__ = [
     "BehaviorSuiteSchemaVersion",
     "BusinessContextSchemaVersion",
     "ContextEvalSchemaVersion",
+    "ModelProviderContractVersion",
     "ReplaySchemaVersion",
     "ResponseQualityRubricVersion",
     "ToolContractSchemaVersion",

@@ -28,6 +28,7 @@ from app.agent_runtime.runtime_metadata import (
     MATERIALIZER_VERSION,
     MODEL_CONTEXT_SCHEMA_VERSION,
     MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
+    MODEL_PROVIDER_CONTRACT_VERSION,
     REPLAY_SCHEMA_VERSION,
     RECENT_COMPLETED_RUN_LIMIT,
     RESPONSE_QUALITY_RUBRIC_VERSION,
@@ -82,6 +83,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "context_token_counter": TOKEN_COUNTER_VERSION,
         "model_context": MODEL_CONTEXT_SCHEMA_VERSION,
         "model_execution_manifest": MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION,
+        "model_provider_contract": MODEL_PROVIDER_CONTRACT_VERSION,
         "replay": REPLAY_SCHEMA_VERSION,
         "response_quality_rubric": RESPONSE_QUALITY_RUBRIC_VERSION,
         "run_execution_manifest": RUN_EXECUTION_MANIFEST_SCHEMA_VERSION,
@@ -113,6 +115,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "context_token_counter": "v1",
         "model_context": "agent.model_context.v1",
         "model_execution_manifest": "agent_model_execution.v1",
+        "model_provider_contract": "agent.model_provider.v1",
         "replay": "agent_run_replay.v1",
         "response_quality_rubric": "momcozy.response_quality.v1",
         "run_execution_manifest": "agent_run_execution_manifest.v1",
@@ -146,6 +149,9 @@ def test_runtime_metadata_is_the_canonical_version_source() -> None:
     )
     assert metadata["model_execution_manifest_schema_version"] == (
         MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
+    )
+    assert metadata["model_provider_contract_version"] == (
+        MODEL_PROVIDER_CONTRACT_VERSION
     )
     assert metadata["run_execution_manifest_schema_version"] == (
         RUN_EXECUTION_MANIFEST_SCHEMA_VERSION

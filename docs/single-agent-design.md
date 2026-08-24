@@ -12,7 +12,7 @@ agent-as-tool 路径。
 
 - 自研 durable `AgentLoop` 继续负责 Run 租约、追加式账本、Action 确认、
   崩溃恢复、Context Pipeline、最终消息和业务审计。
-- `OpenAIAgentsExecutionEngine` 使用 OpenAI Agents SDK 的单个 `Agent`、
+- `ResponsesAgentsExecutionEngine` 使用 OpenAI Agents SDK 的单个 `Agent`、
   `Runner`、`FunctionTool`、`ToolSearchTool`、namespace 和生命周期 Hook，
   负责一次执行中的模型—工具 loop。
 - Runtime 账本仍是唯一恢复事实源；不启用 SDK `Session`，也不使用 provider
@@ -113,7 +113,7 @@ Backend 没有尿布记录和版本化生长参考契约，因此 Runtime 不注
 
 1. `AgentLoop` 从追加式账本恢复当前 Run 输入，并先补执行已经落账但尚无
    output 的普通 Tool call。
-2. `OpenAIAgentsExecutionEngine` 从 `RuntimeDefinition.agent` 创建且只创建一个
+2. `ResponsesAgentsExecutionEngine` 从 `RuntimeDefinition.agent` 创建且只创建一个
    SDK Agent；执行接口不接受起始 Agent 名称。
 3. Skill loader 常驻；`ToolSearchTool` 与五个 deferred namespace 提供业务
    Tool 的渐进发现。

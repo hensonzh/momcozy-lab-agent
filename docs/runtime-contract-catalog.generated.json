@@ -366,7 +366,7 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "bd780da30d1aaa94bbfca004a905c04346e4c425bbc6f814462c06101fbfb3be"
   },
-  "catalog_sha256": "3f137c74d10c948b39ae6fff44c3f0f651239fc23699bf9fea73e80e6c9f32e7",
+  "catalog_sha256": "7aa276481ac16f7b57c3e5c26088d195fbc68c1cbd29898b28256f1205f146a7",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -385,6 +385,7 @@
     "context_token_counter_version": "v1",
     "model_context_schema_version": "agent.model_context.v1",
     "model_execution_manifest_schema_version": "agent_model_execution.v1",
+    "model_provider_contract_version": "agent.model_provider.v1",
     "replay_schema_version": "agent_run_replay.v1",
     "run_execution_manifest_schema_version": "agent_run_execution_manifest.v1",
     "runtime_contract_catalog_schema_version": "agent.runtime_contract_catalog.v1",

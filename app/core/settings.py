@@ -11,7 +11,7 @@ from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 VALID_APP_ENVS = {"local", "test", "staging", "production"}
 PRODUCTION_ENVS = {"production"}
-OPENAI_REASONING_EFFORTS = {
+MODEL_REASONING_EFFORTS = {
     "none",
     "low",
     "medium",
@@ -19,12 +19,26 @@ OPENAI_REASONING_EFFORTS = {
     "xhigh",
     "max",
 }
-SUPPORTED_AGENT_MODEL_PROVIDERS = {"openai_responses"}
+SUPPORTED_AGENT_MODEL_PROVIDERS = {
+    "azure_openai_responses",
+    "openai_responses",
+}
+AZURE_OPENAI_AUTH_MODES = {"api_key", "entra"}
+AZURE_OPENAI_DEPLOYMENT_TYPES = {
+    "data_zone_provisioned_managed",
+    "data_zone_standard",
+    "global_provisioned_managed",
+    "global_standard",
+    "provisioned_managed",
+    "regional_provisioned_managed",
+    "standard",
+}
 KNOWN_SECRET_PLACEHOLDERS = frozenset(
     {
         "replace-with-a-random-service-key-of-at-least-32-bytes",
         "replace-with-a-random-runtime-admin-service-key-of-at-least-32-bytes",
         "replace-with-openai-api-key",
+        "replace-with-azure-openai-api-key",
         "replace-me",
     }
 )
@@ -72,9 +86,19 @@ class Settings:
     openai_base_url: str = ""
     openai_responses_compatible_base_url: bool = False
     openai_model: str = "gpt-5.6-terra"
-    openai_reasoning_effort: str = "low"
-    openai_text_verbosity: str = "low"
-    openai_responses_store: bool = False
+    azure_openai_endpoint: str = ""
+    azure_openai_auth_mode: str = "entra"
+    azure_openai_api_key: str = ""
+    azure_openai_deployment: str = ""
+    azure_openai_model_family: str = "gpt-5.6-terra"
+    azure_openai_model_version: str = ""
+    azure_openai_region: str = ""
+    azure_openai_deployment_type: str = "standard"
+    azure_openai_token_scope: str = "https://ai.azure.com/.default"
+    azure_openai_token_estimator_safety_factor: float = 1.25
+    agent_model_reasoning_effort: str = "low"
+    agent_model_text_verbosity: str = "low"
+    agent_model_store: bool = False
     agent_max_turns: int = 10
     agent_model_timeout_seconds: float = 60.0
     agent_model_max_output_tokens: int = 8_000
@@ -218,17 +242,64 @@ class Settings:
                 cls.openai_responses_compatible_base_url,
             ),
             openai_model=_env("OPENAI_MODEL", cls.openai_model),
-            openai_reasoning_effort=_env(
-                "OPENAI_REASONING_EFFORT",
-                cls.openai_reasoning_effort,
+            azure_openai_endpoint=_env(
+                "AZURE_OPENAI_ENDPOINT",
+                cls.azure_openai_endpoint,
+            ).rstrip("/"),
+            azure_openai_auth_mode=_env(
+                "AZURE_OPENAI_AUTH_MODE",
+                cls.azure_openai_auth_mode,
             ).lower(),
-            openai_text_verbosity=_env(
-                "OPENAI_TEXT_VERBOSITY",
-                cls.openai_text_verbosity,
+            azure_openai_api_key=_env(
+                "AZURE_OPENAI_API_KEY",
+                cls.azure_openai_api_key,
+            ),
+            azure_openai_deployment=_env(
+                "AZURE_OPENAI_DEPLOYMENT",
+                cls.azure_openai_deployment,
+            ),
+            azure_openai_model_family=_env(
+                "AZURE_OPENAI_MODEL_FAMILY",
+                cls.azure_openai_model_family,
+            ),
+            azure_openai_model_version=_env(
+                "AZURE_OPENAI_MODEL_VERSION",
+                cls.azure_openai_model_version,
+            ),
+            azure_openai_region=_env(
+                "AZURE_OPENAI_REGION",
+                cls.azure_openai_region,
             ).lower(),
-            openai_responses_store=_env_bool(
+            azure_openai_deployment_type=_env(
+                "AZURE_OPENAI_DEPLOYMENT_TYPE",
+                cls.azure_openai_deployment_type,
+            ).lower(),
+            azure_openai_token_scope=_env(
+                "AZURE_OPENAI_TOKEN_SCOPE",
+                cls.azure_openai_token_scope,
+            ),
+            azure_openai_token_estimator_safety_factor=_env_float(
+                "AZURE_OPENAI_TOKEN_ESTIMATOR_SAFETY_FACTOR",
+                cls.azure_openai_token_estimator_safety_factor,
+            ),
+            agent_model_reasoning_effort=_env(
+                "AGENT_MODEL_REASONING_EFFORT",
+                _env(
+                    "OPENAI_REASONING_EFFORT",
+                    cls.agent_model_reasoning_effort,
+                ),
+            ).lower(),
+            agent_model_text_verbosity=_env(
+                "AGENT_MODEL_TEXT_VERBOSITY",
+                _env(
+                    "OPENAI_TEXT_VERBOSITY",
+                    cls.agent_model_text_verbosity,
+                ),
+            ).lower(),
+            agent_model_store=_env_bool_with_fallback(
+                "AGENT_MODEL_STORE",
                 "OPENAI_RESPONSES_STORE",
-                cls.openai_responses_store,
+                cls.agent_model_store,
             ),
             agent_max_turns=_env_int(
                 "AGENT_MAX_TURNS",
@@ -338,7 +409,7 @@ class Settings:
             )
         if self.api_max_request_body_bytes <= 0 or self.api_max_request_body_bytes > 1024 * 1024:
             errors.append("API_MAX_REQUEST_BODY_BYTES must be between 1 and 1048576")
-        for name, value in (
+        for name, float_value in (
             (
                 "AGENT_RUN_OWNER_RATE_LIMIT",
                 self.agent_run_owner_rate_limit,
@@ -356,7 +427,7 @@ class Settings:
                 self.agent_run_owner_active_ttl_seconds,
             ),
         ):
-            if value <= 0:
+            if float_value <= 0:
                 errors.append(f"{name} must be positive")
         minimum_active_ttl_seconds = max(
             ACTION_CONFIRMATION_TTL_SECONDS,
@@ -455,50 +526,121 @@ class Settings:
         errors: list[str] = []
         if self.agent_model_provider not in SUPPORTED_AGENT_MODEL_PROVIDERS:
             errors.append(
-                "AGENT_MODEL_PROVIDER must be one of: openai_responses"
+                "AGENT_MODEL_PROVIDER must be one of: "
+                "azure_openai_responses, openai_responses"
             )
-        if not self.openai_api_key:
-            errors.append("OPENAI_API_KEY is required for the Agent worker")
-        elif _is_placeholder_secret(self.openai_api_key):
-            errors.append("OPENAI_API_KEY must not use a placeholder value")
-        if not self.openai_model:
-            errors.append("OPENAI_MODEL is required")
-        if self.openai_base_url:
-            parsed_openai_url = urlparse(self.openai_base_url)
-            if (
-                parsed_openai_url.scheme not in {"http", "https"}
-                or not parsed_openai_url.netloc
-                or parsed_openai_url.username is not None
-                or parsed_openai_url.password is not None
-                or bool(parsed_openai_url.query)
-                or bool(parsed_openai_url.fragment)
+        if self.agent_model_provider == "openai_responses":
+            if not self.openai_api_key:
+                errors.append(
+                    "OPENAI_API_KEY is required for the Agent worker"
+                )
+            elif _is_placeholder_secret(self.openai_api_key):
+                errors.append(
+                    "OPENAI_API_KEY must not use a placeholder value"
+                )
+            if not self.openai_model:
+                errors.append("OPENAI_MODEL is required")
+            if self.openai_base_url:
+                parsed_openai_url = urlparse(self.openai_base_url)
+                if not _is_safe_provider_url(parsed_openai_url):
+                    errors.append(
+                        "OPENAI_BASE_URL must be an absolute HTTP(S) URL "
+                        "without credentials, query, or fragment"
+                    )
+                if not self.openai_responses_compatible_base_url:
+                    errors.append(
+                        "OPENAI_RESPONSES_COMPATIBLE_BASE_URL must be true "
+                        "for a custom OPENAI_BASE_URL"
+                    )
+                if self.is_production and (
+                    parsed_openai_url.scheme != "https"
+                    or _is_loopback_host(parsed_openai_url.hostname)
+                ):
+                    errors.append(
+                        "OPENAI_BASE_URL must be an explicit non-loopback "
+                        "HTTPS URL in production"
+                    )
+        if self.agent_model_provider == "azure_openai_responses":
+            parsed_azure_url = urlparse(self.azure_openai_endpoint)
+            if not self.azure_openai_endpoint:
+                errors.append("AZURE_OPENAI_ENDPOINT is required")
+            elif (
+                not _is_safe_provider_url(parsed_azure_url)
+                or not parsed_azure_url.path.rstrip("/").endswith(
+                    "/openai/v1"
+                )
             ):
                 errors.append(
-                    "OPENAI_BASE_URL must be an absolute HTTP(S) URL "
-                    "without credentials, query, or fragment"
-                )
-            if not self.openai_responses_compatible_base_url:
-                errors.append(
-                    "OPENAI_RESPONSES_COMPATIBLE_BASE_URL must be true "
-                    "for a custom OPENAI_BASE_URL"
+                    "AZURE_OPENAI_ENDPOINT must be an absolute Azure "
+                    "OpenAI /openai/v1 HTTP(S) URL without credentials, "
+                    "query, or fragment"
                 )
             if self.is_production and (
-                parsed_openai_url.scheme != "https"
-                or _is_loopback_host(parsed_openai_url.hostname)
+                parsed_azure_url.scheme != "https"
+                or _is_loopback_host(parsed_azure_url.hostname)
             ):
                 errors.append(
-                    "OPENAI_BASE_URL must be an explicit non-loopback "
-                    "HTTPS URL in production"
+                    "AZURE_OPENAI_ENDPOINT must be an explicit "
+                    "non-loopback HTTPS URL in production"
+                )
+            if self.azure_openai_auth_mode not in AZURE_OPENAI_AUTH_MODES:
+                errors.append(
+                    "AZURE_OPENAI_AUTH_MODE must be one of: api_key, entra"
+                )
+            if self.azure_openai_auth_mode == "api_key":
+                if not self.azure_openai_api_key:
+                    errors.append(
+                        "AZURE_OPENAI_API_KEY is required for api_key auth"
+                    )
+                elif _is_placeholder_secret(self.azure_openai_api_key):
+                    errors.append(
+                        "AZURE_OPENAI_API_KEY must not use a placeholder value"
+                    )
+            elif self.azure_openai_api_key:
+                errors.append(
+                    "AZURE_OPENAI_API_KEY must be empty for entra auth"
+                )
+            for name, value in (
+                ("AZURE_OPENAI_DEPLOYMENT", self.azure_openai_deployment),
+                (
+                    "AZURE_OPENAI_MODEL_FAMILY",
+                    self.azure_openai_model_family,
+                ),
+                (
+                    "AZURE_OPENAI_MODEL_VERSION",
+                    self.azure_openai_model_version,
+                ),
+                ("AZURE_OPENAI_REGION", self.azure_openai_region),
+                (
+                    "AZURE_OPENAI_TOKEN_SCOPE",
+                    self.azure_openai_token_scope,
+                ),
+            ):
+                if not value:
+                    errors.append(f"{name} is required")
+            if self.azure_openai_token_scope and not _is_safe_token_scope(
+                self.azure_openai_token_scope
+            ):
+                errors.append("AZURE_OPENAI_TOKEN_SCOPE is invalid")
+            if (
+                self.azure_openai_deployment_type
+                not in AZURE_OPENAI_DEPLOYMENT_TYPES
+            ):
+                errors.append("AZURE_OPENAI_DEPLOYMENT_TYPE is invalid")
+            if self.azure_openai_token_estimator_safety_factor < 1:
+                errors.append(
+                    "AZURE_OPENAI_TOKEN_ESTIMATOR_SAFETY_FACTOR must be "
+                    "at least 1"
                 )
         if self.is_production and not self.runtime_output_store_bucket:
             errors.append(
                 "RUNTIME_OUTPUT_STORE_BUCKET is required for the "
                 "Agent worker in production"
             )
-        if self.openai_reasoning_effort not in OPENAI_REASONING_EFFORTS:
-            errors.append("OPENAI_REASONING_EFFORT is invalid")
-        if self.openai_text_verbosity not in {"low", "medium", "high"}:
-            errors.append("OPENAI_TEXT_VERBOSITY is invalid")
+        if self.agent_model_reasoning_effort not in MODEL_REASONING_EFFORTS:
+            errors.append("AGENT_MODEL_REASONING_EFFORT is invalid")
+        if self.agent_model_text_verbosity not in {"low", "medium", "high"}:
+            errors.append("AGENT_MODEL_TEXT_VERBOSITY is invalid")
         for name, timing_value in (
             ("AGENT_MAX_TURNS", self.agent_max_turns),
             (
@@ -538,7 +680,7 @@ class Settings:
         ):
             if timing_value <= 0:
                 errors.append(f"{name} must be positive")
-        for name, value in (
+        for timing_name, timing_seconds in (
             (
                 "AGENT_MODEL_TIMEOUT_SECONDS",
                 self.agent_model_timeout_seconds,
@@ -560,8 +702,8 @@ class Settings:
                 self.agent_action_expiry_scan_interval_seconds,
             ),
         ):
-            if value <= 0:
-                errors.append(f"{name} must be positive")
+            if timing_seconds <= 0:
+                errors.append(f"{timing_name} must be positive")
         if self.agent_worker_db_lease_renew_interval_seconds * 2 >= self.agent_worker_db_lease_duration_seconds:
             errors.append("AGENT_WORKER_DB_LEASE_RENEW_INTERVAL_SECONDS must be less than half AGENT_WORKER_DB_LEASE_DURATION_SECONDS")
         if (
@@ -653,6 +795,17 @@ def _env_bool(name: str, default: bool) -> bool:
     raise ValueError(f"{name} must be a boolean")
 
 
+def _env_bool_with_fallback(
+    name: str,
+    fallback_name: str,
+    default: bool,
+) -> bool:
+    raw = os.getenv(name)
+    if raw is not None and raw.strip():
+        return _env_bool(name, default)
+    return _env_bool(fallback_name, default)
+
+
 def _is_loopback_host(hostname: str | None) -> bool:
     normalized = str(hostname or "").rstrip(".").lower()
     if not normalized or normalized == "localhost" or normalized.endswith(".localhost"):
@@ -662,6 +815,30 @@ def _is_loopback_host(hostname: str | None) -> bool:
     except ValueError:
         return False
     return address.is_loopback or address.is_unspecified
+
+
+def _is_safe_provider_url(parsed: object) -> bool:
+    return bool(
+        getattr(parsed, "scheme", "") in {"http", "https"}
+        and getattr(parsed, "netloc", "")
+        and getattr(parsed, "username", None) is None
+        and getattr(parsed, "password", None) is None
+        and not getattr(parsed, "query", "")
+        and not getattr(parsed, "fragment", "")
+    )
+
+
+def _is_safe_token_scope(value: str) -> bool:
+    parsed = urlparse(value)
+    return bool(
+        parsed.scheme == "https"
+        and parsed.netloc
+        and parsed.path.endswith("/.default")
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 def _is_placeholder_secret(value: str) -> bool:

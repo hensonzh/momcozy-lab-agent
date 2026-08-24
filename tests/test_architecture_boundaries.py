@@ -214,6 +214,18 @@ def test_application_delivery_and_composition_are_outside_runtime() -> None:
     )
 
 
+def test_provider_runtime_does_not_read_application_settings() -> None:
+    provider_source = (
+        REPOSITORY_ROOT
+        / "app"
+        / "agent_runtime"
+        / "providers"
+        / "runtime.py"
+    ).read_text(encoding="utf-8")
+
+    assert "app.core.settings" not in provider_source
+
+
 def test_fact_and_memory_background_features_are_removed() -> None:
     assert [
         relative_path

@@ -280,6 +280,7 @@ class ContextCompactionService:
         compactor: ContextCompactor,
         model_input_resolver: Any,
         model: str,
+        provider: str = "openai_responses",
         threshold_tokens: int = 100_000,
         summary_max_tokens: int = 2_000,
         response_reserve_tokens: int = 8_000,
@@ -302,10 +303,13 @@ class ContextCompactionService:
             )
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
+        if not provider.strip():
+            raise ValueError("provider must not be empty")
         self.repository = repository
         self.token_counter = token_counter
         self.compactor = compactor
         self.model_input_resolver = model_input_resolver
+        self.provider = provider
         self.model = model
         self.threshold_tokens = threshold_tokens
         self.summary_max_tokens = summary_max_tokens
@@ -407,7 +411,7 @@ class ContextCompactionService:
             outcome="queued" if job is not None else "within_threshold",
             started_at=started_at,
             dimensions={
-                "provider": "openai",
+                "provider": self.provider,
                 "model": self.model,
                 "run_id": str(run.id),
                 "thread_id": str(run.thread_id),
@@ -492,7 +496,7 @@ class ContextCompactionService:
             outcome="within_budget" if within_budget else "exceeded",
             started_at=started_at,
             dimensions={
-                "provider": "openai",
+                "provider": self.provider,
                 "model": self.model,
                 "run_id": str(run.id),
                 "thread_id": str(run.thread_id),
@@ -690,7 +694,7 @@ class ContextCompactionService:
                 outcome="error",
                 started_at=started_at,
                 dimensions={
-                    "provider": "openai",
+                    "provider": self.provider,
                     "model": str(job.model),
                     "thread_id": str(job.thread_id),
                 },
@@ -705,7 +709,7 @@ class ContextCompactionService:
             outcome="completed",
             started_at=started_at,
             dimensions={
-                "provider": "openai",
+                "provider": self.provider,
                 "model": str(job.model),
                 "thread_id": str(job.thread_id),
             },
