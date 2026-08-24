@@ -111,17 +111,19 @@ jobs:
             -f docker-compose.ci.yml \
             config --quiet
 
-      - name: Validate production Compose configuration
-        env:
-          MOMCOZY_AGENT_IMAGE: momcozy-lab-agent:ci
-          MOMCOZY_AGENT_ENV_FILE: env/compose.production.env.example
-        run: docker compose -f docker-compose.production.yml config --quiet
-
       - name: Validate staging Compose configuration
         env:
           MOMCOZY_AGENT_IMAGE: momcozy-lab-agent:staging
           MOMCOZY_AGENT_ENV_FILE: env/compose.staging.env.example
-        run: docker compose -f docker-compose.staging.yml config --quiet
+          MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD: ci-agent-postgres-password
+          MOMCOZY_STAGING_REDIS_PASSWORD: ci-redis-password
+          MOMCOZY_STAGING_MINIO_ROOT_USER: ci-minio-user
+          MOMCOZY_STAGING_MINIO_ROOT_PASSWORD: ci-minio-password
+        run: >-
+          docker compose
+          --env-file env/compose.staging.env.example
+          -f docker-compose.staging.yml
+          config --quiet
 
       - name: Build Compose image
         run: docker compose -f docker-compose.local.yml build api

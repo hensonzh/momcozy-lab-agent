@@ -4,34 +4,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ENV = ROOT / "env" / "compose.local.env.example"
 STAGING_ENV = ROOT / "env" / "compose.staging.env.example"
-PRODUCTION_ENV = ROOT / "env" / "compose.production.env.example"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-ci.yml"
 CI_COMPOSE = ROOT / "docker-compose.ci.yml"
 CI_JWKS = ROOT / "tests" / "fixtures" / "jwks" / ".well-known" / "jwks.json"
 LOCAL_COMPOSE = ROOT / "docker-compose.local.yml"
 STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
-PRODUCTION_COMPOSE = ROOT / "docker-compose.production.yml"
 
 
 def test_project_metadata_uses_agent_name() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text()
     local_compose = LOCAL_COMPOSE.read_text()
     staging_compose = STAGING_COMPOSE.read_text()
-    production_compose = PRODUCTION_COMPOSE.read_text()
 
     assert 'name = "agent"' in pyproject
     assert local_compose.startswith("name: momcozy-lab-agent-local\n")
     assert staging_compose.startswith("name: momcozy-lab-agent-staging\n")
-    assert production_compose.startswith("name: momcozy-lab-agent-production\n")
     assert "image: momcozy-lab-agent:local" in local_compose
     assert "${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}" in staging_compose
-    assert "MOMCOZY_AGENT_IMAGE" in production_compose
-    assert "MOMCOZY_AGENT_ENV_FILE" in (
-        local_compose + staging_compose + production_compose
-    )
-    assert "MOMCOZY_AGENT_RUNTIME_" not in (
-        local_compose + staging_compose + production_compose
-    )
+    assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + staging_compose
+    assert "MOMCOZY_AGENT_RUNTIME_" not in local_compose + staging_compose
+    assert not (ROOT / "docker-compose.production.yml").exists()
+    assert not (ROOT / "env" / "compose.production.env.example").exists()
     assert CI_WORKFLOW.exists()
     assert not (
         ROOT / ".github" / "workflows" / "agent-runtime-ci.yml"
@@ -53,7 +46,7 @@ def test_local_environment_declares_runtime_public_key_contract() -> None:
 
 
 def test_environment_examples_align_model_output_and_context_reserve() -> None:
-    for path in (LOCAL_ENV, STAGING_ENV, PRODUCTION_ENV):
+    for path in (LOCAL_ENV, STAGING_ENV):
         env = path.read_text()
         assert "AGENT_MODEL_MAX_OUTPUT_TOKENS=8000" in env
         assert "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS=8000" in env
@@ -94,7 +87,7 @@ def test_runtime_installs_and_documents_azure_provider_support() -> None:
     assert "AZURE_OPENAI_TOKEN_SCOPE=https://ai.azure.com/.default" in (
         provider_doc
     )
-    for path in (LOCAL_ENV, STAGING_ENV, PRODUCTION_ENV):
+    for path in (LOCAL_ENV, STAGING_ENV):
         env = path.read_text()
         assert "AGENT_MODEL_REASONING_EFFORT=low" in env
         assert "AGENT_MODEL_TEXT_VERBOSITY=low" in env
@@ -109,28 +102,6 @@ def test_runtime_image_contains_versioned_behavior_eval_catalog() -> None:
     assert "COPY --chown=app:app docs/contracts docs/contracts" in dockerfile
 
 
-def test_production_environment_declares_runtime_dependencies() -> None:
-    env = PRODUCTION_ENV.read_text()
-
-    for expected in (
-        "DATABASE_URL=",
-        "REDIS_URL=",
-        "PRODUCT_BACKEND_BASE_URL=https://",
-        "PRODUCT_BACKEND_SERVICE_KEY=${PRODUCT_BACKEND_SERVICE_KEY}",
-        "RUNTIME_ADMIN_SERVICE_KEY=${RUNTIME_ADMIN_SERVICE_KEY}",
-        "AUTH_JWKS_URL=https://",
-        "AUTH_JWT_ISSUER=momcozy-production",
-        "AUTH_JWT_AUDIENCE=momcozy-agent-runtime",
-        "OPENAI_API_KEY=${OPENAI_API_KEY}",
-        "AGENT_ACTION_EXPIRY_SCAN_INTERVAL_SECONDS=30",
-        "AGENT_ACTION_EXPIRY_BATCH_SIZE=64",
-        "WORKER_HEARTBEATS_REQUIRED=true",
-        "WORKER_HEARTBEAT_INTERVAL_SECONDS=10",
-        "WORKER_HEARTBEAT_TTL_SECONDS=30",
-    ):
-        assert expected in env
-
-
 def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     compose = STAGING_COMPOSE.read_text()
     env = STAGING_ENV.read_text()
@@ -142,17 +113,48 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     assert "APP_ENV=staging" in env
     assert "AUTH_JWT_ISSUER=momcozy-staging" in env
     assert "RUNTIME_OUTPUT_STORE_BUCKET=agent-runtime-staging" in env
+    assert "name: momcozy-lab-staging" in compose
+    assert "external: true" in compose
+    assert "\n  postgres:" not in compose
+    assert "\n  redis:" not in compose
+    assert "\n  minio:" not in compose
+    assert (
+        "DATABASE_URL=postgresql+asyncpg://agent_runtime_staging:"
+        "${MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD}"
+        "@staging-postgres:5432/agent_runtime_staging"
+    ) in env
+    assert (
+        "REDIS_URL=redis://:${MOMCOZY_STAGING_REDIS_PASSWORD}"
+        "@staging-redis:6379/1"
+    ) in env
+    assert "PRODUCT_BACKEND_BASE_URL=http://product-backend:8000" in env
+    assert (
+        "AUTH_JWKS_URL=http://product-backend:8000/.well-known/jwks.json"
+        in env
+    )
+    assert "RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://staging-minio:9000" in env
+    for required_secret in (
+        "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
+        "MOMCOZY_STAGING_REDIS_PASSWORD",
+        "MOMCOZY_STAGING_MINIO_ROOT_USER",
+        "MOMCOZY_STAGING_MINIO_ROOT_PASSWORD",
+    ):
+        assert f"${{{required_secret}:?" in compose
+        assert f'{required_secret}: ""' in compose
     assert not (ROOT / "docker-compose.test.yml").exists()
     assert not (ROOT / "env" / "compose.test.env.example").exists()
     assert not (ROOT / "docker-compose.prod.yml").exists()
     assert not (ROOT / "env" / "compose.prod.env.example").exists()
 
 
-def test_ci_validates_production_compose_and_offline_ops_entrypoints() -> None:
+def test_ci_validates_staging_compose_and_offline_ops_entrypoints() -> None:
     workflow = CI_WORKFLOW.read_text()
 
-    assert "docker compose -f docker-compose.production.yml config --quiet" in workflow
-    assert "docker compose -f docker-compose.staging.yml config --quiet" in workflow
+    assert "docker-compose.production.yml" not in workflow
+    assert "compose.production.env" not in workflow
+    assert "--env-file env/compose.staging.env.example" in workflow
+    assert "-f docker-compose.staging.yml" in workflow
+    assert "config --quiet" in workflow
     assert "-f docker-compose.ci.yml" in workflow
     assert "python scripts/check_product_backend_contract.py" in workflow
     assert "Verify release contracts inside the image" in workflow

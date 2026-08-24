@@ -1,6 +1,6 @@
 # Agent
 
-Independent production Agent service owned by the Agent team.
+Independent Agent service owned by the Agent team.
 
 ## Boundary
 
@@ -46,11 +46,11 @@ Flutter configures exactly one Agent origin through
 actions all derive their `/v1/agent/*` URLs from it. See
 [deployment.md](docs/deployment.md) for deployment and rollback.
 
-Environment names are fixed across runtime artifacts: `local` is developer
-work, `test` is reserved for automated tests/CI, `staging` is the shared
-internal server, and `production` is the real production deployment. The shared
-server therefore uses `docker-compose.staging.yml` together with
-`env/compose.staging.env`; it must not use a `test` or `production` profile.
+Environment names are fixed across current runtime artifacts: `local` is
+developer work, `test` is reserved for automated tests/CI, and `staging` is the
+shared internal server. The shared server uses `docker-compose.staging.yml`
+together with `env/compose.staging.env`; no production deployment profile is
+currently shipped.
 
 ## Local Run
 
@@ -80,11 +80,18 @@ Backend issuer; Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
 
 ```bash
 cp env/compose.staging.env.example env/compose.staging.env
-docker compose -f docker-compose.staging.yml up --build --detach api worker
+# Copy the matching Agent DB, Redis, and MinIO values from Backend's private
+# staging env, then start Backend staging first.
+docker compose --env-file env/compose.staging.env \
+  -f docker-compose.staging.yml up --build --detach api worker
 ```
 
 The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
 the adjacent `127.0.0.1:8001`. Port `8010` remains local-development-only.
+Agent joins the external `momcozy-lab-staging` network. Backend Compose owns the
+single PostgreSQL, Redis, and MinIO instances; Agent uses database
+`agent_runtime_staging`, Redis DB 1 with `agent-runtime:*` keys, and bucket
+`agent-runtime-staging`.
 
 The default on-host build tag is `momcozy-lab-agent:staging`. Release automation must
 override `MOMCOZY_AGENT_IMAGE` with the environment-neutral repository and an

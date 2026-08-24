@@ -2,9 +2,10 @@
 
 ## Boundary
 
-Agent Runtime owns its API, run worker, PostgreSQL, Redis, tools, actions,
-replay, and eval. Product Backend owns user and business data and exposes only
-typed internal APIs.
+Agent Runtime owns its API, run worker, Runtime database, Redis keys, tools,
+actions, replay, and eval. Product Backend owns user and business data and
+exposes only typed internal APIs. Backend staging Compose owns the shared
+PostgreSQL, Redis, and MinIO service instances.
 
 The two services use independent databases and release pipelines. Flutter
 configures the Runtime origin with `MOMCOZY_AGENT_API_BASE_URL`.
@@ -14,7 +15,8 @@ configures the Runtime origin with `MOMCOZY_AGENT_API_BASE_URL`.
 - `local`: developer-only Compose and local dependencies.
 - `test`: automated tests and CI only; never a shared server deployment.
 - `staging`: the shared internal server and Flutter staging flavor.
-- `production`: the real production deployment only.
+
+No production Compose/env profile is currently maintained.
 
 The environment token must agree across the Compose filename, private env
 filename, Compose project, and local build tag. Staging therefore uses
@@ -39,12 +41,12 @@ and checkpoints; it must not be backfilled from a mutable deployment alias.
 
 ## Release
 
-1. Provision dedicated PostgreSQL and Redis, Product internal API/JWKS access,
-   the outbound Product service key, the inbound Runtime admin service key, and
-   the model-provider secret.
-2. Validate the target environment Compose file: staging uses
-   `docker-compose.staging.yml`; production uses
-   `docker-compose.production.yml`.
+1. Start Backend staging first. It creates network `momcozy-lab-staging`, the
+   `agent_runtime_staging` database/role, Redis logical DB 1, and bucket
+   `agent-runtime-staging`. Copy the matching Agent DB, Redis, and MinIO values
+   into Agent's private `env/compose.staging.env`.
+2. Validate `docker-compose.staging.yml` with that private env and confirm the
+   Agent services join the external shared network.
    Before rolling out `agent_context_history_policy.v2`, stop new Run admission
    and drain queued, retry-wait, and running Context jobs created under `v1`;
    their source hashes intentionally include the history policy.
@@ -93,7 +95,8 @@ and checkpoints; it must not be backfilled from a mutable deployment alias.
     actual `usage.input_tokens`. Do not run two providers against the same
     durable worker queue during a cutover.
 
-For Runtime v1, deploy Product Backend before Runtime so refreshed JWTs contain
+For Runtime v1, deploy Product Backend before Runtime so the shared
+infrastructure/network exists and refreshed JWTs contain
 `agent:run` and capability permissions. The baseline migration requires an
 empty, independently resettable Runtime database; the exact drain/reset/rollout
 contract is in [runtime-v1.md](runtime-v1.md). Never reset Product data.
@@ -103,7 +106,7 @@ contract is in [runtime-v1.md](runtime-v1.md). Never reset Product data.
 - Roll back application images only when they support the current baseline.
 - Quiesce new runs and drain active runs plus
   queued/retry-wait/running context-compaction jobs before stopping workers.
-- Never point Product Backend and Agent Runtime at the same PostgreSQL
-  database.
+- They may share one PostgreSQL service, but never point Product Backend and
+  Agent Runtime at the same PostgreSQL database.
 - Database downgrade and cross-service data conversion are not rollback
   mechanisms; recreate resettable test databases or roll forward.

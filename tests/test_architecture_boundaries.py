@@ -43,7 +43,6 @@ RETIRED_FACT_MEMORY_ENTRYPOINT_MARKERS = {
     "app/infrastructure/redis/worker_heartbeat.py": ("fact-worker",),
     "docker-compose.local.yml": ("fact-worker:", "memory-consolidation:"),
     "docker-compose.staging.yml": ("fact-worker:", "memory-consolidation:"),
-    "docker-compose.production.yml": ("fact-worker:", "memory-consolidation:"),
 }
 
 
