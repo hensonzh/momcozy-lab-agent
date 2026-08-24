@@ -18,6 +18,7 @@ from app.agent_runtime.runtime_metadata import (
     TOKEN_COUNTER_VERSION,
 )
 from app.core.errors import ApiError
+from .contracts import ModelProviderErrorMapper
 
 TOKEN_COUNTER = "openai.responses.input_tokens"
 ESTIMATED_BYTES_PER_TOKEN = 3
@@ -76,12 +77,14 @@ class OpenAIContextTokenCounter:
         base_url: str = "",
         timeout_seconds: float = 60,
         client: Any | None = None,
+        error_mapper: ModelProviderErrorMapper | None = None,
     ) -> None:
         self.model = model
         self.api_key = api_key
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.client = client
+        self.error_mapper = error_mapper
 
     async def count(
         self,
@@ -124,6 +127,13 @@ class OpenAIContextTokenCounter:
         except ApiError:
             raise
         except Exception as exc:
+            mapped = (
+                self.error_mapper.map(exc)
+                if self.error_mapper is not None
+                else None
+            )
+            if mapped is not None:
+                raise mapped from exc
             raise ApiError(
                 code="context_token_counter_failed",
                 message="Context token counting failed.",
@@ -243,6 +253,7 @@ class ResponsesContextCompactor:
         text_verbosity: str = "low",
         timeout_seconds: float = 60,
         client: Any | None = None,
+        error_mapper: ModelProviderErrorMapper | None = None,
     ) -> None:
         self.model = model
         self.api_key = api_key
@@ -251,6 +262,7 @@ class ResponsesContextCompactor:
         self.text_verbosity = text_verbosity
         self.timeout_seconds = timeout_seconds
         self.client = client
+        self.error_mapper = error_mapper
 
     async def compact(
         self,
@@ -314,6 +326,13 @@ class ResponsesContextCompactor:
         except ApiError:
             raise
         except Exception as exc:
+            mapped = (
+                self.error_mapper.map(exc)
+                if self.error_mapper is not None
+                else None
+            )
+            if mapped is not None:
+                raise mapped from exc
             raise ApiError(
                 code="context_compaction_failed",
                 message="Context compaction failed.",

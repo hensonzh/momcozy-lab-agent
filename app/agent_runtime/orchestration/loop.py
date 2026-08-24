@@ -933,7 +933,7 @@ class AgentLoop:
             await self.repository.append_event(
                 run_id=run.id,
                 event_type="run.failed",
-                payload={"code": code, "retryable": should_retry},
+                payload={"code": code, **error_details},
             )
             await self._checkpoint_unlocked(expected_statuses=("failed",))
             return failed
@@ -1329,6 +1329,9 @@ def _provider_failure_details(exc: ApiError) -> dict[str, Any]:
         and 0 < len(provider_request_id) <= 256
     ):
         details["provider_request_id"] = provider_request_id
+    retry_after = exc.details.get("retry_after")
+    if isinstance(retry_after, str) and 0 < len(retry_after) <= 256:
+        details["retry_after"] = retry_after
     return details
 
 

@@ -119,6 +119,14 @@ request/context hashes in `agent_model_execution.v1` (aggregated by
 A provider is rejected unless it supports function tools, streaming,
 structured outputs, and tool search.
 
+The same canonical provider identity is pinned to every durable Context job and
+copied into its checkpoint. Context idempotency and worker compatibility also
+bind the token-counter identity, preventing queued work from being processed
+after an undeclared provider, deployment, or counter change. Provider failures
+share one normalized error contract across the main Agent call and Context
+provider calls; bounded retry hints survive in failed Runs and `run.failed`
+events.
+
 `AGENT_MODEL_PROVIDER` is either `openai_responses` or
 `azure_openai_responses`. OpenAI may use an explicitly attested compatible
 gateway. Azure uses a `/openai/v1` endpoint, the deployment name as the request

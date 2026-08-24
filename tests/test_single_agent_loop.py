@@ -749,6 +749,7 @@ def test_provider_correlation_metadata_is_preserved_in_durable_failure() -> None
                         "provider": "azure_openai_responses",
                         "provider_request_id": "azure-request-1",
                         "provider_status": 429,
+                        "retry_after": "7",
                         "retryable": True,
                         "untrusted": "must-not-persist",
                     },
@@ -767,6 +768,15 @@ def test_provider_correlation_metadata_is_preserved_in_durable_failure() -> None
         "provider": "azure_openai_responses",
         "provider_request_id": "azure-request-1",
         "provider_status": 429,
+        "retry_after": "7",
+        "retryable": True,
+    }
+    assert repository.events[-1].payload == {
+        "code": "model_rate_limited",
+        "provider": "azure_openai_responses",
+        "provider_request_id": "azure-request-1",
+        "provider_status": 429,
+        "retry_after": "7",
         "retryable": True,
     }
 

@@ -77,3 +77,13 @@ def test_agent_run_schema_has_database_lease_fencing_columns() -> None:
     assert run_table.c.context_state_json.nullable is False
     assert run_table.c.authorization_context_json.nullable is False
     assert run_table.c.authorization_context_json.server_default is None
+
+
+def test_context_jobs_and_checkpoints_pin_provider_identity() -> None:
+    for table_name in (
+        "agent_context_compaction_jobs",
+        "agent_context_checkpoints",
+    ):
+        column = Base.metadata.tables[table_name].c.provider_identity_json
+        assert column.nullable is False
+        assert column.server_default is None

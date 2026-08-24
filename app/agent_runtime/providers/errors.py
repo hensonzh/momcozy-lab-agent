@@ -143,6 +143,8 @@ class OpenAICompatibleErrorMapper:
         if provider_request_id:
             details["provider_request_id"] = provider_request_id
         retry_after = _response_header(exc, "retry-after")
+        if retry_after:
+            details["retry_after"] = retry_after
         headers = (
             {"Retry-After": retry_after}
             if retry_after

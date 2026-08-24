@@ -21,6 +21,7 @@ from app.agent_runtime.ledger.repository import (
     RunLeaseLostError,
     RuntimeLedgerRepository,
 )
+from app.agent_runtime.providers import openai_responses_profile
 from app.auth import RuntimePrincipal
 from app.core.settings import Settings
 from app.infrastructure.db import create_db_engine, create_session_factory
@@ -593,6 +594,7 @@ async def _context_compaction_scenario() -> None:
                 compactor=compactor,
             ).process_claimed_job(job=job)
             assert checkpoint.summary_output_tokens == 12
+            assert checkpoint.provider_identity == _provider_identity()
             await session.commit()
 
         assert [
@@ -620,6 +622,7 @@ async def _context_compaction_scenario() -> None:
             assert stored_job is not None
             assert stored_job.status == "completed"
             assert stored_job.checkpoint_id is not None
+            assert stored_job.provider_identity == _provider_identity()
             await session.rollback()
     finally:
         await engine.dispose()
@@ -717,6 +720,7 @@ async def _context_recovery_scenario() -> None:
                 compactor=RecordingPostgresCompactor(),
                 model_input_resolver=PassThroughMaterializer(),
                 model="gpt-5.6-terra",
+                provider_identity=_provider_identity(),
                 max_attempts=1,
             )
             await service.prepare_run(run=current)
@@ -778,6 +782,7 @@ async def _context_recovery_scenario() -> None:
             assert old.status == "superseded"
             assert replacement.supersedes_job_id == old.id
             assert replacement.attempts == 0
+            assert replacement.provider_identity == old.provider_identity
             assert head.status == "compacting"
             assert head.pending_job_id == replacement.id
     finally:
@@ -795,6 +800,7 @@ def _postgres_context_service(
         compactor=compactor,
         model_input_resolver=PassThroughMaterializer(),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
 
 
@@ -808,6 +814,12 @@ def _authorization_context(owner_user_id: UUID) -> dict[str, Any]:
         roles=frozenset({"user"}),
         permissions=frozenset({"agent:run"}),
     ).authorization_context()
+
+
+def _provider_identity() -> dict[str, Any]:
+    return openai_responses_profile(
+        model="gpt-5.6-terra"
+    ).manifest_metadata()
 
 
 class FixedPostgresTokenCounter:

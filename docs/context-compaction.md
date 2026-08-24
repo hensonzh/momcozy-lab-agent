@@ -182,10 +182,14 @@ role-only replacement for this checkpoint.
 - `compacting`: `pending_job_id` owns generation `generation + 1`.
 - `blocked`: the pending job is dead-lettered and its ID is the recovery ID.
 
-Jobs pin the model, token counter, prompt, materializer, checkpoint schema,
-summary policy, output cap, source hash, and generation. A worker with different
-versions fails closed with `context_worker_incompatible` rather than processing
-under misleading metadata.
+Jobs pin the complete non-secret `agent.model_provider.v1` identity, token
+counter name/version/model, prompt, materializer, checkpoint schema, summary
+policy, output cap, source hash, and generation. Provider and counter identity
+also participate in the idempotency key. A worker with a different provider,
+deployment alias, family/version, region, deployment type, capability set, or
+counter fails closed with `context_worker_incompatible` rather than processing
+under misleading metadata. A completed checkpoint copies the same provider
+identity; a superseding job cannot replace it with the current worker's identity.
 
 Claims enforce `attempts < max_attempts`. An expired claim already at the
 ceiling moves to `dead_lettered` without another model call. Context jobs renew
@@ -233,9 +237,10 @@ queried as permanent Thread poison.
 ## Replay, evals, and operations
 
 Replay v1 exports the frozen Run context state—including the history policy,
-retained Run IDs, and both cutoffs—typed checkpoint metadata, and the current
-Thread Context Head. Checkpoint content remains redacted unless the existing
-privileged content flag is enabled.
+retained Run IDs, and both cutoffs—typed checkpoint metadata with its generating
+provider identity, and the current Thread Context Head. Checkpoint content
+remains redacted unless the existing privileged content flag is enabled; the
+non-secret provider identity is always available for operational provenance.
 
 The deterministic Context eval catalog is
 `evals/context/v1/scenarios.json`. It covers attachment materialization,

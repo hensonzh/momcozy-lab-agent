@@ -263,6 +263,7 @@ def _context_checkpoint(
         "generation": checkpoint.generation,
         "source_sha256": checkpoint.source_sha256,
         "summary_sha256": checkpoint.summary_sha256,
+        "provider_identity": deepcopy(checkpoint.provider_identity),
         "model": checkpoint.model,
         "token_counter": checkpoint.token_counter,
         "token_counter_version": (

@@ -19,8 +19,8 @@ Tool/Action、上下文构造和恢复语义不依赖具体服务商。
 
 ## 代码结构
 
-- `providers/contracts.py`：非敏感 `ModelProviderProfile`、能力集合、请求策略和
-  错误映射协议。
+- `providers/contracts.py`：非敏感 `ModelProviderProfile`、唯一 provider identity
+  快照、能力集合、请求策略和错误映射协议。
 - `providers/runtime.py`：构造 `ProviderRuntimeBundle`，统一提供 client、SDK
   model、profile、请求策略、token counter、compactor、错误映射器和资源关闭。
 - `providers/errors.py`：把 SDK/HTTP 错误归一化为稳定 Runtime `ApiError`。
@@ -48,6 +48,12 @@ Tool/Action、上下文构造和恢复语义不依赖具体服务商。
 执行清单只写非敏感 profile：provider、API、base URL、部署名、模型 family/版本、
 region、deployment type、auth mode、能力集合、SDK 版本和请求策略。API key、Bearer
 token、Azure tenant/client secret 均不得进入清单、Replay 或日志。
+
+同一份 `agent.model_provider.v1` identity 快照也写入 Context compaction job 和
+checkpoint。job 的幂等键与 worker 兼容性检查同时绑定该快照，以及 token counter 的
+名称、版本和模型；部署别名、模型版本或 counter 发生变化时，新 worker 不会静默处理
+旧 job。完成后的 typed checkpoint 可以继续作为其他 provider 的历史输入，但会保留
+生成它的原始 provider identity 供 Replay 和审计使用。
 
 ## 配置
 
@@ -91,14 +97,16 @@ AZURE_OPENAI_TOKEN_ESTIMATOR_SAFETY_FACTOR=1.25
 Entra 使用 `DefaultAzureCredential`，生产 workload 必须拥有目标资源的数据面调用
 权限。若选择 `AZURE_OPENAI_AUTH_MODE=api_key`，则提供
 `AZURE_OPENAI_API_KEY`；Entra 模式禁止同时配置静态 key。
+模型 family、精确部署版本、region 和 deployment type 没有代码默认值，选择 Azure
+时必须显式提供；缺少任一字段，worker 在能力推导和创建 client 前失败。
 
 ## 上下文预算
 
 OpenAI adapter 在每次完整模型请求前调用服务商的精确 input-token counter。
 Azure v1 当前没有相同路由，因此 adapter 对 canonical JSON 字节、item、Tool schema
 进行保守估算，乘以可配置 safety factor，并为每个 opaque image/file 额外预留固定
-预算。估算值用于主动压缩与前置拒绝，不伪装成服务商精确值；counter 名称会写入
-Context job 和状态。
+预算。估算值用于主动压缩与前置拒绝，不伪装成服务商精确值；counter 名称、版本和
+模型会写入 Context job、checkpoint 和状态。
 
 服务端仍是上下文硬限制的最终权威。若 Azure 实际请求返回 context-window error，
 现有 durable hard-limit 流程会触发一次 checkpoint 恢复；受保护的最近 5 个完整
@@ -110,14 +118,18 @@ Run 或当前附件仍无法放入时，统一返回 `recent_context_exceeds_lim
 
 - `model_provider_timeout`：可重试；
 - `model_provider_unavailable`：连接或上游 5xx，可重试；
-- `model_rate_limited`：429，可重试并透传 `Retry-After`；
+- `model_rate_limited`：429，可重试；`Retry-After` 同时保留为 HTTP header 和有界
+  `retry_after` 失败详情；
 - `model_auth_failed`：认证/授权失败，不可重试；
 - `model_content_filtered`：内容策略拒绝，不可重试；
 - `model_context_window_exceeded`：交给 durable context recovery；
 - `model_provider_error`：其余被服务商拒绝的请求。
 
-日志只使用低基数 provider/model 维度。上游 request ID 可以进入错误详情用于排障，
-并以有界白名单写入失败 Run；不得把响应正文、异常消息或用户内容写入日志或账本。
+同一 error mapper 用于主 Agent 模型调用、typed compaction 和远程 token counter；
+Context 自身的超时、格式与来源校验仍保留 `context_*` 错误码。日志只使用低基数
+provider/model 维度。上游 request ID、状态码和 `retry_after` 可以进入错误详情用于
+排障，并以有界白名单同时写入失败 Run 与 `run.failed` 事件；不得把响应正文、异常消息
+或用户内容写入日志或账本。该提示不自动重试整个 Run，客户端按产品策略决定何时重提。
 
 ## 发布门禁与切换
 

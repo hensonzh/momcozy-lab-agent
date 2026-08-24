@@ -61,6 +61,7 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "CREATE TABLE agent_thread_context_heads" in sql
     assert "CREATE INDEX ix_agent_context_compaction_jobs_runnable" in sql
     assert "checkpoint_json JSONB" in sql
+    assert sql.count("provider_identity_json JSONB NOT NULL") == 2
     assert "materializer_version VARCHAR(80)" in sql
     assert "lease_token UUID" in sql
     assert "locked_until TIMESTAMP WITH TIME ZONE" in sql

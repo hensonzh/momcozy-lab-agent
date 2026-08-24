@@ -246,6 +246,25 @@ def test_worker_accepts_azure_openai_entra_without_static_key() -> None:
     ).validate_for_worker()
 
 
+def test_worker_requires_explicit_azure_capability_metadata() -> None:
+    with pytest.raises(ValueError) as captured:
+        Settings(
+            app_env="test",
+            agent_model_provider="azure_openai_responses",
+            azure_openai_endpoint=(
+                "https://momcozy-ai.openai.azure.com/openai/v1"
+            ),
+            azure_openai_auth_mode="entra",
+            azure_openai_deployment="momcozy-gpt-5-6-terra",
+            azure_openai_model_version="2026-07-09",
+            azure_openai_region="eastasia",
+        ).validate_for_worker()
+
+    message = str(captured.value)
+    assert "AZURE_OPENAI_MODEL_FAMILY is required" in message
+    assert "AZURE_OPENAI_DEPLOYMENT_TYPE is required" in message
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     (

@@ -32,6 +32,9 @@ def test_replay_bundle_redacts_all_user_derived_content_by_default() -> None:
     assert bundle["context_checkpoint"]["checkpoint"] == {
         "redacted": True
     }
+    assert bundle["context_checkpoint"]["provider_identity"] == (
+        repository.provider_identity
+    )
     assert bundle["context_head"]["generation"] == 1
     assert bundle["messages"][0]["content"] == {"redacted": True}
     assert bundle["context_items"][0]["item_key"].startswith(
@@ -137,6 +140,28 @@ def test_eval_case_created_from_replay_passes_and_detects_regression() -> None:
 
 class FakeReplayRepository:
     def __init__(self, *, run_id: UUID) -> None:
+        self.provider_identity = {
+            "contract_version": "agent.model_provider.v1",
+            "provider": "openai_responses",
+            "api": "responses",
+            "model": "gpt-5.6-terra",
+            "base_url": None,
+            "deployment": None,
+            "model_family": "gpt-5.6-terra",
+            "model_version": None,
+            "region": None,
+            "deployment_type": None,
+            "auth_mode": "api_key",
+            "capabilities": [
+                "encrypted_reasoning",
+                "function_tools",
+                "input_token_count",
+                "prompt_cache_breakpoints",
+                "streaming",
+                "structured_outputs",
+                "tool_search",
+            ],
+        }
         self.run = SimpleNamespace(
             id=run_id,
             thread_id=uuid4(),
@@ -240,6 +265,7 @@ class FakeReplayRepository:
             source_sha256="a" * 64,
             summary_sha256="b" * 64,
             model="gpt-5.6-terra",
+            provider_identity=self.provider_identity,
             token_counter="openai.responses.input_tokens",
             token_counter_version="v1",
             source_input_tokens=100_001,

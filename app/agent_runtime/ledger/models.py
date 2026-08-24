@@ -250,6 +250,11 @@ class AgentContextCheckpoint(Base):
         String(64),
         nullable=False,
     )
+    provider_identity: Mapped[dict[str, Any]] = mapped_column(
+        "provider_identity_json",
+        postgresql.JSONB,
+        nullable=False,
+    )
     model: Mapped[str] = mapped_column(String(120), nullable=False)
     token_counter: Mapped[str] = mapped_column(
         String(120),
@@ -383,6 +388,11 @@ class AgentContextCompactionJob(Base):
     )
     idempotency_key: Mapped[str] = mapped_column(
         String(64),
+        nullable=False,
+    )
+    provider_identity: Mapped[dict[str, Any]] = mapped_column(
+        "provider_identity_json",
+        postgresql.JSONB,
         nullable=False,
     )
     model: Mapped[str] = mapped_column(String(120), nullable=False)

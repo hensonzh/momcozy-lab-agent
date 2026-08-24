@@ -1087,6 +1087,7 @@ class RuntimeLedgerRepository:
         source_sha256: str,
         generation: int,
         idempotency_key: str,
+        provider_identity: dict[str, Any],
         model: str,
         token_counter: str,
         token_counter_version: str,
@@ -1135,6 +1136,7 @@ class RuntimeLedgerRepository:
             "source_sha256": source_sha256,
             "generation": generation,
             "idempotency_key": idempotency_key,
+            "provider_identity": deepcopy(provider_identity),
             "model": model,
             "token_counter": token_counter,
             "token_counter_version": token_counter_version,
@@ -1223,6 +1225,7 @@ class RuntimeLedgerRepository:
             idempotency_key=hashlib.sha256(
                 f"{job.id}:{replacement_id}".encode("utf-8")
             ).hexdigest(),
+            provider_identity=deepcopy(job.provider_identity),
             model=job.model,
             token_counter=job.token_counter,
             token_counter_version=job.token_counter_version,
@@ -1471,6 +1474,7 @@ class RuntimeLedgerRepository:
             schema_version=job.context_schema_version,
             source_sha256=job.source_sha256,
             summary_sha256=summary_sha256,
+            provider_identity=deepcopy(job.provider_identity),
             model=job.model,
             token_counter=job.token_counter,
             token_counter_version=job.token_counter_version,

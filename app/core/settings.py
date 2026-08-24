@@ -90,10 +90,10 @@ class Settings:
     azure_openai_auth_mode: str = "entra"
     azure_openai_api_key: str = ""
     azure_openai_deployment: str = ""
-    azure_openai_model_family: str = "gpt-5.6-terra"
+    azure_openai_model_family: str = ""
     azure_openai_model_version: str = ""
     azure_openai_region: str = ""
-    azure_openai_deployment_type: str = "standard"
+    azure_openai_deployment_type: str = ""
     azure_openai_token_scope: str = "https://ai.azure.com/.default"
     azure_openai_token_estimator_safety_factor: float = 1.25
     agent_model_reasoning_effort: str = "low"
@@ -612,6 +612,10 @@ class Settings:
                 ),
                 ("AZURE_OPENAI_REGION", self.azure_openai_region),
                 (
+                    "AZURE_OPENAI_DEPLOYMENT_TYPE",
+                    self.azure_openai_deployment_type,
+                ),
+                (
                     "AZURE_OPENAI_TOKEN_SCOPE",
                     self.azure_openai_token_scope,
                 ),
@@ -624,6 +628,7 @@ class Settings:
                 errors.append("AZURE_OPENAI_TOKEN_SCOPE is invalid")
             if (
                 self.azure_openai_deployment_type
+                and self.azure_openai_deployment_type
                 not in AZURE_OPENAI_DEPLOYMENT_TYPES
             ):
                 errors.append("AZURE_OPENAI_DEPLOYMENT_TYPE is invalid")

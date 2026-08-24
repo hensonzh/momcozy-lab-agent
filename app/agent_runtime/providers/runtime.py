@@ -164,6 +164,7 @@ def _openai_runtime(
     profile.require_capabilities(
         REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
     )
+    error_mapper = OpenAICompatibleErrorMapper(profile)
     kwargs: dict[str, Any] = {
         "api_key": config.api_key,
         "timeout": config.timeout_seconds,
@@ -178,8 +179,10 @@ def _openai_runtime(
             client=client,
             model=profile.model,
             timeout_seconds=config.timeout_seconds,
+            error_mapper=error_mapper,
         ),
         config=config,
+        error_mapper=error_mapper,
     )
 
 
@@ -202,6 +205,7 @@ def _azure_runtime(
     profile.require_capabilities(
         REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
     )
+    error_mapper = OpenAICompatibleErrorMapper(profile)
     credential: Any | None = None
     api_key: Any = config.api_key
     if config.auth_mode == "entra":
@@ -229,6 +233,7 @@ def _azure_runtime(
             ),
         ),
         config=config,
+        error_mapper=error_mapper,
         credential=credential,
     )
 
@@ -239,6 +244,7 @@ def _bundle(
     profile: ModelProviderProfile,
     token_counter: ContextTokenCounter,
     config: ModelProviderRuntimeConfig,
+    error_mapper: ModelProviderErrorMapper,
     credential: Any | None = None,
 ) -> ProviderRuntimeBundle:
     profile.require_capabilities(
@@ -260,8 +266,9 @@ def _bundle(
             reasoning_effort=config.reasoning_effort,
             text_verbosity=config.text_verbosity,
             timeout_seconds=config.timeout_seconds,
+            error_mapper=error_mapper,
         ),
-        error_mapper=OpenAICompatibleErrorMapper(profile),
+        error_mapper=error_mapper,
         credential=credential,
     )
 

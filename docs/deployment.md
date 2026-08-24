@@ -15,6 +15,8 @@ The current Runtime migration is a fresh baseline for an empty PostgreSQL
 database. It does not support older Runtime schemas, persisted runs, old Tool
 names, or old Action data. Internal test data must be discarded by dropping and
 recreating the Runtime database before this baseline is deployed.
+The baseline stores the canonical non-secret provider identity on Context jobs
+and checkpoints; it must not be backfilled from a mutable deployment alias.
 
 ## Release
 

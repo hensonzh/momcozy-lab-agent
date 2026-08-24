@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -28,6 +29,18 @@ from app.agent_runtime.providers.openai_context import (
     OpenAIContextCompactor,
     OpenAIContextTokenCounter,
 )
+from app.agent_runtime.providers import openai_responses_profile
+
+
+def _provider_identity(
+    *,
+    model_version: str | None = None,
+) -> dict[str, Any]:
+    identity = openai_responses_profile(
+        model="gpt-5.6-terra"
+    ).manifest_metadata()
+    identity["model_version"] = model_version
+    return identity
 
 
 def test_context_v1_plan_hash_uses_stable_asset_reference_not_materialized_url() -> None:
@@ -200,6 +213,7 @@ def test_prepare_run_materializes_before_count_and_pins_job_versions() -> None:
         compactor=NeverCompactor(),
         model_input_resolver=resolver,
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -207,6 +221,9 @@ def test_prepare_run_materializes_before_count_and_pins_job_versions() -> None:
     assert "asset_id" not in str(counter.calls)
     assert "https://signed.example/history" in str(counter.calls)
     assert repository.created_job["model"] == "gpt-5.6-terra"
+    assert repository.created_job["provider_identity"] == (
+        _provider_identity()
+    )
     assert (
         repository.created_job["materializer_version"]
         == MATERIALIZER_VERSION
@@ -224,6 +241,63 @@ def test_prepare_run_materializes_before_count_and_pins_job_versions() -> None:
     assert repository.run.context_state["pending_generation"] == 1
 
 
+def test_context_job_idempotency_pins_provider_and_counter_identity() -> None:
+    baseline = PipelineRepository()
+    provider_changed = deepcopy(baseline)
+    counter_changed = deepcopy(baseline)
+
+    baseline_counter = RecordingCounter(input_tokens=100_001)
+    provider_counter = RecordingCounter(input_tokens=100_001)
+    changed_counter = RecordingCounter(input_tokens=100_001)
+    changed_counter.version = "v2"
+
+    services = (
+        ContextCompactionService(
+            repository=baseline,  # type: ignore[arg-type]
+            token_counter=baseline_counter,
+            compactor=NeverCompactor(),
+            model_input_resolver=RecordingResolver(
+                resolved_url="https://signed.example/history"
+            ),
+            model="gpt-5.6-terra",
+            provider_identity=_provider_identity(),
+        ),
+        ContextCompactionService(
+            repository=provider_changed,  # type: ignore[arg-type]
+            token_counter=provider_counter,
+            compactor=NeverCompactor(),
+            model_input_resolver=RecordingResolver(
+                resolved_url="https://signed.example/history"
+            ),
+            model="gpt-5.6-terra",
+            provider_identity=_provider_identity(
+                model_version="2026-08-24"
+            ),
+        ),
+        ContextCompactionService(
+            repository=counter_changed,  # type: ignore[arg-type]
+            token_counter=changed_counter,
+            compactor=NeverCompactor(),
+            model_input_resolver=RecordingResolver(
+                resolved_url="https://signed.example/history"
+            ),
+            model="gpt-5.6-terra",
+            provider_identity=_provider_identity(),
+        ),
+    )
+
+    for service, repository in zip(
+        services,
+        (baseline, provider_changed, counter_changed),
+        strict=True,
+    ):
+        asyncio.run(service.prepare_run(run=repository.run))
+
+    baseline_key = baseline.created_job["idempotency_key"]
+    assert provider_changed.created_job["idempotency_key"] != baseline_key
+    assert counter_changed.created_job["idempotency_key"] != baseline_key
+
+
 def test_prepare_run_does_not_queue_at_exactly_threshold() -> None:
     repository = PipelineRepository()
     service = ContextCompactionService(
@@ -234,6 +308,7 @@ def test_prepare_run_does_not_queue_at_exactly_threshold() -> None:
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -253,6 +328,7 @@ def test_first_run_records_zero_without_provider_token_count() -> None:
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -319,6 +395,7 @@ def test_complete_model_request_budget_counts_tools_and_reserves_output() -> Non
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
         threshold_tokens=100,
         summary_max_tokens=10,
         response_reserve_tokens=20,
@@ -359,6 +436,7 @@ def test_complete_model_request_budget_allows_exact_reserved_limit() -> None:
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
         threshold_tokens=100,
         summary_max_tokens=10,
         response_reserve_tokens=20,
@@ -373,7 +451,7 @@ def test_complete_model_request_budget_allows_exact_reserved_limit() -> None:
     )
 
 
-def test_compaction_worker_fails_closed_on_pinned_model_drift() -> None:
+def test_compaction_worker_fails_closed_on_provider_identity_drift() -> None:
     repository = PipelineRepository()
     compactor = NeverCompactor(model="gpt-5.6-terra")
     service = ContextCompactionService(
@@ -384,10 +462,13 @@ def test_compaction_worker_fails_closed_on_pinned_model_drift() -> None:
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
     job = repository.job
     job.status = "running"
-    job.model = "gpt-5.6-sol"
+    job.provider_identity = _provider_identity(
+        model_version="2026-08-24"
+    )
     job.lease_token = uuid4()
 
     try:
@@ -395,7 +476,7 @@ def test_compaction_worker_fails_closed_on_pinned_model_drift() -> None:
     except ApiError as exc:
         assert exc.code == "context_worker_incompatible"
     else:
-        raise AssertionError("model drift must fail closed")
+        raise AssertionError("provider identity drift must fail closed")
 
     assert compactor.calls == []
     assert repository.failed_job_code == "context_worker_incompatible"
@@ -411,6 +492,7 @@ def test_hard_limit_suspends_run_and_resumes_once_from_ready_head() -> None:
             resolved_url="https://signed.example/history"
         ),
         model="gpt-5.6-terra",
+        provider_identity=_provider_identity(),
     )
 
     asyncio.run(service.prepare_run(run=repository.run))
@@ -584,6 +666,7 @@ class PipelineRepository:
             source_sha256="",
             generation=1,
             model="gpt-5.6-terra",
+            provider_identity=_provider_identity(),
             token_counter="fake.input_tokens",
             token_counter_version="v1",
             source_input_tokens=10,

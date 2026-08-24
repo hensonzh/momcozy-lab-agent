@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.agent_runtime.context.compaction import ContextCompactionService
+from app.agent_runtime.providers import openai_responses_profile
 from app.agent_runtime.runtime_metadata import (
     CONTEXT_CHECKPOINT_SCHEMA_VERSION,
     CONTEXT_HISTORY_POLICY_VERSION,
@@ -190,6 +191,9 @@ def _service(
         compactor=NeverCompactor(),
         model_input_resolver=PassThroughResolver(),
         model="gpt-5.6-terra",
+        provider_identity=openai_responses_profile(
+            model="gpt-5.6-terra"
+        ).manifest_metadata(),
     )
 
 

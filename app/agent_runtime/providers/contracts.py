@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from urllib.parse import urlparse
 
 from app.core.errors import ApiError
+from app.agent_runtime.runtime_metadata import MODEL_PROVIDER_CONTRACT_VERSION
 
 
 REQUIRED_RUNTIME_PROVIDER_CAPABILITIES = frozenset(
@@ -116,8 +117,10 @@ class ModelProviderProfile:
 
     def manifest_metadata(self) -> dict[str, Any]:
         return {
+            "contract_version": MODEL_PROVIDER_CONTRACT_VERSION,
             "provider": self.provider_id,
             "api": self.api,
+            "model": self.model,
             "base_url": self.base_url or None,
             "deployment": self.deployment or None,
             "model_family": self.model_family or self.model,

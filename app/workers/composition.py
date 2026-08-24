@@ -157,8 +157,10 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     token_counter=provider_runtime.token_counter,
                     compactor=provider_runtime.compactor,
                     model_input_resolver=resolver,
-                    provider=provider_runtime.profile.provider_id,
                     model=provider_runtime.profile.model,
+                    provider_identity=(
+                        provider_runtime.profile.manifest_metadata()
+                    ),
                     threshold_tokens=(
                         settings.agent_context_compaction_threshold_tokens
                     ),

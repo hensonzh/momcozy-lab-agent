@@ -13,6 +13,7 @@ from app.agent_runtime.providers import (
     ModelProviderAuthenticationError,
     OpenAIResponsesProviderConfig,
     OpenAIContextTokenCounter,
+    ResponsesContextCompactor,
     create_model_provider_runtime,
 )
 
@@ -31,6 +32,9 @@ def test_openai_provider_runtime_uses_exact_provider_token_counter() -> None:
     assert runtime.profile.provider_id == "openai_responses"
     assert runtime.profile.model == "gpt-5.6-terra"
     assert isinstance(runtime.token_counter, OpenAIContextTokenCounter)
+    assert isinstance(runtime.compactor, ResponsesContextCompactor)
+    assert runtime.token_counter.error_mapper is runtime.error_mapper
+    assert runtime.compactor.error_mapper is runtime.error_mapper
     assert client_factory.kwargs == {
         "api_key": "test-openai-key",
         "timeout": 60.0,

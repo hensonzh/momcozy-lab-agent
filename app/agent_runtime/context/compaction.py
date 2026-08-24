@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from collections.abc import Mapping
 from dataclasses import dataclass
 import hashlib
 import json
@@ -20,6 +21,7 @@ from app.agent_runtime.runtime_metadata import (
     CONTEXT_PLAN_SCHEMA_VERSION,
     CONTEXT_STATE_SCHEMA_VERSION,
     MATERIALIZER_VERSION,
+    MODEL_PROVIDER_CONTRACT_VERSION,
     RECENT_COMPLETED_RUN_LIMIT,
     SUMMARY_POLICY_VERSION,
 )
@@ -206,6 +208,7 @@ class ContextRepository(Protocol):
         source_sha256: str,
         generation: int,
         idempotency_key: str,
+        provider_identity: dict[str, Any],
         model: str,
         token_counter: str,
         token_counter_version: str,
@@ -280,7 +283,7 @@ class ContextCompactionService:
         compactor: ContextCompactor,
         model_input_resolver: Any,
         model: str,
-        provider: str = "openai_responses",
+        provider_identity: Mapping[str, Any],
         threshold_tokens: int = 100_000,
         summary_max_tokens: int = 2_000,
         response_reserve_tokens: int = 8_000,
@@ -303,13 +306,45 @@ class ContextCompactionService:
             )
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
-        if not provider.strip():
-            raise ValueError("provider must not be empty")
+        identity = deepcopy(dict(provider_identity))
+        required_identity_fields = {
+            "api",
+            "auth_mode",
+            "base_url",
+            "capabilities",
+            "contract_version",
+            "deployment",
+            "deployment_type",
+            "model",
+            "model_family",
+            "model_version",
+            "provider",
+            "region",
+        }
+        missing_identity_fields = required_identity_fields - identity.keys()
+        if missing_identity_fields:
+            raise ValueError(
+                "provider identity is incomplete: "
+                f"{sorted(missing_identity_fields)}"
+            )
+        if identity["model"] != model:
+            raise ValueError("provider identity model does not match context model")
+        if identity["contract_version"] != MODEL_PROVIDER_CONTRACT_VERSION:
+            raise ValueError("provider identity contract version is incompatible")
+        if not isinstance(identity["provider"], str) or not identity[
+            "provider"
+        ].strip():
+            raise ValueError("provider identity is invalid")
+        try:
+            _canonical_json(identity)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("provider identity must be JSON serializable") from exc
         self.repository = repository
         self.token_counter = token_counter
         self.compactor = compactor
         self.model_input_resolver = model_input_resolver
-        self.provider = provider
+        self.provider_identity = identity
+        self.provider = str(identity["provider"])
         self.model = model
         self.threshold_tokens = threshold_tokens
         self.summary_max_tokens = summary_max_tokens
@@ -816,7 +851,12 @@ class ContextCompactionService:
             {
                 "source_sha256": plan.source_sha256,
                 "generation": generation,
-                "model": self.model,
+                "provider_identity": self.provider_identity,
+                "token_counter": {
+                    "name": token_counter,
+                    "version": token_counter_version,
+                    "model": self.model,
+                },
                 "prompt_version": prompt_version,
                 "materializer_version": MATERIALIZER_VERSION,
                 "context_schema_version": (
@@ -838,6 +878,7 @@ class ContextCompactionService:
             source_sha256=plan.source_sha256,
             generation=generation,
             idempotency_key=idempotency_key,
+            provider_identity=deepcopy(self.provider_identity),
             model=self.model,
             token_counter=token_counter,
             token_counter_version=token_counter_version,
@@ -1052,7 +1093,10 @@ class ContextCompactionService:
 
     def _assert_worker_compatible(self, job: Any) -> None:
         expected = {
+            "provider_identity": self.provider_identity,
             "model": self.model,
+            "token_counter": str(self.token_counter.counter),
+            "token_counter_version": str(self.token_counter.version),
             "prompt_version": str(self.compactor.prompt_version),
             "materializer_version": MATERIALIZER_VERSION,
             "context_schema_version": (
@@ -1061,8 +1105,14 @@ class ContextCompactionService:
             "summary_policy_version": SUMMARY_POLICY_VERSION,
         }
         observed = {
-            field: str(getattr(job, field, ""))
-            for field in expected
+            "provider_identity": deepcopy(
+                getattr(job, "provider_identity", {})
+            ),
+            **{
+                field: str(getattr(job, field, ""))
+                for field in expected
+                if field != "provider_identity"
+            },
         }
         if observed != expected:
             raise ApiError(

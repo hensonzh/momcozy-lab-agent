@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from openai import (
     APIConnectionError,
@@ -8,13 +10,17 @@ from openai import (
     NotFoundError,
     RateLimitError,
 )
+import pytest
 
 from app.agent_runtime.providers import (
     ModelProviderAuthenticationError,
     ModelProviderProfile,
     OpenAICompatibleErrorMapper,
+    OpenAIContextTokenCounter,
+    ResponsesContextCompactor,
     azure_openai_responses_profile,
 )
+from app.core.errors import ApiError
 
 
 def test_azure_content_filter_error_is_non_retryable_and_preserves_request_id() -> None:
@@ -63,7 +69,83 @@ def test_azure_rate_limit_error_is_retryable_and_propagates_retry_after() -> Non
     assert mapped.code == "model_rate_limited"
     assert mapped.status == 503
     assert mapped.details["retryable"] is True
+    assert mapped.details["retry_after"] == "7"
     assert mapped.headers == {"Retry-After": "7"}
+
+
+@pytest.mark.parametrize(
+    ("error_kind", "expected_code", "retryable"),
+    (
+        ("credential", "model_auth_failed", False),
+        ("authentication", "model_auth_failed", False),
+        ("content_filter", "model_content_filtered", False),
+    ),
+)
+def test_context_compactor_uses_provider_error_contract(
+    error_kind: str,
+    expected_code: str,
+    retryable: bool,
+) -> None:
+    if error_kind == "credential":
+        error: Exception = ModelProviderAuthenticationError(
+            "credential failed"
+        )
+    elif error_kind == "authentication":
+        error = AuthenticationError(
+            "invalid token",
+            response=_response(401),
+            body={"error": {"code": "invalid_api_key"}},
+        )
+    else:
+        error = BadRequestError(
+            "blocked",
+            response=_response(400),
+            body={"error": {"code": "content_filter"}},
+        )
+    mapper = OpenAICompatibleErrorMapper(_azure_profile())
+    compactor = ResponsesContextCompactor(
+        client=FailingResponsesClient(error),
+        model="momcozy-gpt-5-6-terra",
+        error_mapper=mapper,
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            compactor.compact(
+                input_items=({"role": "user", "content": "history"},),
+                source_refs=("context_item:1",),
+                max_output_tokens=100,
+            )
+        )
+
+    mapped = captured.value
+    assert mapped.code == expected_code
+    assert mapped.details["retryable"] is retryable
+
+
+def test_remote_context_counter_uses_provider_error_contract() -> None:
+    mapper = OpenAICompatibleErrorMapper(_azure_profile())
+    counter = OpenAIContextTokenCounter(
+        client=FailingTokenCountClient(
+            AuthenticationError(
+                "invalid token",
+                response=_response(401),
+                body={"error": {"code": "invalid_api_key"}},
+            )
+        ),
+        model="momcozy-gpt-5-6-terra",
+        error_mapper=mapper,
+    )
+
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(
+            counter.count(
+                input_items=({"role": "user", "content": "history"},)
+            )
+        )
+
+    assert captured.value.code == "model_auth_failed"
+    assert captured.value.details["retryable"] is False
 
 
 def test_provider_authentication_error_is_not_retryable() -> None:
@@ -177,3 +259,34 @@ def _response(
         ),
         headers=headers,
     )
+
+
+class FailingResponsesClient:
+    def __init__(self, error: Exception) -> None:
+        self.responses = _FailingResponses(error)
+
+
+class _FailingResponses:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    async def create(self, **_kwargs: object) -> object:
+        raise self.error
+
+
+class FailingTokenCountClient:
+    def __init__(self, error: Exception) -> None:
+        self.responses = _FailingTokenResponses(error)
+
+
+class _FailingTokenResponses:
+    def __init__(self, error: Exception) -> None:
+        self.input_tokens = _FailingInputTokens(error)
+
+
+class _FailingInputTokens:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    async def count(self, **_kwargs: object) -> object:
+        raise self.error

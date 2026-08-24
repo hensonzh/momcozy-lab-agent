@@ -6,6 +6,7 @@ from app.agent_runtime.providers import (
     azure_openai_responses_profile,
     openai_responses_profile,
 )
+from app.agent_runtime.runtime_metadata import MODEL_PROVIDER_CONTRACT_VERSION
 
 
 def test_openai_responses_profile_declares_runtime_capabilities() -> None:
@@ -75,6 +76,15 @@ def test_azure_profile_records_deployment_identity_and_supported_features() -> N
         "structured_outputs",
         "tool_search",
     } <= profile.capabilities
+
+    identity = profile.manifest_metadata()
+    assert identity["contract_version"] == MODEL_PROVIDER_CONTRACT_VERSION
+    assert identity["provider"] == "azure_openai_responses"
+    assert identity["model"] == "momcozy-gpt-5-6-terra"
+    assert identity["model_family"] == "gpt-5.6-terra"
+    assert identity["model_version"] == "2026-07-09"
+    assert identity["region"] == "eastasia"
+    assert identity["deployment_type"] == "standard"
 
     policy = ModelRequestPolicy.for_profile(profile)
     assert policy.include_encrypted_reasoning is True
