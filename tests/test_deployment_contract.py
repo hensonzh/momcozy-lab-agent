@@ -138,7 +138,7 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     assert "name: momcozy-lab-agent-staging" in compose
     assert "image: ${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}" in compose
     assert "env/compose.staging.env" in compose
-    assert "MOMCOZY_AGENT_STAGING_PORT" in compose
+    assert "${MOMCOZY_AGENT_STAGING_PORT:-8002}:8000" in compose
     assert "APP_ENV=staging" in env
     assert "AUTH_JWT_ISSUER=momcozy-staging" in env
     assert "RUNTIME_OUTPUT_STORE_BUCKET=agent-runtime-staging" in env

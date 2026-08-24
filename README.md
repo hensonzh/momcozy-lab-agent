@@ -83,6 +83,9 @@ cp env/compose.staging.env.example env/compose.staging.env
 docker compose -f docker-compose.staging.yml up --build --detach api worker
 ```
 
+The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
+the adjacent `127.0.0.1:8001`. Port `8010` remains local-development-only.
+
 The default on-host build tag is `momcozy-lab-agent:staging`. Release automation must
 override `MOMCOZY_AGENT_IMAGE` with the environment-neutral repository and an
 immutable commit tag or digest, for example `momcozy-lab-agent:<git-sha>`.

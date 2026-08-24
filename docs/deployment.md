@@ -25,6 +25,9 @@ an environment-neutral repository plus an immutable commit tag or digest, such
 as `momcozy-lab-agent:<git-sha>`, so the exact same artifact can be promoted;
 an image repository must not claim a different environment.
 
+On the shared server, Product staging binds `127.0.0.1:8001` and Agent staging
+binds `127.0.0.1:8002`; `8010` is reserved for Agent local development.
+
 ## Database
 
 The current Runtime migration is a fresh baseline for an empty PostgreSQL
