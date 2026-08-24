@@ -1,7 +1,7 @@
-name: agent
+name: momcozy-lab-agent-local
 
 x-runtime-service: &runtime-service
-  image: agent:local
+  image: momcozy-lab-agent:local
   build:
     context: .
     dockerfile: Dockerfile

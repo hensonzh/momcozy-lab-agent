@@ -57,6 +57,10 @@ checkpoint。job 的幂等键与 worker 兼容性检查同时绑定该快照，�
 
 ## 配置
 
+共享服务器在私有 `env/compose.staging.env` 中修改 provider 配置；仓库中的
+`env/compose.staging.env.example` 只是无密钥模板。生产环境对应
+`env/compose.production.env`。不要在 `app/core/settings.py` 中硬编码服务商。
+
 通用设置：
 
 ```dotenv

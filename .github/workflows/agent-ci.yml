@@ -113,23 +113,29 @@ jobs:
 
       - name: Validate production Compose configuration
         env:
-          MOMCOZY_AGENT_IMAGE: agent:ci
-          MOMCOZY_AGENT_ENV_FILE: env/compose.prod.env.example
-        run: docker compose -f docker-compose.prod.yml config --quiet
+          MOMCOZY_AGENT_IMAGE: momcozy-lab-agent:ci
+          MOMCOZY_AGENT_ENV_FILE: env/compose.production.env.example
+        run: docker compose -f docker-compose.production.yml config --quiet
+
+      - name: Validate staging Compose configuration
+        env:
+          MOMCOZY_AGENT_IMAGE: momcozy-lab-agent:staging
+          MOMCOZY_AGENT_ENV_FILE: env/compose.staging.env.example
+        run: docker compose -f docker-compose.staging.yml config --quiet
 
       - name: Build Compose image
         run: docker compose -f docker-compose.local.yml build api
 
       - name: Verify non-root runtime user
-        run: test "$(docker image inspect --format '{{.Config.User}}' agent:local)" = "app"
+        run: test "$(docker image inspect --format '{{.Config.User}}' momcozy-lab-agent:local)" = "app"
 
       - name: Verify release contracts inside the image
         run: |
-          docker run --rm agent:local \
+          docker run --rm momcozy-lab-agent:local \
             python scripts/check_product_backend_contract.py
-          docker run --rm agent:local \
+          docker run --rm momcozy-lab-agent:local \
             python scripts/export_runtime_contract_catalog.py --check
-          docker run --rm agent:local \
+          docker run --rm momcozy-lab-agent:local \
             python scripts/run_behavior_eval.py \
               --validate-only \
               --output-json /tmp/behavior-eval.json \

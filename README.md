@@ -46,6 +46,12 @@ Flutter configures exactly one Agent origin through
 actions all derive their `/v1/agent/*` URLs from it. See
 [deployment.md](docs/deployment.md) for deployment and rollback.
 
+Environment names are fixed across runtime artifacts: `local` is developer
+work, `test` is reserved for automated tests/CI, `staging` is the shared
+internal server, and `production` is the real production deployment. The shared
+server therefore uses `docker-compose.staging.yml` together with
+`env/compose.staging.env`; it must not use a `test` or `production` profile.
+
 ## Local Run
 
 ```bash
@@ -69,6 +75,19 @@ The local `PRODUCT_BACKEND_SERVICE_KEY` must match Product Backend
 Backend issuer; Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
 `RUNTIME_ADMIN_SERVICE_KEY` is a separate inbound operator credential for
 `/v1/agent/admin/*` and must not be reused as the Product service identity.
+
+## Staging Run
+
+```bash
+cp env/compose.staging.env.example env/compose.staging.env
+docker compose -f docker-compose.staging.yml up --build --detach api worker
+```
+
+The default on-host build tag is `momcozy-lab-agent:staging`. Release automation must
+override `MOMCOZY_AGENT_IMAGE` with the environment-neutral repository and an
+immutable commit tag or digest, for example `momcozy-lab-agent:<git-sha>`.
+Legacy names such as `momcozy-production-backend` are not valid for this
+service.
 
 Export a replay, optionally evaluating a stored case:
 

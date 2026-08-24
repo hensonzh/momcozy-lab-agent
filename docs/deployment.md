@@ -9,6 +9,22 @@ typed internal APIs.
 The two services use independent databases and release pipelines. Flutter
 configures the Runtime origin with `MOMCOZY_AGENT_API_BASE_URL`.
 
+## Environment Identity
+
+- `local`: developer-only Compose and local dependencies.
+- `test`: automated tests and CI only; never a shared server deployment.
+- `staging`: the shared internal server and Flutter staging flavor.
+- `production`: the real production deployment only.
+
+The environment token must agree across the Compose filename, private env
+filename, Compose project, and local build tag. Staging therefore uses
+`docker-compose.staging.yml`, `env/compose.staging.env`, project
+`momcozy-lab-agent-staging`, and the default on-host tag
+`momcozy-lab-agent:staging`. Release images use
+an environment-neutral repository plus an immutable commit tag or digest, such
+as `momcozy-lab-agent:<git-sha>`, so the exact same artifact can be promoted;
+an image repository must not claim a different environment.
+
 ## Database
 
 The current Runtime migration is a fresh baseline for an empty PostgreSQL
@@ -23,7 +39,9 @@ and checkpoints; it must not be backfilled from a mutable deployment alias.
 1. Provision dedicated PostgreSQL and Redis, Product internal API/JWKS access,
    the outbound Product service key, the inbound Runtime admin service key, and
    the model-provider secret.
-2. Validate `docker-compose.prod.yml`.
+2. Validate the target environment Compose file: staging uses
+   `docker-compose.staging.yml`; production uses
+   `docker-compose.production.yml`.
    Before rolling out `agent_context_history_policy.v2`, stop new Run admission
    and drain queued, retry-wait, and running Context jobs created under `v1`;
    their source hashes intentionally include the history policy.

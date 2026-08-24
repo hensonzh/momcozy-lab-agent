@@ -1,9 +1,12 @@
-name: agent
+name: momcozy-lab-agent-staging
 
 x-runtime-service: &runtime-service
-  image: ${MOMCOZY_AGENT_IMAGE:?Set MOMCOZY_AGENT_IMAGE}
+  image: ${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}
+  build:
+    context: .
+    dockerfile: Dockerfile
   env_file:
-    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.prod.env}
+    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.staging.env}
   init: true
   read_only: true
   tmpfs:
@@ -25,7 +28,7 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "127.0.0.1:${MOMCOZY_AGENT_PORT:-8010}:8000"
+      - "127.0.0.1:${MOMCOZY_AGENT_STAGING_PORT:-8010}:8000"
     healthcheck:
       test:
         [
