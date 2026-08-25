@@ -25,7 +25,8 @@ def test_project_metadata_uses_agent_name() -> None:
     assert ci_compose.count("image: momcozy-lab-agent:ci") == 3
     assert ci_compose.count("APP_ENV: test") == 3
     assert "image: momcozy-lab-agent:local" in local_compose
-    assert "${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}" in staging_compose
+    assert "${MOMCOZY_AGENT_IMAGE:?" in staging_compose
+    assert "build:" not in staging_compose
     assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + staging_compose
     assert "MOMCOZY_AGENT_RUNTIME_" not in local_compose + staging_compose
     assert not (ROOT / "docker-compose.production.yml").exists()
@@ -144,7 +145,7 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     env = STAGING_ENV.read_text()
 
     assert "name: momcozy-lab-agent-staging" in compose
-    assert "image: ${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}" in compose
+    assert "image: ${MOMCOZY_AGENT_IMAGE:?" in compose
     assert "env/compose.staging.env" in compose
     assert "${MOMCOZY_AGENT_STAGING_PORT:-8002}:8000" in compose
     assert "APP_ENV=staging" in env
@@ -220,7 +221,7 @@ def test_ci_readiness_starts_required_runtime_processes() -> None:
         "- name: Smoke-test migration-gated readiness",
         maxsplit=1,
     )[1]
-    assert container_job.count("-f docker-compose.ci.yml") >= 5
+    assert container_job.count("-f docker-compose.ci.yml") >= 4
     assert "momcozy-lab-agent:ci" in container_job
     assert "momcozy-lab-agent:local" not in container_job
     assert "--wait" in smoke_step

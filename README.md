@@ -97,9 +97,14 @@ JWKS checks to pass before the stack is cleaned up.
 ```bash
 cp env/compose.staging.env.example env/compose.staging.env
 # Copy the matching Agent Runtime DB, Redis, and MinIO values from Product Backend's
-# private staging env, then start Product Backend staging first.
+# private staging env, set MOMCOZY_AGENT_IMAGE to the CI-published digest, then
+# start Product Backend staging first.
 docker compose --env-file env/compose.staging.env \
-  -f docker-compose.staging.yml up --build --detach api worker
+  -f docker-compose.staging.yml pull api worker
+docker compose --env-file env/compose.staging.env \
+  -f docker-compose.staging.yml --profile tools run --rm --no-deps migrate
+docker compose --env-file env/compose.staging.env \
+  -f docker-compose.staging.yml up --detach --no-build api worker
 ```
 
 The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
@@ -115,11 +120,18 @@ SNI site to `127.0.0.1:8002`; it does not expose the container port directly.
 See [deployment.md](docs/deployment.md) for the service-specific Nginx template
 and installation contract.
 
-The default on-host build tag is `momcozy-lab-agent:staging`. Release automation must
-override `MOMCOZY_AGENT_IMAGE` with the environment-neutral repository and an
-immutable commit tag or digest, for example `momcozy-lab-agent:<git-sha>`.
-Legacy names such as `momcozy-production-backend` are not valid for this
-service.
+Staging has no on-host build tag. `MOMCOZY_AGENT_IMAGE` is required and must be
+the digest-qualified CI artifact, for example
+`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`. Legacy names such as
+`momcozy-production-backend` are not valid for this service.
+
+A successful `agent-ci` run on `main` publishes the exact image already tested
+by unit, migration, container, behavior-eval, and Runtime v1 gates. The manual,
+protected `agent-staging-delivery` workflow consumes that digest, validates the
+current Product Backend release manifest and pinned OpenAPI contract, quiesces
+API/worker, backs up `agent_runtime_staging`, migrates explicitly, and checks
+both loopback and SNI readiness. It records the Agent and Product release
+identities together under `/opt/momcozy-lab/current/agent/release-manifest.json`.
 
 Export a replay, optionally evaluating a stored case:
 

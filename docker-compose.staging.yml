@@ -1,10 +1,7 @@
 name: momcozy-lab-agent-staging
 
 x-runtime-service: &runtime-service
-  image: ${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}
-  build:
-    context: .
-    dockerfile: Dockerfile
+  image: ${MOMCOZY_AGENT_IMAGE:?Set MOMCOZY_AGENT_IMAGE to an immutable digest reference}
   env_file:
     - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.staging.env}
   environment:
@@ -36,9 +33,6 @@ services:
 
   api:
     <<: *runtime-service
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
     ports:
       - "127.0.0.1:${MOMCOZY_AGENT_STAGING_PORT:-8002}:8000"
     networks:
@@ -60,9 +54,6 @@ services:
   worker:
     <<: *runtime-service
     command: ["python", "-m", "app.workers.agent_run"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
     restart: unless-stopped
 
 networks:

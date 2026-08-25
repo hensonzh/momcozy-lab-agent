@@ -21,13 +21,12 @@ The requested `backend-test` and `agent-test` DNS labels are ingress names only;
 they do not rename the Compose/env profile from `staging` to `test`.
 
 The environment token must agree across the Compose filename, private env
-filename, Compose project, and local build tag. Staging therefore uses
-`docker-compose.staging.yml`, `env/compose.staging.env`, project
-`momcozy-lab-agent-staging`, and the default on-host tag
-`momcozy-lab-agent:staging`. Release images use
-an environment-neutral repository plus an immutable commit tag or digest, such
-as `momcozy-lab-agent:<git-sha>`, so the exact same artifact can be promoted;
-an image repository must not claim a different environment.
+filename, and Compose project. Staging therefore uses
+`docker-compose.staging.yml`, `env/compose.staging.env`, and project
+`momcozy-lab-agent-staging`. The image repository remains environment-neutral,
+and staging accepts only a digest-qualified immutable artifact such as
+`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`; there is no on-host staging
+build or mutable staging tag.
 
 CI follows the same identity rule without becoming a deployable environment.
 `docker-compose.ci.yml` is a CI-only override for
@@ -50,7 +49,45 @@ recreating the Agent Runtime database before this baseline is deployed.
 The baseline stores the canonical non-secret provider identity on Context jobs
 and checkpoints; it must not be backfilled from a mutable deployment alias.
 
-## Release
+## Standard Staging Delivery
+
+`agent-ci` builds the image once, runs the full unit/type/migration/container,
+behavior-eval, and Runtime v1 gates against it, then publishes that same image
+under the full commit SHA and records the registry digest. It does not deploy.
+
+Configure the GitHub `staging` environment with required reviewers and
+`STAGING_SSH_HOST`, `STAGING_SSH_PORT`, `STAGING_SSH_USER`,
+`STAGING_SSH_PRIVATE_KEY`, and `STAGING_SSH_KNOWN_HOSTS`. The host deployment
+user must own `/opt/momcozy-lab`, have Docker access, and already be
+authenticated to pull the private GHCR package. Store the private Agent env at
+`/opt/momcozy-lab/shared/agent/deploy.env` with mode `0600`.
+
+Run `.github/workflows/agent-staging-delivery.yml` manually only after Product
+Backend has been deployed. Supply the full commit and
+`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`. The workflow stages the exact
+Git commit under `/opt/momcozy-lab/releases/agent/<commit>` and invokes
+`scripts/staging_release.py`, which:
+
+1. rejects a mutable image, wrong release root, mismatched OCI revision label,
+   occupied `127.0.0.1:8002`, or incorrectly owned shared network/PostgreSQL;
+2. requires the current Product Backend manifest at
+   `/opt/momcozy-lab/current/backend/release-manifest.json` to match the pinned
+   Product OpenAPI snapshot;
+3. validates the pinned Product contract and behavior-eval release contract
+   from inside the image; the full Runtime v1 pytest harness remains a required
+   CI gate because production images intentionally contain neither tests nor
+   pytest;
+4. stops API and worker, backs up only `agent_runtime_staging`, applies Alembic
+   explicitly, and starts API/worker without building;
+5. verifies local and SNI readiness and records both service identities in the
+   Agent release manifest before advancing the current pointer.
+
+Rollback requires `confirm_schema_compatible=true`, revalidates the current
+Product Backend contract, stops both Agent processes, and restores only the
+previous Agent image. It never downgrades the database; use a roll-forward when
+old code is incompatible with the current schema.
+
+## Release Acceptance Detail
 
 1. Start Product Backend staging first. It creates network `momcozy-lab-staging`, the
    `agent_runtime_staging` database/role, Redis logical DB 1, and bucket

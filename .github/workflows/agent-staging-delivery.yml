@@ -1,0 +1,106 @@
+name: agent-staging-delivery
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy a new digest or roll back to the previous release.
+        required: true
+        type: choice
+        options:
+          - deploy
+          - rollback
+      commit_sha:
+        description: Full 40-character commit SHA; required for deploy.
+        required: false
+        type: string
+      image_ref:
+        description: GHCR image pinned by sha256 digest; required for deploy.
+        required: false
+        type: string
+      confirm_schema_compatible:
+        description: Required for rollback; confirms old code can read the current schema.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: momcozy-lab-agent-staging
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: staging
+      url: https://agent-test.lute-momcozylab.luteos.cloud:8443
+    env:
+      STAGING_RELEASE_ROOT: /opt/momcozy-lab
+      STAGING_ENV_FILE: /opt/momcozy-lab/shared/agent/deploy.env
+      STAGING_CA_FILE: /etc/nginx/tls/momcozy-ca/ca.pem
+      STAGING_PUBLIC_URL: https://agent-test.lute-momcozylab.luteos.cloud:8443
+      PRODUCT_RELEASE_MANIFEST: /opt/momcozy-lab/current/backend/release-manifest.json
+    steps:
+      - name: Check out the exact release commit
+        if: inputs.operation == 'deploy'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Validate immutable deploy inputs
+        if: inputs.operation == 'deploy'
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          python scripts/staging_release.py image-manifest \
+            --image-ref "${{ inputs.image_ref }}" \
+            --commit-sha "${{ inputs.commit_sha }}" \
+            --output /tmp/agent-image-manifest.json
+
+      - name: Configure verified SSH host access
+        env:
+          STAGING_SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 "${HOME}/.ssh"
+          install -m 0600 /dev/null "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${STAGING_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${STAGING_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+
+      - name: Stage the exact commit without uncommitted files
+        if: inputs.operation == 'deploy'
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${{ inputs.commit_sha }}"
+          git archive --format=tar.gz HEAD | \
+            ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+              "test ! -e '${release_dir}' && install -d '${release_dir}' && tar -xzf - -C '${release_dir}'"
+
+      - name: Deploy the immutable image against the current Product Backend contract
+        if: inputs.operation == 'deploy'
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${{ inputs.commit_sha }}"
+          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "python3 '${release_dir}/scripts/staging_release.py' deploy --image-ref '${{ inputs.image_ref }}' --commit-sha '${{ inputs.commit_sha }}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
+
+      - name: Roll back application code without downgrading the database
+        if: inputs.operation == 'rollback'
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          test "${{ inputs.confirm_schema_compatible }}" = "true"
+          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "python3 '${STAGING_RELEASE_ROOT}/current/agent/scripts/staging_release.py' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
