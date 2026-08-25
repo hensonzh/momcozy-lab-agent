@@ -1,3 +1,6 @@
+# CI-only override. Use together with docker-compose.local.yml.
+name: momcozy-lab-agent-ci
+
 services:
   jwks:
     image: nginx:1.27-alpine
@@ -13,13 +16,22 @@ services:
       timeout: 2s
       retries: 10
 
-  api:
+  migrate:
+    image: momcozy-lab-agent:ci
     environment:
+      APP_ENV: test
+
+  api:
+    image: momcozy-lab-agent:ci
+    environment:
+      APP_ENV: test
       AUTH_JWKS_URL: http://jwks/.well-known/jwks.json
     depends_on:
       jwks:
         condition: service_healthy
 
   worker:
+    image: momcozy-lab-agent:ci
     environment:
+      APP_ENV: test
       OPENAI_API_KEY: ci-agent-runtime-openai-key

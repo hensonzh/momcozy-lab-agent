@@ -29,6 +29,14 @@ an environment-neutral repository plus an immutable commit tag or digest, such
 as `momcozy-lab-agent:<git-sha>`, so the exact same artifact can be promoted;
 an image repository must not claim a different environment.
 
+CI follows the same identity rule without becoming a deployable environment.
+`docker-compose.ci.yml` is a CI-only override for
+`docker-compose.local.yml`; the merged stack uses project
+`momcozy-lab-agent-ci` and image `momcozy-lab-agent:ci`. Its public JWKS
+fixture supplies only verification keys, and the worker receives a non-secret
+CI credential solely to validate startup and heartbeat readiness. The CI file
+must never be used with the staging Compose stack.
+
 On the shared server, Product Backend staging binds `127.0.0.1:8001` and Agent
 Runtime staging binds `127.0.0.1:8002`; `8010` is reserved for Agent Runtime
 local development.

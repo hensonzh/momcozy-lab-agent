@@ -14,12 +14,16 @@ NGINX_CONFIG = ROOT / "deploy" / "nginx" / "momcozy-lab-agent-runtime.conf"
 
 def test_project_metadata_uses_agent_name() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text()
+    ci_compose = CI_COMPOSE.read_text()
     local_compose = LOCAL_COMPOSE.read_text()
     staging_compose = STAGING_COMPOSE.read_text()
 
     assert 'name = "agent"' in pyproject
+    assert "name: momcozy-lab-agent-ci" in ci_compose
     assert local_compose.startswith("name: momcozy-lab-agent-local\n")
     assert staging_compose.startswith("name: momcozy-lab-agent-staging\n")
+    assert ci_compose.count("image: momcozy-lab-agent:ci") == 3
+    assert ci_compose.count("APP_ENV: test") == 3
     assert "image: momcozy-lab-agent:local" in local_compose
     assert "${MOMCOZY_AGENT_IMAGE:-momcozy-lab-agent:staging}" in staging_compose
     assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + staging_compose
@@ -198,6 +202,7 @@ def test_ci_readiness_uses_an_isolated_public_jwks_fixture() -> None:
     compose = CI_COMPOSE.read_text()
     jwks = CI_JWKS.read_text()
 
+    assert "CI-only override" in compose
     assert "AUTH_JWKS_URL: http://jwks/.well-known/jwks.json" in compose
     assert compose.count(
         "OPENAI_API_KEY: ci-agent-runtime-openai-key"
@@ -209,14 +214,34 @@ def test_ci_readiness_uses_an_isolated_public_jwks_fixture() -> None:
 
 def test_ci_readiness_starts_required_runtime_processes() -> None:
     workflow = CI_WORKFLOW.read_text()
+    container_job = workflow.split("  container:", maxsplit=1)[1]
 
-    smoke_step = workflow.split(
+    smoke_step = container_job.split(
         "- name: Smoke-test migration-gated readiness",
         maxsplit=1,
     )[1]
+    assert container_job.count("-f docker-compose.ci.yml") >= 5
+    assert "momcozy-lab-agent:ci" in container_job
+    assert "momcozy-lab-agent:local" not in container_job
     assert "--wait" in smoke_step
+    assert "--wait-timeout 90" in smoke_step
     assert "api worker" in smoke_step
     assert "fact-worker" not in smoke_step
+    assert "if: failure()" in container_job
+    assert "if: always()" in container_job
+    assert "down --volumes" in container_job
+
+
+def test_ci_profile_identity_and_override_usage_are_documented() -> None:
+    readme = (ROOT / "README.md").read_text()
+    deployment = (ROOT / "docs" / "deployment.md").read_text()
+    docs = readme + deployment
+
+    assert "momcozy-lab-agent-ci" in docs
+    assert "momcozy-lab-agent:ci" in docs
+    assert "docker-compose.ci.yml" in docs
+    assert "CI-only override" in docs
+    assert "public JWKS fixture" in docs
 
 
 def test_runtime_docs_describe_independent_deployment_contract() -> None:

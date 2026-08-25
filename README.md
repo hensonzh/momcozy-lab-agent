@@ -81,6 +81,17 @@ issuer; Agent Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
 `RUNTIME_ADMIN_SERVICE_KEY` is a separate inbound operator credential for
 `/v1/agent/admin/*` and must not be reused as the Product Backend service identity.
 
+## CI Container Profile
+
+`docker-compose.ci.yml` is a CI-only override and is never deployed to a
+server. CI combines it with `docker-compose.local.yml`, changes the Compose
+project to `momcozy-lab-agent-ci`, and builds
+`momcozy-lab-agent:ci`. A public JWKS fixture replaces the unavailable
+Product Backend signing-key endpoint, while a CI-only model credential lets the
+idle worker validate its startup contract without calling a real provider.
+Readiness requires the API, migration, worker heartbeat, PostgreSQL, Redis, and
+JWKS checks to pass before the stack is cleaned up.
+
 ## Staging Run
 
 ```bash
