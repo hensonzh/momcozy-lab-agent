@@ -1,6 +1,6 @@
 # Runtime Authentication
 
-## Public Agent API
+## Public Agent Runtime API
 
 - Product Backend is the only RS256 private-key owner and issues one access
   token with `momcozy-product-api` and `momcozy-agent-runtime` audiences.
@@ -17,10 +17,10 @@
   request principal so revoked permissions fail closed.
 - Valid cache hits perform no Product Backend request. Unknown key IDs trigger
   a single bounded refresh; unavailable keys return a retryable `503`.
-- Product API requests also check active device sessions. Runtime does not
+- Product Backend API requests also check active device sessions. Runtime does not
   introspect sessions per request, so logout and revocation reach Runtime no
   later than the 15-minute access-token expiry.
-- Flutter sends the same opaque bearer token to the single Agent origin
+- Flutter sends the same opaque bearer token to the single Agent Runtime origin
   configured by `MOMCOZY_AGENT_API_BASE_URL`.
 - Readiness checks PostgreSQL, Redis, and a valid cached or freshly fetched
   JWKS. Runtime remains unready when signing keys cannot be established;

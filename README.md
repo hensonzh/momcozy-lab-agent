@@ -1,10 +1,15 @@
-# Agent
+# Agent Runtime (agent/)
 
-Independent Agent service owned by the Agent team.
+Independent Agent Runtime service.
+
+Human-facing documentation uses the canonical service names `Product Backend
+(backend/)` and `Agent Runtime (agent/)`. Existing identifiers such as
+`PRODUCT_BACKEND_BASE_URL`, `MOMCOZY_AGENT_API_BASE_URL`, and the
+`product-backend` Compose alias remain stable compatibility names.
 
 ## Boundary
 
-- The Agent service owns `/v1/agent/*`, the CozyMate definition, threads, runs,
+- Agent Runtime owns `/v1/agent/*`, the CozyMate definition, threads, runs,
   append-only messages/events, tools, actions, replay/eval, and
   its workers.
 - `app/agent_runtime/` is the reusable execution core. It receives one runtime
@@ -12,9 +17,9 @@ Independent Agent service owned by the Agent team.
   it never imports `app/agent`, `app/capabilities`, or `app/bootstrap`.
 - `app/bootstrap/` is the composition root, while
   `app/api/agent_runtime/` owns the public HTTP delivery layer.
-- Product Backend owns product data and JWT signing. Runtime reaches it only
+- Product Backend owns product data and JWT signing. Agent Runtime reaches it only
   through typed `/v1/internal/agent/*` HTTPS APIs using its service identity.
-- Runtime has its own PostgreSQL database and never imports Product Backend
+- Agent Runtime has its own PostgreSQL database and never imports Product Backend
   implementation modules or reads product tables.
 - `app/agent/` owns the CozyMate definition, its single system prompt,
   versioned service Skills, Skill loader, and the global progressive Tool
@@ -24,7 +29,7 @@ Independent Agent service owned by the Agent team.
 
 ## Processes
 
-- **API:** public Agent REST/SSE, admin replay/eval, and live/ready health
+- **API:** public Agent Runtime REST/SSE, admin replay/eval, and live/ready health
   endpoints.
 - **Run worker:** executes durable queued runs, resumes confirmed actions, and
   reclaims abandoned confirmations with a low-frequency durable expiry sweep.
@@ -38,15 +43,15 @@ PostgreSQL is the durable source of truth. Redis carries run controls and
 transient stream notifications; losing Redis must not erase the durable ledger.
 The durable loop uses OpenAI Agents SDK as its inner model/Tool execution
 engine with a provider-neutral Responses adapter for OpenAI or Azure OpenAI,
-without SDK `Session`; process recovery always rebuilds state from the Runtime
+without SDK `Session`; process recovery always rebuilds state from the Agent Runtime
 ledger.
 
-Flutter configures exactly one Agent origin through
+Flutter configures exactly one Agent Runtime origin through
 `MOMCOZY_AGENT_API_BASE_URL`; runs, streams, cancellation, client events, and
 actions all derive their `/v1/agent/*` URLs from it. See
 [deployment.md](docs/deployment.md) for deployment and rollback.
 
-Environment names are fixed across current runtime artifacts: `local` is
+Environment names are fixed across current Agent Runtime artifacts: `local` is
 developer work, `test` is reserved for automated tests/CI, and `staging` is the
 shared internal server. The shared server uses `docker-compose.staging.yml`
 together with `env/compose.staging.env`; no production deployment profile is
@@ -71,27 +76,33 @@ set `MOMCOZY_AGENT_API_BIND=0.0.0.0:8010` for the Compose command and
 use the development machine's LAN address in Flutter.
 
 The local `PRODUCT_BACKEND_SERVICE_KEY` must match Product Backend
-`AGENT_RUNTIME_SERVICE_API_KEY`. `AUTH_JWT_ISSUER` must match the Product
-Backend issuer; Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
+`AGENT_RUNTIME_SERVICE_API_KEY`. `AUTH_JWT_ISSUER` must match the Product Backend
+issuer; Agent Runtime fetches only public signing keys from `AUTH_JWKS_URL`.
 `RUNTIME_ADMIN_SERVICE_KEY` is a separate inbound operator credential for
-`/v1/agent/admin/*` and must not be reused as the Product service identity.
+`/v1/agent/admin/*` and must not be reused as the Product Backend service identity.
 
 ## Staging Run
 
 ```bash
 cp env/compose.staging.env.example env/compose.staging.env
-# Copy the matching Agent DB, Redis, and MinIO values from Backend's private
-# staging env, then start Backend staging first.
+# Copy the matching Agent Runtime DB, Redis, and MinIO values from Product Backend's
+# private staging env, then start Product Backend staging first.
 docker compose --env-file env/compose.staging.env \
   -f docker-compose.staging.yml up --build --detach api worker
 ```
 
 The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
 the adjacent `127.0.0.1:8001`. Port `8010` remains local-development-only.
-Agent joins the external `momcozy-lab-staging` network. Backend Compose owns the
-single PostgreSQL, Redis, and MinIO instances; Agent uses database
+Agent Runtime joins the external `momcozy-lab-staging` network. Product Backend
+Compose owns the single PostgreSQL, Redis, and MinIO instances; Agent Runtime uses database
 `agent_runtime_staging`, Redis DB 1 with `agent-runtime:*` keys, and bucket
 `agent-runtime-staging`.
+
+The public staging origin is
+`https://agent-test.lute-momcozylab.luteos.cloud:8443`. Host Nginx routes that
+SNI site to `127.0.0.1:8002`; it does not expose the container port directly.
+See [deployment.md](docs/deployment.md) for the service-specific Nginx template
+and installation contract.
 
 The default on-host build tag is `momcozy-lab-agent:staging`. Release automation must
 override `MOMCOZY_AGENT_IMAGE` with the environment-neutral repository and an
@@ -112,7 +123,7 @@ and the versioned Tool/Action catalog hashes. The manifest does not copy Prompt
 or user content; user-derived Context content remains governed by the replay
 export's explicit content-inclusion flag.
 
-Runtime-owned versions live in one source,
+Agent Runtime-owned versions live in one source,
 `app/agent_runtime/runtime_metadata.py`. Tool/Action catalog drift is checked
 against `docs/runtime-contract-catalog.generated.json`:
 
@@ -154,7 +165,7 @@ contains the actual final response; a redacted response remains
 Before a cross-service release, validate the exact Product Backend OpenAPI
 artifact consumed by Runtime. Independent CI always validates the pinned
 `docs/contracts/product.openapi.generated.json`; refresh that file from the
-Product release artifact, then validate the exact artifact as well:
+Product Backend release artifact, then validate the exact artifact as well:
 
 ```bash
 python scripts/check_product_backend_contract.py \
@@ -162,7 +173,7 @@ python scripts/check_product_backend_contract.py \
 ```
 
 Health endpoints are `GET /v1/health/live` and `GET /v1/health/ready`.
-Ready health requires PostgreSQL, Redis, a fresh Agent worker heartbeat,
+Ready health requires PostgreSQL, Redis, a fresh Agent Runtime worker heartbeat,
 and a valid Product Backend JWKS when `WORKER_HEARTBEATS_REQUIRED=true`.
 
 Runtime processes emit privacy-safe structured operation logs for HTTP, run,

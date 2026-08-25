@@ -328,6 +328,7 @@ def test_worker_rejects_unsafe_azure_token_scope() -> None:
 def test_worker_model_output_budget_defaults_to_eight_thousand_tokens() -> None:
     settings = Settings()
 
+    assert settings.app_name == "Agent Runtime"
     assert settings.agent_model_max_output_tokens == 8_000
     assert settings.agent_context_response_reserve_tokens == 8_000
 

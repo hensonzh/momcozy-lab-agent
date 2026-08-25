@@ -9,6 +9,7 @@ CI_COMPOSE = ROOT / "docker-compose.ci.yml"
 CI_JWKS = ROOT / "tests" / "fixtures" / "jwks" / ".well-known" / "jwks.json"
 LOCAL_COMPOSE = ROOT / "docker-compose.local.yml"
 STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
+NGINX_CONFIG = ROOT / "deploy" / "nginx" / "momcozy-lab-agent-runtime.conf"
 
 
 def test_project_metadata_uses_agent_name() -> None:
@@ -59,6 +60,38 @@ def test_local_api_bind_is_loopback_safe_and_overridable_for_devices() -> None:
         "${MOMCOZY_AGENT_API_BIND:-127.0.0.1:8010}:8000"
         in compose
     )
+
+
+def test_agent_runtime_nginx_site_is_private_sni_and_sse_safe() -> None:
+    config = NGINX_CONFIG.read_text()
+
+    assert NGINX_CONFIG.name == "momcozy-lab-agent-runtime.conf"
+    assert "server 127.0.0.1:8002;" in config
+    assert "server_name agent-test.lute-momcozylab.luteos.cloud;" in config
+    assert "listen 8443 ssl http2;" in config
+    assert "listen 80" not in config
+    assert "listen 443" not in config
+    assert "default_server" not in config
+    assert (
+        "ssl_certificate /etc/nginx/tls/momcozy-lab-staging/fullchain.pem;"
+        in config
+    )
+    assert (
+        "ssl_certificate_key "
+        "/etc/nginx/tls/momcozy-lab-staging/privkey.pem;" in config
+    )
+    assert "ssl_protocols TLSv1.2 TLSv1.3;" in config
+    assert "ssl_session_tickets off;" in config
+    assert "momcozy-lab-agent-runtime.access.log" in config
+    stream = config[
+        config.index("location ~ ^/v1/agent/runs/") :
+        config.index("\n    }", config.index("location ~ ^/v1/agent/runs/"))
+    ]
+    assert "proxy_buffering off;" in stream
+    assert "proxy_cache off;" in stream
+    assert "add_header X-Accel-Buffering no always;" in stream
+    assert "proxy_read_timeout 3600s;" in stream
+    assert "proxy_send_timeout 3600s;" in stream
 
 
 def test_runtime_environment_never_contains_product_signing_secrets() -> None:

@@ -48,7 +48,7 @@ LOCAL_REDIS_URL = "redis://localhost:6380/0"
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = "Agent"
+    app_name: str = "Agent Runtime"
     app_version: str = "0.1.0"
     app_env: str = "local"
     log_level: str = "INFO"

@@ -6,7 +6,7 @@ Agents SDK execution engine. It preserves the append-only ledger and the
 Run/tool/action loop while making long-thread context reproducible, low-trust,
 recoverable, and safe for attachments.
 
-## Product contract
+## Product Backend contract
 
 - Before a Run's first model call, Runtime counts only model-bound history from
   prior **completed** Runs.

@@ -1,6 +1,6 @@
 # Observability
 
-API, Agent worker, and replay/eval processes write one-line JSON logs to stderr
+API, Agent Runtime worker, and replay/eval processes write one-line JSON logs to stderr
 using `LOG_LEVEL`.
 
 ## Operational events
@@ -54,7 +54,7 @@ workers run in separate processes, so an in-memory endpoint would be incomplete
 and easy to expose accidentally. Production log collection is the shared,
 service-controlled operations boundary.
 
-The Agent worker refreshes a fixed role heartbeat key in Redis every
+The Agent Runtime worker refreshes a fixed role heartbeat key in Redis every
 `WORKER_HEARTBEAT_INTERVAL_SECONDS`; the key expires after
 `WORKER_HEARTBEAT_TTL_SECONDS`. With `WORKER_HEARTBEATS_REQUIRED=true`,
 `GET /v1/health/ready` checks that role and returns 503 when it is missing or

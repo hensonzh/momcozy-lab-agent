@@ -9,7 +9,7 @@ release invariants, not prompt conventions.
 - Product Backend remains the token issuer. New and refreshed user access
   tokens include `agent:run` plus the bounded Product capability permissions.
   Its OpenAPI root publishes the sorted
-  `x-momcozy-runtime-token-permissions` contract; Runtime's Product contract
+  `x-momcozy-runtime-token-permissions` contract; Runtime's Product Backend contract
   gate rejects a release missing any permission required by the Tool catalog.
 - Every public Runtime endpoint requires `agent:run` in addition to a valid
   Runtime-audience JWT.
@@ -165,9 +165,9 @@ state.
    contain Runtime permissions.
 3. Quiesce Runtime admission and drain or explicitly abandon existing Runs.
 4. Drop and recreate **only the resettable Agent Runtime database**, then run
-   `alembic upgrade head`. Never reset or point at the Product database.
+   `alembic upgrade head`. Never reset or point at the Product Backend database.
 5. Deploy the Runtime API and worker from the same image digest and verify
-   migration head, readiness, Product OpenAPI compatibility, the Runtime v1
+   migration head, readiness, Product Backend OpenAPI compatibility, the Runtime v1
    harness, and database-backed behavior evals.
 6. Publish the Flutter App only after both backend lanes pass. Existing App
    builds remain compatible because the transient cursor query is optional;
