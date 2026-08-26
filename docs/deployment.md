@@ -58,12 +58,15 @@ under the full commit SHA and records the registry digest. It does not deploy.
 The current private repository plan cannot enforce GitHub environment required
 reviewers. Create one repository issue for staging approvals, set repository
 variable `STAGING_APPROVAL_ISSUE` to its number, and set `STAGING_APPROVERS` to
-a comma-separated reviewer-login allowlist; at least one separate repository
-collaborator must be available. Before any deployment secret is
-used, the workflow waits up to 30 minutes for an allowlisted user other than the
-original or rerun actor to post the exact `/approve-staging ...` command shown in the job
-summary. It is bound to the repository, run ID, attempt, and immutable trigger
+a comma-separated operator-login allowlist. Before any deployment secret is
+used, the workflow waits up to 30 minutes for an allowlisted operator to post
+the exact `/approve-staging ...` command shown in the job summary. The run
+initiator may perform this separate confirmation, matching GitHub required
+reviewers when prevent-self-review is not enabled. It is bound to the repository,
+run ID, attempt, and immutable trigger
 SHA; absent configuration or approval fails closed.
+The current remote configuration uses issue `#1`,
+`STAGING_APPROVAL_ISSUE=1`, and `STAGING_APPROVERS=hensonzh`.
 
 Keep the GitHub `staging` environment for deployment records. Configure
 `STAGING_SSH_HOST`, `STAGING_SSH_PORT`, `STAGING_SSH_USER`,

@@ -64,13 +64,10 @@ jobs:
           }
 
           expected_approval="/approve-staging ${GITHUB_REPOSITORY} ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT} ${GITHUB_SHA}"
-          printf 'Waiting for an allowlisted reviewer other than %s to comment:\n%s\n' \
-            "${GITHUB_ACTOR}" "${expected_approval}"
+          printf 'Waiting for an allowlisted reviewer to comment:\n%s\n' "${expected_approval}"
           printf 'Approval command: `%s`\n' "${expected_approval}" >> "${GITHUB_STEP_SUMMARY}"
 
           deadline=$((SECONDS + 1800))
-          actor="${GITHUB_ACTOR,,}"
-          triggering_actor="${GITHUB_TRIGGERING_ACTOR,,}"
           while (( SECONDS < deadline )); do
             candidate_output="$(
               EXPECTED_APPROVAL="${expected_approval}" gh api --paginate \
@@ -81,9 +78,7 @@ jobs:
             while IFS= read -r candidate; do
               [[ -n "${candidate}" ]] || continue
               candidate="${candidate,,}"
-              if [[ "${candidate}" == "${actor}" || "${candidate}" == "${triggering_actor}" ]]; then
-                echo "Ignoring self-approval from ${candidate}." >&2
-              elif [[ "${normalized_approvers}" == *",${candidate},"* ]]; then
+              if [[ "${normalized_approvers}" == *",${candidate},"* ]]; then
                 approved_by="${candidate}"
                 break
               else

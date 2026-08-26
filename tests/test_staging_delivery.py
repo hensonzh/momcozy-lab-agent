@@ -110,7 +110,8 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert "STAGING_APPROVERS" in workflow
     assert "STAGING_APPROVAL_ISSUE" in workflow
     assert "/approve-staging" in workflow
-    assert "GITHUB_TRIGGERING_ACTOR" in workflow
+    assert "GITHUB_TRIGGERING_ACTOR" not in workflow
+    assert "Ignoring self-approval" not in workflow
     assert "needs: approve" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "ref: main" not in workflow
