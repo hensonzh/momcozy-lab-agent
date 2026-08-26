@@ -1105,7 +1105,10 @@ def _promote_release_pointer(release_root: Path, repo_dir: Path) -> None:
     current = release_root / "current" / "agent"
     previous = release_root / "previous" / "agent"
     if current.is_symlink():
-        _replace_symlink(previous, current.resolve())
+        current_target = current.resolve()
+        if current_target == repo_dir.resolve():
+            return
+        _replace_symlink(previous, current_target)
     elif current.exists():
         raise RuntimeError(f"release pointer is not a symlink: {current}")
     _replace_symlink(current, repo_dir)

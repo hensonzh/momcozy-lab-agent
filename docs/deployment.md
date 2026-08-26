@@ -55,9 +55,20 @@ and checkpoints; it must not be backfilled from a mutable deployment alias.
 behavior-eval, and Runtime v1 gates against it, then publishes that same image
 under the full commit SHA and records the registry digest. It does not deploy.
 
-Configure the GitHub `staging` environment with required reviewers and
+The current private repository plan cannot enforce GitHub environment required
+reviewers. Create one repository issue for staging approvals, set repository
+variable `STAGING_APPROVAL_ISSUE` to its number, and set `STAGING_APPROVERS` to
+a comma-separated reviewer-login allowlist; at least one separate repository
+collaborator must be available. Before any deployment secret is
+used, the workflow waits up to 30 minutes for an allowlisted user other than the
+original or rerun actor to post the exact `/approve-staging ...` command shown in the job
+summary. It is bound to the repository, run ID, attempt, and immutable trigger
+SHA; absent configuration or approval fails closed.
+
+Keep the GitHub `staging` environment for deployment records. Configure
 `STAGING_SSH_HOST`, `STAGING_SSH_PORT`, `STAGING_SSH_USER`,
-`STAGING_SSH_PRIVATE_KEY`, and `STAGING_SSH_KNOWN_HOSTS`. The host deployment
+`STAGING_SSH_PRIVATE_KEY`, and `STAGING_SSH_KNOWN_HOSTS` as staging-scoped
+secrets where supported, otherwise as repository secrets. The host deployment
 user must own `/opt/momcozy-lab`, have Docker access, and already be
 authenticated to pull the private GHCR package. Store the private Agent env at
 `/opt/momcozy-lab/shared/agent/deploy.env` with mode `0600`.
@@ -67,7 +78,7 @@ Backend has been deployed. Supply the full commit already merged into `main`;
 the workflow proves the commit against `main` and obtains the exact digest from
 that commit's successful `agent-ci` artifact. It stages the exact Git commit
 under `/opt/momcozy-lab/releases/agent/<commit>` and invokes trusted release
-tooling from `main`. Backend and Agent delivery share the host-wide
+tooling from the immutable workflow trigger SHA. Backend and Agent delivery share the host-wide
 `/opt/momcozy-lab/shared/staging-release.lock`. `scripts/staging_release.py`:
 
 1. rejects a mutable image, wrong release root, mismatched OCI revision label,
@@ -86,6 +97,10 @@ tooling from `main`. Backend and Agent delivery share the host-wide
    clears the old heartbeat and starts API/worker without building;
 6. verifies local and SNI readiness, rereads the Product manifest at promotion,
    and records both service identities before advancing the current pointer.
+
+The delivery job allows 75 minutes, covering the 30-minute host-lock wait,
+15-minute drain ceiling, and deployment checks. Re-running the already-current
+commit does not overwrite the distinct `previous/agent` rollback pointer.
 
 The image and heartbeat generation come from the release manifest/commit, not
 the private env. A failed rollout restores the exact current-manifest image;

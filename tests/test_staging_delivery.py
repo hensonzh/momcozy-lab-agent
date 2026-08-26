@@ -10,6 +10,7 @@ import pytest
 import scripts.staging_release as staging_release
 from scripts.staging_release import (
     AgentReleaseSpec,
+    _promote_release_pointer,
     _prune_backups,
     _wait_for_drain,
     _write_secure_backup,
@@ -30,6 +31,22 @@ STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
 DIGEST = "sha256:" + "a" * 64
 COMMIT_SHA = "b" * 40
 IMAGE_REF = f"ghcr.io/hensonzh/momcozy-lab-agent@{DIGEST}"
+
+
+def _literal_run_blocks(workflow: str) -> list[str]:
+    lines = workflow.splitlines()
+    blocks: list[str] = []
+    for index, line in enumerate(lines):
+        if line.strip() != "run: |":
+            continue
+        indentation = len(line) - len(line.lstrip())
+        block: list[str] = []
+        for candidate in lines[index + 1 :]:
+            if candidate and len(candidate) - len(candidate.lstrip()) <= indentation:
+                break
+            block.append(candidate)
+        blocks.append("\n".join(block))
+    return blocks
 
 
 class BackupRunner:
@@ -88,6 +105,16 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert "workflow_dispatch:" in workflow
     assert "name: staging" in workflow
     assert "group: momcozy-lab-agent-staging" in workflow
+    assert "issues: read" in workflow
+    assert "Wait for independent staging approval" in workflow
+    assert "STAGING_APPROVERS" in workflow
+    assert "STAGING_APPROVAL_ISSUE" in workflow
+    assert "/approve-staging" in workflow
+    assert "GITHUB_TRIGGERING_ACTOR" in workflow
+    assert "needs: approve" in workflow
+    assert "ref: ${{ github.sha }}" in workflow
+    assert "ref: main" not in workflow
+    assert "timeout-minutes: 75" in workflow
     assert "STAGING_SSH_KNOWN_HOSTS" in workflow
     assert "git archive" in workflow
     assert "scripts/staging_release.py" in workflow
@@ -101,7 +128,7 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert "agent-image-manifest-" in workflow
     assert "/usr/bin/flock" in workflow
     assert "staging-release.lock" in workflow
-    for run_block in workflow.split("run: |")[1:]:
+    for run_block in _literal_run_blocks(workflow):
         assert "${{ inputs." not in run_block
     assert "StrictHostKeyChecking=no" not in workflow
     assert "docker compose build" not in workflow
@@ -109,6 +136,26 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert '"sport = :8002"' in release_script
     assert '"PRODUCT_BACKEND_SERVICE_KEY"' in release_script
     assert '"PRODUCT_BACKEND_SERVICE_API_KEY"' not in release_script
+
+
+def test_repromoting_current_agent_preserves_the_distinct_previous_release(
+    tmp_path: Path,
+) -> None:
+    current_release = tmp_path / "releases" / "agent" / ("a" * 40)
+    previous_release = tmp_path / "releases" / "agent" / ("b" * 40)
+    current_release.mkdir(parents=True)
+    previous_release.mkdir(parents=True)
+    current_link = tmp_path / "current" / "agent"
+    previous_link = tmp_path / "previous" / "agent"
+    current_link.parent.mkdir(parents=True)
+    previous_link.parent.mkdir(parents=True)
+    current_link.symlink_to(current_release)
+    previous_link.symlink_to(previous_release)
+
+    _promote_release_pointer(tmp_path, current_release)
+
+    assert current_link.resolve() == current_release
+    assert previous_link.resolve() == previous_release
 
 
 def test_release_identifiers_reject_mutable_or_ambiguous_values() -> None:
