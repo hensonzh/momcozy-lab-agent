@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from ipaddress import ip_address
@@ -50,6 +51,7 @@ LOCAL_REDIS_URL = "redis://localhost:6380/0"
 class Settings:
     app_name: str = "Agent Runtime"
     app_version: str = "0.1.0"
+    runtime_release_id: str = ""
     app_env: str = "local"
     log_level: str = "INFO"
     database_url: str = LOCAL_DATABASE_URL
@@ -122,6 +124,7 @@ class Settings:
         return cls(
             app_name=_env("APP_NAME", cls.app_name),
             app_version=_env("APP_VERSION", cls.app_version),
+            runtime_release_id=_env("RUNTIME_RELEASE_ID", cls.runtime_release_id),
             app_env=_env("APP_ENV", cls.app_env),
             log_level=_env("LOG_LEVEL", cls.log_level),
             database_url=_env("DATABASE_URL", cls.database_url),
@@ -375,6 +378,10 @@ class Settings:
     def is_production(self) -> bool:
         return self.app_env.strip().lower() in PRODUCTION_ENVS
 
+    @property
+    def worker_heartbeat_generation(self) -> str:
+        return self.runtime_release_id.strip() or self.app_version
+
     def validate_for_startup(self) -> None:
         errors: list[str] = []
         normalized_app_env = self.app_env.strip().lower()
@@ -387,6 +394,18 @@ class Settings:
         parsed_jwks_url = urlparse(self.auth_jwks_url)
         if normalized_app_env not in VALID_APP_ENVS:
             errors.append("APP_ENV must be one of: local, test, staging, production")
+        if self.runtime_release_id and not re.fullmatch(
+            r"[0-9a-f]{40}", self.runtime_release_id
+        ):
+            errors.append("RUNTIME_RELEASE_ID must be a full lowercase commit SHA")
+        if (
+            normalized_app_env == "staging"
+            and self.worker_heartbeats_required
+            and not self.runtime_release_id
+        ):
+            errors.append(
+                "RUNTIME_RELEASE_ID is required for staging worker heartbeats"
+            )
         if parsed_database_url.scheme != "postgresql+asyncpg" or not parsed_database_url.netloc or not parsed_database_url.path.strip("/"):
             errors.append("DATABASE_URL must be an absolute postgresql+asyncpg URL")
         if self.database_timeout_seconds <= 0:

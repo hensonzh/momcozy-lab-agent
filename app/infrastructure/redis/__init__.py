@@ -7,6 +7,7 @@ from .worker_heartbeat import (
     RedisWorkerHeartbeat,
     RedisWorkerHeartbeatProbe,
     WORKER_ROLES,
+    worker_heartbeat_key,
 )
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "RedisWorkerHeartbeat",
     "RedisWorkerHeartbeatProbe",
     "WORKER_ROLES",
+    "worker_heartbeat_key",
     "close_redis_client",
     "create_redis_client",
 ]

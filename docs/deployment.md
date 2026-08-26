@@ -63,10 +63,12 @@ authenticated to pull the private GHCR package. Store the private Agent env at
 `/opt/momcozy-lab/shared/agent/deploy.env` with mode `0600`.
 
 Run `.github/workflows/agent-staging-delivery.yml` manually only after Product
-Backend has been deployed. Supply the full commit and
-`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`. The workflow stages the exact
-Git commit under `/opt/momcozy-lab/releases/agent/<commit>` and invokes
-`scripts/staging_release.py`, which:
+Backend has been deployed. Supply the full commit already merged into `main`;
+the workflow proves the commit against `main` and obtains the exact digest from
+that commit's successful `agent-ci` artifact. It stages the exact Git commit
+under `/opt/momcozy-lab/releases/agent/<commit>` and invokes trusted release
+tooling from `main`. Backend and Agent delivery share the host-wide
+`/opt/momcozy-lab/shared/staging-release.lock`. `scripts/staging_release.py`:
 
 1. rejects a mutable image, wrong release root, mismatched OCI revision label,
    occupied `127.0.0.1:8002`, or incorrectly owned shared network/PostgreSQL;
@@ -77,10 +79,23 @@ Git commit under `/opt/momcozy-lab/releases/agent/<commit>` and invokes
    from inside the image; the full Runtime v1 pytest harness remains a required
    CI gate because production images intentionally contain neither tests nor
    pytest;
-4. stops API and worker, backs up only `agent_runtime_staging`, applies Alembic
-   explicitly, and starts API/worker without building;
-5. verifies local and SNI readiness and records both service identities in the
-   Agent release manifest before advancing the current pointer.
+4. stops API admission while leaving the worker alive, waits for queued/running
+   Runs and Context jobs to reach a safe point, and only then stops the worker;
+5. compares the live database revision with the image's unique Alembic head,
+   creates a private backup and runs migration only when they differ, then
+   clears the old heartbeat and starts API/worker without building;
+6. verifies local and SNI readiness, rereads the Product manifest at promotion,
+   and records both service identities before advancing the current pointer.
+
+The image and heartbeat generation come from the release manifest/commit, not
+the private env. A failed rollout restores the exact current-manifest image;
+if drain times out, the old worker is left running and API admission is
+restored. Backups are mode `0600` below a mode `0700` directory and only the
+latest ten successful pre-migration dumps are retained. An existing immutable
+release directory is reusable only when its source-archive and extracted-tree
+checksums match. Only a database with no Alembic revision skips the drain query,
+because the first baseline has no Run/Context tables yet; every initialized
+schema must drain before its worker stops.
 
 Rollback requires `confirm_schema_compatible=true`, revalidates the current
 Product Backend contract, stops both Agent processes, and restores only the
@@ -91,14 +106,18 @@ old code is incompatible with the current schema.
 
 1. Start Product Backend staging first. It creates network `momcozy-lab-staging`, the
    `agent_runtime_staging` database/role, Redis logical DB 1, and bucket
-   `agent-runtime-staging`. Copy the matching Agent Runtime DB, Redis, and MinIO
-   values into Agent Runtime's private `env/compose.staging.env`.
+   `agent-runtime-staging`. Copy the Agent-scoped database password, Redis ACL
+   password, and bucket-scoped MinIO access-key pair into Agent Runtime's
+   private `env/compose.staging.env`; never copy Redis admin or MinIO root
+   credentials into an application container.
 2. Validate `docker-compose.staging.yml` with that private env and confirm the
    Agent Runtime services join the external shared network.
    Before rolling out `agent_context_history_policy.v2`, stop new Run admission
    and drain queued, retry-wait, and running Context jobs created under `v1`;
    their source hashes intentionally include the history policy.
-3. Apply `alembic upgrade head` to the new empty Agent Runtime database.
+3. Let the protected release run the tools-profile migration explicitly when
+   the revision differs. A normal Compose `up` cannot start the migration
+   service.
 4. Start the API and run worker.
 5. Validate the pinned Product Backend OpenAPI contract and the exact Product Backend release
    artifact with `scripts/check_product_backend_contract.py`.

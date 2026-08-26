@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy or roll back one immutable Agent Runtime staging release."""
+"""Stage, deploy, restart, or roll back one Agent Runtime staging release."""
 
 from __future__ import annotations
 
@@ -10,11 +10,13 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO, Any, Sequence, cast
+from typing import IO, Any, Callable, Sequence, cast
 
 
 SERVICE_NAME = "agent-runtime"
@@ -27,10 +29,31 @@ OPENAPI_PATH = Path("docs/openapi.generated.json")
 PRODUCT_CONTRACT_PATH = Path("docs/contracts/product.openapi.generated.json")
 COMPOSE_PATH = Path("docker-compose.staging.yml")
 FULL_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 IMAGE_REF_PATTERN = re.compile(
     rf"^{re.escape(IMAGE_REPOSITORY)}@sha256:[0-9a-f]{{64}}$"
 )
 SAFE_REVISION_PATTERN = re.compile(r"^[0-9A-Za-z_.-]+$")
+SAFE_ATTEMPT_PATTERN = re.compile(r"^[0-9]+-[0-9]+$")
+BACKUP_RETENTION_COUNT = 10
+DEFAULT_DRAIN_TIMEOUT_SECONDS = 900.0
+DEFAULT_DRAIN_POLL_SECONDS = 5.0
+SOURCE_ARCHIVE_MARKER = ".source-archive.sha256"
+SOURCE_TREE_MARKER = ".source-tree.sha256"
+SOURCE_TREE_EXCLUSIONS = frozenset(
+    {SOURCE_ARCHIVE_MARKER, SOURCE_TREE_MARKER, "release-manifest.json"}
+)
+KNOWN_SECRET_PLACEHOLDERS = frozenset(
+    {
+        "replace-with-a-random-service-key-of-at-least-32-bytes",
+        "replace-with-a-random-runtime-admin-service-key-of-at-least-32-bytes",
+        "replace-with-openai-api-key",
+        "replace-with-azure-openai-api-key",
+        "replace-me",
+        "changeme",
+        "minioadmin",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +119,8 @@ def validate_product_manifest(
 ) -> dict[str, Any]:
     if manifest.get("service") != "product-backend":
         raise ValueError("Product Backend manifest has the wrong service identity")
+    if manifest.get("environment") != "staging":
+        raise ValueError("Product Backend manifest is not a staging release")
     validate_commit_sha(str(manifest.get("commit", "")))
     digest = str(manifest.get("image_digest", ""))
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
@@ -161,25 +186,76 @@ def build_image_manifest(*, image_ref: str, commit_sha: str) -> dict[str, Any]:
     }
 
 
+def stage_release_snapshot(
+    *,
+    archive: Path,
+    archive_sha256: str,
+    commit_sha: str,
+    release_root: Path,
+    attempt_id: str,
+) -> Path:
+    root = validate_release_root(release_root)
+    commit = validate_commit_sha(commit_sha)
+    _validate_sha256(archive_sha256, "archive SHA256")
+    if not SAFE_ATTEMPT_PATTERN.fullmatch(attempt_id):
+        raise ValueError("attempt id must be <run-id>-<attempt-number>")
+    if not archive.is_file() or archive.is_symlink():
+        raise FileNotFoundError(archive)
+    if _sha256_file(archive) != archive_sha256:
+        raise RuntimeError("release archive checksum does not match")
+
+    release_dir = root / "releases" / "agent" / commit
+    if release_dir.exists():
+        _verify_staged_snapshot(release_dir, archive_sha256)
+        print(f"Reusing verified Agent Runtime snapshot: {release_dir}")
+        return release_dir
+
+    attempts_root = root / "releases" / ".attempts" / "agent"
+    attempts_root.mkdir(parents=True, mode=0o750, exist_ok=True)
+    attempt_dir = attempts_root / f"{commit}-{attempt_id}"
+    attempt_dir.mkdir(mode=0o750)
+    try:
+        with tarfile.open(archive, mode="r:gz") as bundle:
+            bundle.extractall(attempt_dir, filter="data")
+        for reserved_name in SOURCE_TREE_EXCLUSIONS:
+            reserved_path = attempt_dir / reserved_name
+            if reserved_path.exists() or reserved_path.is_symlink():
+                raise RuntimeError(
+                    f"release archive contains reserved path: {reserved_name}"
+                )
+        source_tree_sha256 = _source_tree_sha256(attempt_dir)
+        _write_text_exclusive(
+            attempt_dir / SOURCE_ARCHIVE_MARKER,
+            f"{archive_sha256}\n",
+            mode=0o444,
+        )
+        _write_text_exclusive(
+            attempt_dir / SOURCE_TREE_MARKER,
+            f"{source_tree_sha256}\n",
+            mode=0o444,
+        )
+        release_dir.parent.mkdir(parents=True, mode=0o750, exist_ok=True)
+        os.rename(attempt_dir, release_dir)
+    except Exception:
+        print(f"Failed snapshot retained for diagnosis: {attempt_dir}", file=sys.stderr)
+        raise
+    _verify_staged_snapshot(release_dir, archive_sha256)
+    print(f"Staged immutable Agent Runtime snapshot: {release_dir}")
+    return release_dir
+
+
 def build_deploy_commands(spec: AgentReleaseSpec) -> list[list[str]]:
     compose = _compose_base(spec)
     return [
         ["docker", "pull", spec.image_ref],
+        _image_revision_command(spec.image_ref),
+        [*compose, "config", "--quiet"],
         [
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            '{{ index .Config.Labels "org.opencontainers.image.revision" }}',
-            spec.image_ref,
-        ],
-        [
-            "docker",
+            *compose,
             "run",
             "--rm",
-            "--env-file",
-            str(spec.env_file),
-            spec.image_ref,
+            "--no-deps",
+            "worker",
             "python",
             "-c",
             (
@@ -187,7 +263,6 @@ def build_deploy_commands(spec: AgentReleaseSpec) -> list[list[str]]:
                 "Settings.from_env().validate_for_worker()"
             ),
         ],
-        [*compose, "config", "--quiet"],
         [
             "docker",
             "run",
@@ -205,50 +280,29 @@ def build_deploy_commands(spec: AgentReleaseSpec) -> list[list[str]]:
             "scripts/run_behavior_eval.py",
             "--validate-only",
         ],
-        [*compose, "stop", "--timeout", "60", "api", "worker"],
+        [*compose, "stop", "--timeout", "30", "api"],
+        [*compose, "stop", "--timeout", "60", "worker"],
         [
-            "docker",
-            "exec",
-            "__STAGING_POSTGRES_CONTAINER__",
-            "pg_dump",
-            "--username",
-            "momcozy_staging_admin",
-            "--dbname",
-            "agent_runtime_staging",
-            "--format",
-            "custom",
+            *compose,
+            "run",
+            "--rm",
+            "--no-deps",
+            "api",
+            "python",
+            "scripts/clear_worker_heartbeat.py",
         ],
-        [*compose, "--profile", "tools", "run", "--rm", "--no-deps", "migrate"],
         [
             *compose,
             "up",
             "--detach",
             "--no-build",
+            "--no-deps",
             "--force-recreate",
             "api",
             "worker",
         ],
-        [
-            "curl",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--retry",
-            "20",
-            "--retry-all-errors",
-            "--retry-delay",
-            "3",
-            "http://127.0.0.1:8002/v1/health/ready",
-        ],
-        [
-            "curl",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--cacert",
-            str(spec.ca_file),
-            f"{spec.public_url.rstrip('/')}/v1/health/ready",
-        ],
+        _local_readiness_command(),
+        _public_readiness_command(spec.public_url, spec.ca_file),
     ]
 
 
@@ -259,64 +313,132 @@ def deploy(spec: AgentReleaseSpec, runner: CommandRunner) -> Path:
         _read_json(spec.product_manifest),
         spec.repo_dir / PRODUCT_CONTRACT_PATH,
     )
-    postgres_container = _check_collision_boundaries(runner)
+    infrastructure = _check_collision_boundaries(runner)
+    env = _command_env(spec)
     commands = build_deploy_commands(spec)
-    command_env = _command_env(spec)
-    backup_path = _backup_path(spec)
-    backup_path.parent.mkdir(parents=True, exist_ok=True)
 
-    for index, original_command in enumerate(commands):
-        command = [
-            postgres_container if part == "__STAGING_POSTGRES_CONTAINER__" else part
-            for part in original_command
-        ]
-        if index == 1:
-            revision = runner.run(
-                command,
-                cwd=spec.repo_dir,
-                env=command_env,
-                capture_output=True,
+    runner.run(commands[0], cwd=spec.repo_dir, env=env)
+    _verify_image_revision(spec, runner, env)
+    for command in commands[2:6]:
+        runner.run(command, cwd=spec.repo_dir, env=env)
+
+    image_head = _read_image_migration_head(spec, runner, env)
+    database_revision = _read_database_revision(
+        postgres_container=infrastructure["postgres"], runner=runner
+    )
+    previous = _current_release_spec(spec)
+    admission_paused = False
+    worker_stopped = False
+    new_stack_started = False
+    try:
+        admission_paused = True
+        runner.run(commands[6], cwd=spec.repo_dir, env=env)
+        if database_revision:
+            _wait_for_drain(
+                postgres_container=infrastructure["postgres"],
+                runner=runner,
             )
-            if (revision.stdout or "").strip() != spec.commit_sha:
-                raise RuntimeError(
-                    "image revision label does not match the requested commit"
-                )
-        elif "pg_dump" in command:
-            with backup_path.open("wb") as backup_file:
-                runner.run(
-                    command,
-                    cwd=spec.repo_dir,
-                    env=command_env,
-                    stdout=backup_file,
-                )
         else:
-            runner.run(command, cwd=spec.repo_dir, env=command_env)
+            print("Empty Agent Runtime schema; no durable work exists to drain.")
+        worker_stopped = True
+        runner.run(commands[7], cwd=spec.repo_dir, env=env)
 
-    migration_revision = _read_migration_revision(postgres_container, runner)
-    openapi_sha256 = _sha256_file(spec.repo_dir / OPENAPI_PATH)
-    released_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace(
-        "+00:00", "Z"
-    )
-    manifest = build_release_manifest(
-        image_ref=spec.image_ref,
-        commit_sha=spec.commit_sha,
-        migration_revision=migration_revision,
-        openapi_sha256=openapi_sha256,
-        public_url=spec.public_url,
-        released_at=released_at,
-        product_commit=str(product_manifest["commit"]),
-        product_image_digest=str(product_manifest["image_digest"]),
-        product_openapi_sha256=str(product_manifest["openapi_sha256"]),
-    )
-    manifest_path = spec.repo_dir / "release-manifest.json"
-    _write_json_atomic(manifest_path, manifest)
-    archived_manifest = (
-        spec.release_root / "manifests" / f"agent-{spec.commit_sha}.json"
-    )
-    _write_json_atomic(archived_manifest, manifest)
-    _promote_release_pointer(spec.release_root, spec.repo_dir)
+        if database_revision != image_head:
+            backup_path = _backup_path(spec)
+            _write_secure_backup(
+                runner=runner,
+                command=_pg_dump_command(infrastructure["postgres"]),
+                backup_path=backup_path,
+                cwd=spec.repo_dir,
+                env=env,
+            )
+            runner.run(
+                [
+                    *_compose_base(spec),
+                    "--profile",
+                    "tools",
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "migrate",
+                ],
+                cwd=spec.repo_dir,
+                env=env,
+            )
+            database_revision = _read_database_revision(
+                postgres_container=infrastructure["postgres"], runner=runner
+            )
+            if database_revision != image_head:
+                raise RuntimeError("Agent Runtime migration did not reach the image head")
+            _prune_backups(backup_path.parent, keep=BACKUP_RETENTION_COUNT)
+        else:
+            print(f"Schema unchanged at {image_head}; skipping backup and migration.")
+
+        runner.run(commands[8], cwd=spec.repo_dir, env=env)
+        new_stack_started = True
+        for command in commands[9:]:
+            runner.run(command, cwd=spec.repo_dir, env=env)
+
+        # The host-wide lock keeps Product Backend stable, but re-read its
+        # manifest at the promotion boundary so the recorded dependency is exact.
+        product_manifest = validate_product_manifest(
+            _read_json(spec.product_manifest),
+            spec.repo_dir / PRODUCT_CONTRACT_PATH,
+        )
+        manifest_path = _write_and_promote_manifest(
+            spec,
+            migration_revision=image_head,
+            product_manifest=product_manifest,
+        )
+    except Exception as deploy_error:
+        if admission_paused:
+            try:
+                _restore_agent(
+                    previous=previous,
+                    failed=spec,
+                    runner=runner,
+                    full_stack=worker_stopped or new_stack_started,
+                )
+            except Exception as restore_error:
+                raise RuntimeError(
+                    "Agent Runtime deploy failed and the previous release could not be restored: "
+                    f"{restore_error}"
+                ) from deploy_error
+        raise
     print(f"Agent Runtime staging release promoted: {manifest_path}")
     return manifest_path
+
+
+def restart_current(
+    *,
+    env_file: Path,
+    release_root: Path,
+    public_url: str,
+    ca_file: Path,
+    runner: CommandRunner,
+) -> Path:
+    root = validate_release_root(release_root)
+    current_dir = _resolved_release_link(root / "current" / "agent")
+    spec = _spec_from_manifest(
+        current_dir,
+        env_file=env_file,
+        release_root=root,
+        public_url=public_url,
+        ca_file=ca_file,
+        product_manifest=root / "current" / "backend" / "release-manifest.json",
+    )
+    _validate_spec_files(spec)
+    _validate_env_file(spec.env_file)
+    _check_collision_boundaries(runner)
+    validate_product_manifest(
+        _read_json(spec.product_manifest), spec.repo_dir / PRODUCT_CONTRACT_PATH
+    )
+    env = _command_env(spec)
+    runner.run(["docker", "pull", spec.image_ref], env=env)
+    _verify_image_revision(spec, runner, env)
+    _clear_heartbeat(spec, runner)
+    _start_agent(spec, runner, services=("api", "worker"))
+    return current_dir / "release-manifest.json"
 
 
 def rollback(
@@ -335,91 +457,72 @@ def rollback(
     previous_link = root / "previous" / "agent"
     current_dir = _resolved_release_link(current_link)
     previous_dir = _resolved_release_link(previous_link)
-    manifest_path = previous_dir / "release-manifest.json"
-    manifest = _read_json(manifest_path)
-    if manifest.get("service") != SERVICE_NAME:
-        raise ValueError("release manifest service does not match Agent Runtime")
     product_manifest = root / "current" / "backend" / "release-manifest.json"
-    spec = AgentReleaseSpec(
-        image_ref=validate_image_ref(str(manifest["image_ref"])),
-        commit_sha=validate_commit_sha(str(manifest["commit"])),
-        repo_dir=previous_dir,
-        env_file=env_file.resolve(),
+    current = _spec_from_manifest(
+        current_dir,
+        env_file=env_file,
         release_root=root,
         public_url=public_url,
-        ca_file=ca_file.resolve(),
+        ca_file=ca_file,
         product_manifest=product_manifest,
     )
-    _validate_spec_files(spec)
-    _validate_env_file(spec.env_file)
+    previous = _spec_from_manifest(
+        previous_dir,
+        env_file=env_file,
+        release_root=root,
+        public_url=public_url,
+        ca_file=ca_file,
+        product_manifest=product_manifest,
+    )
+    _validate_spec_files(previous)
+    _validate_env_file(previous.env_file)
+    infrastructure = _check_collision_boundaries(runner)
     validate_product_manifest(
-        _read_json(product_manifest), spec.repo_dir / PRODUCT_CONTRACT_PATH
+        _read_json(product_manifest), previous.repo_dir / PRODUCT_CONTRACT_PATH
     )
-    _check_collision_boundaries(runner)
-    command_env = _command_env(spec)
-    compose = _compose_base(spec)
-    runner.run(["docker", "pull", spec.image_ref], env=command_env)
-    revision = runner.run(
-        [
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            '{{ index .Config.Labels "org.opencontainers.image.revision" }}',
-            spec.image_ref,
-        ],
-        capture_output=True,
-        env=command_env,
-    )
-    if (revision.stdout or "").strip() != spec.commit_sha:
-        raise RuntimeError("rollback image revision label does not match manifest")
-    runner.run(
-        [*compose, "stop", "--timeout", "60", "api", "worker"],
-        cwd=spec.repo_dir,
-        env=command_env,
-    )
-    runner.run(
-        [
-            *compose,
-            "up",
-            "--detach",
-            "--no-build",
-            "--force-recreate",
-            "api",
-            "worker",
-        ],
-        cwd=spec.repo_dir,
-        env=command_env,
-    )
-    runner.run(
-        [
-            "curl",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--retry",
-            "20",
-            "--retry-all-errors",
-            "--retry-delay",
-            "3",
-            "http://127.0.0.1:8002/v1/health/ready",
-        ]
-    )
-    runner.run(
-        [
-            "curl",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--cacert",
-            str(spec.ca_file),
-            f"{public_url.rstrip('/')}/v1/health/ready",
-        ]
-    )
+    env = _command_env(previous)
+    runner.run(["docker", "pull", previous.image_ref], env=env)
+    _verify_image_revision(previous, runner, env)
+
+    admission_paused = False
+    worker_stopped = False
+    try:
+        admission_paused = True
+        runner.run(
+            [*_compose_base(current), "stop", "--timeout", "30", "api"],
+            cwd=current.repo_dir,
+            env=_command_env(current),
+        )
+        _wait_for_drain(
+            postgres_container=infrastructure["postgres"], runner=runner
+        )
+        worker_stopped = True
+        runner.run(
+            [*_compose_base(current), "stop", "--timeout", "60", "worker"],
+            cwd=current.repo_dir,
+            env=_command_env(current),
+        )
+        _clear_heartbeat(previous, runner)
+        _start_agent(previous, runner, services=("api", "worker"))
+    except Exception as rollback_error:
+        if admission_paused:
+            try:
+                _restore_agent(
+                    previous=current,
+                    failed=previous,
+                    runner=runner,
+                    full_stack=worker_stopped,
+                )
+            except Exception as restore_error:
+                raise RuntimeError(
+                    "rollback failed and the current Agent Runtime could not be restored: "
+                    f"{restore_error}"
+                ) from rollback_error
+        raise
     _replace_symlink(previous_link, current_dir)
     _replace_symlink(current_link, previous_dir)
-    print(f"Agent Runtime staging rolled back to {spec.commit_sha}")
-    return manifest_path
+    print(f"Agent Runtime staging rolled back to {previous.commit_sha}")
+    return previous_dir / "release-manifest.json"
 
 
 def _compose_base(spec: AgentReleaseSpec) -> list[str]:
@@ -438,6 +541,7 @@ def _command_env(spec: AgentReleaseSpec) -> dict[str, str]:
         **os.environ,
         "MOMCOZY_AGENT_IMAGE": spec.image_ref,
         "MOMCOZY_AGENT_ENV_FILE": str(spec.env_file),
+        "MOMCOZY_AGENT_RELEASE_ID": spec.commit_sha,
     }
 
 
@@ -451,12 +555,9 @@ def _validate_spec_files(spec: AgentReleaseSpec) -> None:
     for relative_path in (COMPOSE_PATH, OPENAPI_PATH, PRODUCT_CONTRACT_PATH):
         if not (spec.repo_dir / relative_path).is_file():
             raise FileNotFoundError(spec.repo_dir / relative_path)
-    if not spec.env_file.is_file():
-        raise FileNotFoundError(spec.env_file)
-    if not spec.ca_file.is_file():
-        raise FileNotFoundError(spec.ca_file)
-    if not spec.product_manifest.is_file():
-        raise FileNotFoundError(spec.product_manifest)
+    for path in (spec.env_file, spec.ca_file, spec.product_manifest):
+        if not path.is_file():
+            raise FileNotFoundError(path)
     if not spec.public_url.startswith("https://"):
         raise ValueError("public URL must use HTTPS")
 
@@ -466,19 +567,52 @@ def _validate_env_file(path: Path) -> None:
     if mode & 0o077:
         raise PermissionError(f"staging env must not be group/world readable: {mode:o}")
     values = _read_env_values(path)
+    release_owned = {
+        "MOMCOZY_AGENT_IMAGE",
+        "MOMCOZY_AGENT_RELEASE_ID",
+        "RUNTIME_RELEASE_ID",
+    }
+    stale = sorted(release_owned.intersection(values))
+    if stale:
+        raise ValueError(
+            f"release-owned values must not be in deploy.env: {', '.join(stale)}"
+        )
     required = (
         "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
-        "MOMCOZY_STAGING_REDIS_PASSWORD",
-        "MOMCOZY_STAGING_MINIO_ROOT_USER",
-        "MOMCOZY_STAGING_MINIO_ROOT_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
         "AUTH_JWKS_URL",
         "PRODUCT_BACKEND_BASE_URL",
         "PRODUCT_BACKEND_SERVICE_KEY",
+        "RUNTIME_ADMIN_SERVICE_KEY",
         "AGENT_MODEL_PROVIDER",
     )
     missing = [name for name in required if not values.get(name, "").strip()]
     if missing:
         raise ValueError(f"staging env is missing required values: {', '.join(missing)}")
+    secret_names = (
+        "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
+        "PRODUCT_BACKEND_SERVICE_KEY",
+        "RUNTIME_ADMIN_SERVICE_KEY",
+    )
+    unsafe = [name for name in secret_names if _is_known_placeholder(values[name])]
+    if unsafe:
+        raise ValueError(f"staging env contains placeholder values: {', '.join(unsafe)}")
+    if values["PRODUCT_BACKEND_SERVICE_KEY"] == values["RUNTIME_ADMIN_SERVICE_KEY"]:
+        raise ValueError("Product Backend and Runtime admin service keys must differ")
+
+
+def _is_known_placeholder(value: str) -> bool:
+    normalized = value.strip()
+    return (
+        normalized.lower() in KNOWN_SECRET_PLACEHOLDERS
+        or (normalized.startswith("${") and normalized.endswith("}"))
+        or normalized == "0" * 64
+    )
 
 
 def _read_env_values(path: Path) -> dict[str, str]:
@@ -492,7 +626,7 @@ def _read_env_values(path: Path) -> dict[str, str]:
     return values
 
 
-def _check_collision_boundaries(runner: CommandRunner) -> str:
+def _check_collision_boundaries(runner: CommandRunner) -> dict[str, str]:
     containers = runner.run(
         ["docker", "ps", "--format", "{{json .}}"], capture_output=True
     )
@@ -531,45 +665,185 @@ def _check_collision_boundaries(runner: CommandRunner) -> str:
         ],
         capture_output=True,
     )
-    owner = (network.stdout or "").strip()
-    if owner != INFRA_COMPOSE_PROJECT:
-        raise RuntimeError(f"{STAGING_NETWORK} must be owned by {INFRA_COMPOSE_PROJECT}")
+    if (network.stdout or "").strip() != INFRA_COMPOSE_PROJECT:
+        raise RuntimeError(
+            f"{STAGING_NETWORK} must be owned by {INFRA_COMPOSE_PROJECT}"
+        )
 
-    postgres = runner.run(
+    result: dict[str, str] = {}
+    for service in ("postgres", "redis", "minio"):
+        container = runner.run(
+            [
+                "docker",
+                "ps",
+                "--filter",
+                f"label=com.docker.compose.project={INFRA_COMPOSE_PROJECT}",
+                "--filter",
+                f"label=com.docker.compose.service={service}",
+                "--format",
+                "{{.ID}}",
+            ],
+            capture_output=True,
+        )
+        ids = [
+            value.strip()
+            for value in (container.stdout or "").splitlines()
+            if value.strip()
+        ]
+        if len(ids) != 1:
+            raise RuntimeError(
+                f"expected exactly one Product Backend staging {service}"
+            )
+        state = runner.run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{end}}",
+                ids[0],
+            ],
+            capture_output=True,
+        )
+        if (state.stdout or "").strip() != "true healthy":
+            raise RuntimeError(f"shared staging {service} is not healthy")
+        result[service] = ids[0]
+    return result
+
+
+def _wait_for_drain(
+    *,
+    postgres_container: str,
+    runner: CommandRunner,
+    timeout_seconds: float = DEFAULT_DRAIN_TIMEOUT_SECONDS,
+    poll_seconds: float = DEFAULT_DRAIN_POLL_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> None:
+    if timeout_seconds <= 0 or poll_seconds <= 0:
+        raise ValueError("drain timeout and poll interval must be positive")
+    deadline = clock() + timeout_seconds
+    while True:
+        active = _active_work_count(postgres_container, runner)
+        if active == 0:
+            print("Agent Runtime drain reached a safe point.")
+            return
+        if clock() >= deadline:
+            raise RuntimeError(
+                f"Agent Runtime drain timed out with {active} active runs/jobs"
+            )
+        print(f"Waiting for {active} active Agent Runtime runs/jobs to drain...")
+        sleeper(min(poll_seconds, max(0.0, deadline - clock())))
+
+
+def _active_work_count(postgres_container: str, runner: CommandRunner) -> int:
+    result = runner.run(
         [
             "docker",
-            "ps",
-            "--filter",
-            f"label=com.docker.compose.project={INFRA_COMPOSE_PROJECT}",
-            "--filter",
-            "label=com.docker.compose.service=postgres",
-            "--format",
-            "{{.ID}}",
+            "exec",
+            postgres_container,
+            "psql",
+            "--username",
+            "momcozy_staging_admin",
+            "--dbname",
+            "agent_runtime_staging",
+            "--tuples-only",
+            "--no-align",
+            "--command",
+            (
+                "SELECT "
+                "(SELECT count(*) FROM agent_runs "
+                " WHERE status IN ('queued', 'running')) + "
+                "(SELECT count(*) FROM agent_context_compaction_jobs "
+                " WHERE status IN ('queued', 'retry_wait', 'running'))"
+            ),
         ],
         capture_output=True,
     )
-    container_ids = [
-        value.strip()
-        for value in (postgres.stdout or "").splitlines()
-        if value.strip()
+    value = (result.stdout or "").strip()
+    if not value.isdigit():
+        raise RuntimeError("could not read active Agent Runtime work count")
+    return int(value)
+
+
+def _image_revision_command(image_ref: str) -> list[str]:
+    return [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        '{{ index .Config.Labels "org.opencontainers.image.revision" }}',
+        image_ref,
     ]
-    if len(container_ids) != 1:
-        raise RuntimeError("expected exactly one Product Backend staging Postgres")
-    return container_ids[0]
 
 
-def _backup_path(spec: AgentReleaseSpec) -> Path:
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return (
-        spec.release_root
-        / "backups"
-        / "agent"
-        / f"{timestamp}-{spec.commit_sha}.dump"
+def _verify_image_revision(
+    spec: AgentReleaseSpec,
+    runner: CommandRunner,
+    env: dict[str, str],
+) -> None:
+    revision = runner.run(
+        _image_revision_command(spec.image_ref),
+        capture_output=True,
+        env=env,
     )
+    if (revision.stdout or "").strip() != spec.commit_sha:
+        raise RuntimeError("image revision label does not match the requested commit")
 
 
-def _read_migration_revision(
-    postgres_container: str, runner: CommandRunner
+def _read_image_migration_head(
+    spec: AgentReleaseSpec,
+    runner: CommandRunner,
+    env: dict[str, str],
+) -> str:
+    result = runner.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            spec.image_ref,
+            "python",
+            "-c",
+            (
+                "from alembic.config import Config; "
+                "from alembic.script import ScriptDirectory; "
+                "heads=ScriptDirectory.from_config(Config('alembic.ini')).get_heads(); "
+                "assert len(heads) == 1, f'expected one Alembic head, got {heads}'; "
+                "print(heads[0])"
+            ),
+        ],
+        capture_output=True,
+        env=env,
+    )
+    revision = (result.stdout or "").strip()
+    if not SAFE_REVISION_PATTERN.fullmatch(revision):
+        raise RuntimeError("image does not contain one safe Agent Runtime migration head")
+    return revision
+
+
+def _read_database_revision(
+    *, postgres_container: str, runner: CommandRunner
+) -> str:
+    existence = _psql_query(
+        postgres_container,
+        sql="SELECT to_regclass('public.alembic_version') IS NOT NULL",
+        runner=runner,
+    ).lower()
+    if existence in {"f", "false"}:
+        return ""
+    if existence not in {"t", "true"}:
+        raise RuntimeError("could not determine whether alembic_version exists")
+    revision = _psql_query(
+        postgres_container,
+        sql="SELECT version_num FROM alembic_version",
+        runner=runner,
+    )
+    if not SAFE_REVISION_PATTERN.fullmatch(revision):
+        raise RuntimeError("could not read a safe Agent Runtime migration revision")
+    return revision
+
+
+def _psql_query(
+    postgres_container: str, *, sql: str, runner: CommandRunner
 ) -> str:
     result = runner.run(
         [
@@ -584,14 +858,247 @@ def _read_migration_revision(
             "--tuples-only",
             "--no-align",
             "--command",
-            "SELECT version_num FROM alembic_version",
+            sql,
         ],
         capture_output=True,
     )
-    revision = (result.stdout or "").strip()
-    if not SAFE_REVISION_PATTERN.fullmatch(revision):
-        raise RuntimeError("could not read a safe Agent Runtime migration revision")
-    return revision
+    return (result.stdout or "").strip()
+
+
+def _pg_dump_command(postgres_container: str) -> list[str]:
+    return [
+        "docker",
+        "exec",
+        postgres_container,
+        "pg_dump",
+        "--username",
+        "momcozy_staging_admin",
+        "--dbname",
+        "agent_runtime_staging",
+        "--format",
+        "custom",
+    ]
+
+
+def _write_secure_backup(
+    *,
+    runner: CommandRunner,
+    command: Sequence[str],
+    backup_path: Path,
+    cwd: Path,
+    env: dict[str, str],
+) -> None:
+    backup_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    os.chmod(backup_path.parent, 0o700)
+    partial = backup_path.with_name(f".{backup_path.name}.partial-{os.getpid()}")
+    descriptor = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as backup_file:
+            runner.run(command, cwd=cwd, env=env, stdout=backup_file)
+        os.replace(partial, backup_path)
+        os.chmod(backup_path, 0o600)
+    except Exception:
+        try:
+            partial.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    print(f"Created private Agent Runtime database backup: {backup_path}")
+
+
+def _prune_backups(directory: Path, *, keep: int) -> None:
+    if keep < 1:
+        raise ValueError("backup retention must be positive")
+    backups = sorted(
+        path
+        for path in directory.glob("*.dump")
+        if path.is_file() and not path.is_symlink()
+    )
+    for expired in backups[:-keep]:
+        expired.unlink()
+
+
+def _backup_path(spec: AgentReleaseSpec) -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    return (
+        spec.release_root
+        / "backups"
+        / "agent"
+        / f"{timestamp}-{spec.commit_sha}.dump"
+    )
+
+
+def _write_and_promote_manifest(
+    spec: AgentReleaseSpec,
+    *,
+    migration_revision: str,
+    product_manifest: dict[str, Any],
+) -> Path:
+    manifest = build_release_manifest(
+        image_ref=spec.image_ref,
+        commit_sha=spec.commit_sha,
+        migration_revision=migration_revision,
+        openapi_sha256=_sha256_file(spec.repo_dir / OPENAPI_PATH),
+        public_url=spec.public_url,
+        released_at=datetime.now(UTC).replace(microsecond=0).isoformat().replace(
+            "+00:00", "Z"
+        ),
+        product_commit=str(product_manifest["commit"]),
+        product_image_digest=str(product_manifest["image_digest"]),
+        product_openapi_sha256=str(product_manifest["openapi_sha256"]),
+    )
+    manifest_path = spec.repo_dir / "release-manifest.json"
+    _write_json_atomic(manifest_path, manifest)
+    _write_json_atomic(
+        spec.release_root / "manifests" / f"agent-{spec.commit_sha}.json",
+        manifest,
+    )
+    _promote_release_pointer(spec.release_root, spec.repo_dir)
+    return manifest_path
+
+
+def _current_release_spec(spec: AgentReleaseSpec) -> AgentReleaseSpec | None:
+    current = spec.release_root / "current" / "agent"
+    if not current.is_symlink():
+        if current.exists():
+            raise RuntimeError(f"release pointer is not a symlink: {current}")
+        return None
+    return _spec_from_manifest(
+        current.resolve(),
+        env_file=spec.env_file,
+        release_root=spec.release_root,
+        public_url=spec.public_url,
+        ca_file=spec.ca_file,
+        product_manifest=spec.product_manifest,
+    )
+
+
+def _spec_from_manifest(
+    repo_dir: Path,
+    *,
+    env_file: Path,
+    release_root: Path,
+    public_url: str,
+    ca_file: Path,
+    product_manifest: Path,
+) -> AgentReleaseSpec:
+    manifest = _read_json(repo_dir / "release-manifest.json")
+    if manifest.get("service") != SERVICE_NAME:
+        raise ValueError("release manifest service does not match Agent Runtime")
+    return AgentReleaseSpec(
+        image_ref=validate_image_ref(str(manifest.get("image_ref", ""))),
+        commit_sha=validate_commit_sha(str(manifest.get("commit", ""))),
+        repo_dir=repo_dir.resolve(),
+        env_file=env_file.resolve(),
+        release_root=release_root.resolve(),
+        public_url=public_url,
+        ca_file=ca_file.resolve(),
+        product_manifest=product_manifest.resolve(),
+    )
+
+
+def _restore_agent(
+    *,
+    previous: AgentReleaseSpec | None,
+    failed: AgentReleaseSpec,
+    runner: CommandRunner,
+    full_stack: bool,
+) -> None:
+    if previous is None:
+        services = ("api", "worker") if full_stack else ("api",)
+        runner.run(
+            [
+                *_compose_base(failed),
+                "stop",
+                "--timeout",
+                "30",
+                *services,
+            ],
+            cwd=failed.repo_dir,
+            env=_command_env(failed),
+            check=False,
+        )
+        print("First Agent Runtime deploy failed; failed services were stopped.", file=sys.stderr)
+        return
+    if full_stack:
+        _clear_heartbeat(previous, runner)
+        _start_agent(previous, runner, services=("api", "worker"))
+    else:
+        _start_agent(previous, runner, services=("api",))
+    print(
+        f"Restored Agent Runtime {previous.commit_sha} after failed deploy.",
+        file=sys.stderr,
+    )
+
+
+def _clear_heartbeat(spec: AgentReleaseSpec, runner: CommandRunner) -> None:
+    runner.run(
+        [
+            *_compose_base(spec),
+            "run",
+            "--rm",
+            "--no-deps",
+            "api",
+            "python",
+            "scripts/clear_worker_heartbeat.py",
+        ],
+        cwd=spec.repo_dir,
+        env=_command_env(spec),
+    )
+
+
+def _start_agent(
+    spec: AgentReleaseSpec,
+    runner: CommandRunner,
+    *,
+    services: Sequence[str],
+) -> None:
+    _validate_spec_files(spec)
+    env = _command_env(spec)
+    runner.run(["docker", "pull", spec.image_ref], env=env)
+    _verify_image_revision(spec, runner, env)
+    runner.run(
+        [
+            *_compose_base(spec),
+            "up",
+            "--detach",
+            "--no-build",
+            "--no-deps",
+            "--force-recreate",
+            *services,
+        ],
+        cwd=spec.repo_dir,
+        env=env,
+    )
+    runner.run(_local_readiness_command())
+    runner.run(_public_readiness_command(spec.public_url, spec.ca_file))
+
+
+def _local_readiness_command() -> list[str]:
+    return [
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--retry",
+        "20",
+        "--retry-all-errors",
+        "--retry-delay",
+        "3",
+        "http://127.0.0.1:8002/v1/health/ready",
+    ]
+
+
+def _public_readiness_command(public_url: str, ca_file: Path) -> list[str]:
+    return [
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--cacert",
+        str(ca_file),
+        f"{public_url.rstrip('/')}/v1/health/ready",
+    ]
 
 
 def _promote_release_pointer(release_root: Path, repo_dir: Path) -> None:
@@ -622,6 +1129,52 @@ def _resolved_release_link(link: Path) -> Path:
     return target
 
 
+def _verify_staged_snapshot(release_dir: Path, archive_sha256: str) -> None:
+    archive_marker = release_dir / SOURCE_ARCHIVE_MARKER
+    tree_marker = release_dir / SOURCE_TREE_MARKER
+    if not release_dir.is_dir() or release_dir.is_symlink():
+        raise RuntimeError(f"release path is not a regular directory: {release_dir}")
+    if not archive_marker.is_file() or archive_marker.is_symlink():
+        raise RuntimeError(f"existing release is missing its checksum marker: {release_dir}")
+    if archive_marker.read_text().strip() != archive_sha256:
+        raise RuntimeError(f"existing release checksum does not match: {release_dir}")
+    if not tree_marker.is_file() or tree_marker.is_symlink():
+        raise RuntimeError(f"existing release is missing its tree marker: {release_dir}")
+    expected_tree_sha256 = tree_marker.read_text().strip()
+    _validate_sha256(expected_tree_sha256, "source tree SHA256")
+    if _source_tree_sha256(release_dir) != expected_tree_sha256:
+        raise RuntimeError(f"existing release tree checksum does not match: {release_dir}")
+
+
+def _source_tree_sha256(root: Path) -> str:
+    digest = hashlib.sha256()
+    paths = sorted(root.rglob("*"), key=lambda path: path.relative_to(root).as_posix())
+    for path in paths:
+        relative = path.relative_to(root).as_posix()
+        if relative in SOURCE_TREE_EXCLUSIONS:
+            continue
+        if path.is_symlink():
+            record = f"link\0{relative}\0{os.readlink(path)}\n"
+        elif path.is_dir():
+            record = f"directory\0{relative}\n"
+        elif path.is_file():
+            executable = int(bool(path.stat().st_mode & 0o111))
+            record = (
+                f"file\0{relative}\0{executable}\0{path.stat().st_size}\0"
+                f"{_sha256_file(path)}\n"
+            )
+        else:
+            raise RuntimeError(f"release tree contains unsupported path: {relative}")
+        digest.update(record.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _write_text_exclusive(path: Path, value: str, *, mode: int) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        output.write(value)
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(path.read_text()))
 
@@ -635,7 +1188,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _validate_sha256(value: str, label: str) -> None:
-    if not re.fullmatch(r"[0-9a-f]{64}", value):
+    if not SHA256_PATTERN.fullmatch(value):
         raise ValueError(f"{label} must contain 64 lowercase hex characters")
 
 
@@ -654,6 +1207,24 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     os.replace(temporary_path, path)
 
 
+def _add_common_release_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--image-ref", required=True)
+    parser.add_argument("--commit-sha", required=True)
+    parser.add_argument("--repo-dir", type=Path, required=True)
+    parser.add_argument("--env-file", type=Path, required=True)
+    parser.add_argument("--release-root", type=Path, default=EXPECTED_RELEASE_ROOT)
+    parser.add_argument("--public-url", required=True)
+    parser.add_argument("--ca-file", type=Path, required=True)
+    parser.add_argument("--product-manifest", type=Path, required=True)
+
+
+def _add_current_release_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--env-file", type=Path, required=True)
+    parser.add_argument("--release-root", type=Path, default=EXPECTED_RELEASE_ROOT)
+    parser.add_argument("--public-url", required=True)
+    parser.add_argument("--ca-file", type=Path, required=True)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -663,29 +1234,32 @@ def _parser() -> argparse.ArgumentParser:
     image_manifest.add_argument("--commit-sha", required=True)
     image_manifest.add_argument("--output", type=Path, required=True)
 
-    deploy_parser = subparsers.add_parser("deploy")
-    deploy_parser.add_argument("--image-ref", required=True)
-    deploy_parser.add_argument("--commit-sha", required=True)
-    deploy_parser.add_argument("--repo-dir", type=Path, required=True)
-    deploy_parser.add_argument("--env-file", type=Path, required=True)
-    deploy_parser.add_argument(
-        "--release-root", type=Path, default=EXPECTED_RELEASE_ROOT
-    )
-    deploy_parser.add_argument("--public-url", required=True)
-    deploy_parser.add_argument("--ca-file", type=Path, required=True)
-    deploy_parser.add_argument("--product-manifest", type=Path, required=True)
+    snapshot = subparsers.add_parser("stage-snapshot")
+    snapshot.add_argument("--archive", type=Path, required=True)
+    snapshot.add_argument("--archive-sha256", required=True)
+    snapshot.add_argument("--commit-sha", required=True)
+    snapshot.add_argument("--release-root", type=Path, default=EXPECTED_RELEASE_ROOT)
+    snapshot.add_argument("--attempt-id", required=True)
 
+    _add_common_release_arguments(subparsers.add_parser("deploy"))
+    _add_current_release_arguments(subparsers.add_parser("restart-current"))
     rollback_parser = subparsers.add_parser("rollback")
-    rollback_parser.add_argument("--env-file", type=Path, required=True)
-    rollback_parser.add_argument(
-        "--release-root", type=Path, default=EXPECTED_RELEASE_ROOT
-    )
-    rollback_parser.add_argument("--public-url", required=True)
-    rollback_parser.add_argument("--ca-file", type=Path, required=True)
-    rollback_parser.add_argument(
-        "--confirm-schema-compatible", action="store_true"
-    )
+    _add_current_release_arguments(rollback_parser)
+    rollback_parser.add_argument("--confirm-schema-compatible", action="store_true")
     return parser
+
+
+def _release_spec_from_args(args: argparse.Namespace) -> AgentReleaseSpec:
+    return AgentReleaseSpec(
+        image_ref=validate_image_ref(args.image_ref),
+        commit_sha=validate_commit_sha(args.commit_sha),
+        repo_dir=args.repo_dir.resolve(),
+        env_file=args.env_file.resolve(),
+        release_root=validate_release_root(args.release_root),
+        public_url=args.public_url,
+        ca_file=args.ca_file.resolve(),
+        product_manifest=args.product_manifest.resolve(),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -700,20 +1274,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             )
             return 0
+        if args.command == "stage-snapshot":
+            stage_release_snapshot(
+                archive=args.archive,
+                archive_sha256=args.archive_sha256,
+                commit_sha=args.commit_sha,
+                release_root=args.release_root,
+                attempt_id=args.attempt_id,
+            )
+            return 0
         runner = CommandRunner()
         if args.command == "deploy":
-            deploy(
-                AgentReleaseSpec(
-                    image_ref=validate_image_ref(args.image_ref),
-                    commit_sha=validate_commit_sha(args.commit_sha),
-                    repo_dir=args.repo_dir.resolve(),
-                    env_file=args.env_file.resolve(),
-                    release_root=validate_release_root(args.release_root),
-                    public_url=args.public_url,
-                    ca_file=args.ca_file.resolve(),
-                    product_manifest=args.product_manifest.resolve(),
-                ),
-                runner,
+            deploy(_release_spec_from_args(args), runner)
+            return 0
+        if args.command == "restart-current":
+            restart_current(
+                env_file=args.env_file,
+                release_root=args.release_root,
+                public_url=args.public_url,
+                ca_file=args.ca_file,
+                runner=runner,
             )
             return 0
         rollback(

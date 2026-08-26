@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from app.core.settings import Settings
 from app.infrastructure.redis import (
     RedisWorkerHeartbeat,
     RedisWorkerHeartbeatProbe,
@@ -69,6 +70,13 @@ def test_worker_heartbeat_probe_rejects_old_runtime_version() -> None:
     )
 
     assert asyncio.run(probe.missing_roles()) == ("agent-worker",)
+
+
+def test_worker_heartbeat_generation_prefers_the_immutable_release_id() -> None:
+    settings = Settings(app_version="0.1.0", runtime_release_id="a" * 40)
+
+    assert settings.worker_heartbeat_generation == "a" * 40
+    assert Settings(app_version="0.1.0").worker_heartbeat_generation == "0.1.0"
 
 
 class FakeRedis:

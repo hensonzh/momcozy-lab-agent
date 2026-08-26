@@ -94,18 +94,12 @@ JWKS checks to pass before the stack is cleaned up.
 
 ## Staging Run
 
-```bash
-cp env/compose.staging.env.example env/compose.staging.env
-# Copy the matching Agent Runtime DB, Redis, and MinIO values from Product Backend's
-# private staging env, set MOMCOZY_AGENT_IMAGE to the CI-published digest, then
-# start Product Backend staging first.
-docker compose --env-file env/compose.staging.env \
-  -f docker-compose.staging.yml pull api worker
-docker compose --env-file env/compose.staging.env \
-  -f docker-compose.staging.yml --profile tools run --rm --no-deps migrate
-docker compose --env-file env/compose.staging.env \
-  -f docker-compose.staging.yml up --detach --no-build api worker
-```
+Copy `env/compose.staging.env.example` to the private host env. Copy only the
+Agent-scoped PostgreSQL password, Redis ACL password, and MinIO bucket access
+pair from Product Backend's private staging env, fill the remaining secrets,
+and set mode `0600`. Start Product Backend staging first, then use the protected
+`agent-staging-delivery` workflow. A bare Compose `up` is not a release path;
+the release script injects the manifest-owned image and heartbeat generation.
 
 The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
 the adjacent `127.0.0.1:8001`. Port `8010` remains local-development-only.
@@ -120,18 +114,20 @@ SNI site to `127.0.0.1:8002`; it does not expose the container port directly.
 See [deployment.md](docs/deployment.md) for the service-specific Nginx template
 and installation contract.
 
-Staging has no on-host build tag. `MOMCOZY_AGENT_IMAGE` is required and must be
-the digest-qualified CI artifact, for example
-`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`. Legacy names such as
-`momcozy-production-backend` are not valid for this service.
+Staging has no on-host build tag. The protected workflow obtains the
+digest-qualified image from the requested main commit's successful CI manifest;
+neither image nor release identity is stored in `deploy.env`. Legacy names such
+as `momcozy-production-backend` are not valid for this service.
 
 A successful `agent-ci` run on `main` publishes the exact image already tested
 by unit, migration, container, behavior-eval, and Runtime v1 gates. The manual,
 protected `agent-staging-delivery` workflow consumes that digest, validates the
-current Product Backend release manifest and pinned OpenAPI contract, quiesces
-API/worker, backs up `agent_runtime_staging`, migrates explicitly, and checks
-both loopback and SNI readiness. It records the Agent and Product release
-identities together under `/opt/momcozy-lab/current/agent/release-manifest.json`.
+current Product Backend release manifest and pinned OpenAPI contract, pauses API
+admission, drains active work before stopping the worker, and backs up/migrates
+only when the schema revision changes. It clears the prior heartbeat, checks
+the new commit-specific worker generation plus loopback/SNI readiness, and
+restores the current-manifest stack on failure. It records the Agent and Product
+release identities together under `/opt/momcozy-lab/current/agent/release-manifest.json`.
 
 Export a replay, optionally evaluating a stored case:
 

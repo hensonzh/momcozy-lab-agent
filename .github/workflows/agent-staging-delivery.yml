@@ -4,18 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Deploy a new digest or roll back to the previous release.
+        description: Deploy a proven main release or roll back to the previous release.
         required: true
         type: choice
         options:
           - deploy
           - rollback
       commit_sha:
-        description: Full 40-character commit SHA; required for deploy.
-        required: false
-        type: string
-      image_ref:
-        description: GHCR image pinned by sha256 digest; required for deploy.
+        description: Full main-branch commit SHA; required for deploy.
         required: false
         type: string
       confirm_schema_compatible:
@@ -25,6 +21,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -33,33 +30,90 @@ concurrency:
 
 jobs:
   deliver:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     environment:
       name: staging
       url: https://agent-test.lute-momcozylab.luteos.cloud:8443
     env:
+      REQUESTED_OPERATION: ${{ inputs.operation }}
+      REQUESTED_COMMIT_SHA: ${{ inputs.commit_sha }}
+      CONFIRM_SCHEMA_COMPATIBLE: ${{ inputs.confirm_schema_compatible }}
       STAGING_RELEASE_ROOT: /opt/momcozy-lab
       STAGING_ENV_FILE: /opt/momcozy-lab/shared/agent/deploy.env
       STAGING_CA_FILE: /etc/nginx/tls/momcozy-ca/ca.pem
       STAGING_PUBLIC_URL: https://agent-test.lute-momcozylab.luteos.cloud:8443
       PRODUCT_RELEASE_MANIFEST: /opt/momcozy-lab/current/backend/release-manifest.json
+      STAGING_RELEASE_LOCK: /opt/momcozy-lab/shared/staging-release.lock
+      REMOTE_RELEASE_TOOL: /tmp/momcozy-agent-release-tool-${{ github.run_id }}-${{ github.run_attempt }}.py
     steps:
-      - name: Check out the exact release commit
-        if: inputs.operation == 'deploy'
+      - name: Check out the trusted main release tooling
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
+          ref: main
           fetch-depth: 0
 
-      - name: Validate immutable deploy inputs
+      - name: Resolve the authoritative successful-CI image manifest
         if: inputs.operation == 'deploy'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
-          python scripts/staging_release.py image-manifest \
-            --image-ref "${{ inputs.image_ref }}" \
-            --commit-sha "${{ inputs.commit_sha }}" \
-            --output /tmp/agent-image-manifest.json
+          python3 - <<'PY'
+          import os
+          from scripts.staging_release import validate_commit_sha
+
+          validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
+          PY
+          git fetch --no-tags origin main
+          git cat-file -e "${REQUESTED_COMMIT_SHA}^{commit}"
+          git merge-base --is-ancestor "${REQUESTED_COMMIT_SHA}" origin/main
+
+          ci_run_id="$(
+            gh run list \
+              --workflow agent-ci.yml \
+              --branch main \
+              --commit "${REQUESTED_COMMIT_SHA}" \
+              --event push \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId'
+          )"
+          [[ "${ci_run_id}" =~ ^[0-9]+$ ]]
+          manifest_dir="${RUNNER_TEMP}/agent-ci-manifest-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          install -d -m 0700 "${manifest_dir}"
+          gh run download "${ci_run_id}" \
+            --name "agent-image-manifest-${REQUESTED_COMMIT_SHA}" \
+            --dir "${manifest_dir}"
+          CI_MANIFEST_PATH="${manifest_dir}/agent-image-manifest.json" \
+            python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from scripts.staging_release import validate_commit_sha, validate_image_ref
+
+          requested = validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
+          payload = json.loads(Path(os.environ["CI_MANIFEST_PATH"]).read_text())
+          image_ref = validate_image_ref(str(payload.get("image_ref", "")))
+          expected = {
+              "schema_version": 1,
+              "service": "agent-runtime",
+              "commit": requested,
+              "image_digest": image_ref.rsplit("@", 1)[1],
+          }
+          observed = {key: payload.get(key) for key in expected}
+          if observed != expected:
+              raise SystemExit(f"CI image manifest identity mismatch: {observed}")
+          with Path(os.environ["GITHUB_ENV"]).open("a") as output:
+              output.write(f"RELEASE_COMMIT_SHA={requested}\n")
+              output.write(f"RELEASE_IMAGE_REF={image_ref}\n")
+          PY
+
+      - name: Validate rollback confirmation
+        if: inputs.operation == 'rollback'
+        run: |
+          test "${CONFIRM_SCHEMA_COMPATIBLE}" = "true"
 
       - name: Configure verified SSH host access
         env:
@@ -71,6 +125,15 @@ jobs:
           printf '%s\n' "${STAGING_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
           printf '%s\n' "${STAGING_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
 
+      - name: Install the trusted main release tool on the host
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          scp -P "${STAGING_SSH_PORT}" scripts/staging_release.py \
+            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
+
       - name: Stage the exact commit without uncommitted files
         if: inputs.operation == 'deploy'
         env:
@@ -78,21 +141,25 @@ jobs:
           STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
           STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
-          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${{ inputs.commit_sha }}"
-          git archive --format=tar.gz HEAD | \
-            ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-              "test ! -e '${release_dir}' && install -d '${release_dir}' && tar -xzf - -C '${release_dir}'"
+          archive="${RUNNER_TEMP}/agent-${RELEASE_COMMIT_SHA}.tar.gz"
+          git archive --format=tar.gz --output "${archive}" "${RELEASE_COMMIT_SHA}"
+          archive_sha256="$(sha256sum "${archive}" | cut -d ' ' -f 1)"
+          remote_archive="/tmp/momcozy-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
+          scp -P "${STAGING_SSH_PORT}" "${archive}" \
+            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:${remote_archive}"
+          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "python3 '${REMOTE_RELEASE_TOOL}' stage-snapshot --archive '${remote_archive}' --archive-sha256 '${archive_sha256}' --commit-sha '${RELEASE_COMMIT_SHA}' --release-root '${STAGING_RELEASE_ROOT}' --attempt-id '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
 
-      - name: Deploy the immutable image against the current Product Backend contract
+      - name: Deploy the immutable runtime under the host lock
         if: inputs.operation == 'deploy'
         env:
           STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
           STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
           STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
-          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${{ inputs.commit_sha }}"
+          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
           ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "python3 '${release_dir}/scripts/staging_release.py' deploy --image-ref '${{ inputs.image_ref }}' --commit-sha '${{ inputs.commit_sha }}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
+            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
 
       - name: Roll back application code without downgrading the database
         if: inputs.operation == 'rollback'
@@ -101,6 +168,9 @@ jobs:
           STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
           STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
-          test "${{ inputs.confirm_schema_compatible }}" = "true"
           ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "python3 '${STAGING_RELEASE_ROOT}/current/agent/scripts/staging_release.py' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
+            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
+
+      - name: Remove transient SSH material
+        if: always()
+        run: rm -f "${HOME}/.ssh/id_ed25519"

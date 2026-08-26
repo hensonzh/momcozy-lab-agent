@@ -1,12 +1,21 @@
 import hashlib
+import os
+import subprocess
+import tarfile
 from pathlib import Path
+from typing import IO, cast
 
 import pytest
 
+import scripts.staging_release as staging_release
 from scripts.staging_release import (
     AgentReleaseSpec,
+    _prune_backups,
+    _wait_for_drain,
+    _write_secure_backup,
     build_deploy_commands,
     build_release_manifest,
+    stage_release_snapshot,
     validate_commit_sha,
     validate_image_ref,
     validate_product_manifest,
@@ -21,6 +30,34 @@ STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
 DIGEST = "sha256:" + "a" * 64
 COMMIT_SHA = "b" * 40
 IMAGE_REF = f"ghcr.io/hensonzh/momcozy-lab-agent@{DIGEST}"
+
+
+class BackupRunner:
+    def run(self, *_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        stdout = cast(IO[bytes], kwargs["stdout"])
+        stdout.write(b"agent-database-backup")
+        return subprocess.CompletedProcess([], 0, stdout="")
+
+
+class DrainRunner:
+    def __init__(self, counts: list[int]) -> None:
+        self.counts = iter(counts)
+
+    def run(self, *_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 0, stdout=str(next(self.counts)))
+
+
+class FailingReadinessRunner:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def run(
+        self, command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.commands.append(command)
+        if command and command[0] == "curl":
+            raise RuntimeError("new Agent Runtime is not ready")
+        return subprocess.CompletedProcess(command, 0, stdout="")
 
 
 def test_staging_compose_only_consumes_an_explicit_release_image_and_migrates_explicitly() -> None:
@@ -56,6 +93,16 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert "scripts/staging_release.py" in workflow
     assert "--image-ref" in workflow
     assert "rollback" in workflow
+    assert "image_ref:" not in workflow
+    assert "REQUESTED_COMMIT_SHA: ${{ inputs.commit_sha }}" in workflow
+    assert 'github.ref == \'refs/heads/main\'' in workflow
+    assert "git merge-base --is-ancestor" in workflow
+    assert "gh run download" in workflow
+    assert "agent-image-manifest-" in workflow
+    assert "/usr/bin/flock" in workflow
+    assert "staging-release.lock" in workflow
+    for run_block in workflow.split("run: |")[1:]:
+        assert "${{ inputs." not in run_block
     assert "StrictHostKeyChecking=no" not in workflow
     assert "docker compose build" not in workflow
     release_script = (ROOT / "scripts" / "staging_release.py").read_text()
@@ -79,7 +126,7 @@ def test_release_identifiers_reject_mutable_or_ambiguous_values() -> None:
         validate_release_root(Path("/opt/momcozy"))
 
 
-def test_agent_deploy_quiesces_api_and_worker_before_explicit_migration(
+def test_agent_deploy_pauses_admission_drains_then_replaces(
     tmp_path: Path,
 ) -> None:
     spec = AgentReleaseSpec(
@@ -99,13 +146,13 @@ def test_agent_deploy_quiesces_api_and_worker_before_explicit_migration(
     assert rendered[0] == f"docker pull {IMAGE_REF}"
     assert "run_behavior_eval.py --validate-only" in joined
     assert "run_runtime_v1_harness.py" not in joined
-    assert "stop --timeout 60 api worker" in joined
-    assert joined.index("stop --timeout 60 api worker") < joined.index(
-        "run --rm --no-deps migrate"
+    assert "stop --timeout 30 api" in joined
+    assert "stop --timeout 60 worker" in joined
+    assert joined.index("stop --timeout 30 api") < joined.index(
+        "stop --timeout 60 worker"
     )
-    assert joined.index("run --rm --no-deps migrate") < joined.index(
-        "--force-recreate api worker"
-    )
+    assert "clear_worker_heartbeat.py" in joined
+    assert "--no-deps --force-recreate api worker" in joined
     assert "--no-build" in joined
     assert "docker compose build" not in joined
     assert "down --volumes" not in joined
@@ -117,6 +164,7 @@ def test_product_manifest_must_match_the_pinned_agent_contract(tmp_path: Path) -
     contract_hash = hashlib.sha256(product_contract.read_bytes()).hexdigest()
     manifest = {
         "service": "product-backend",
+        "environment": "staging",
         "commit": "c" * 40,
         "image_digest": "sha256:" + "d" * 64,
         "openapi_sha256": contract_hash,
@@ -146,3 +194,214 @@ def test_release_manifest_records_product_dependency_and_runtime_identity() -> N
     assert manifest["image_digest"] == DIGEST
     assert manifest["product_backend"]["commit"] == "d" * 40
     assert manifest["product_backend"]["openapi_sha256"] == "f" * 64
+
+
+def test_release_snapshot_retry_reuses_only_the_same_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(staging_release, "EXPECTED_RELEASE_ROOT", tmp_path)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "release.txt").write_text("immutable\n")
+    archive = tmp_path / "release.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(source / "release.txt", arcname="release.txt")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    first = stage_release_snapshot(
+        archive=archive,
+        archive_sha256=archive_sha,
+        commit_sha=COMMIT_SHA,
+        release_root=tmp_path,
+        attempt_id="202-1",
+    )
+    second = stage_release_snapshot(
+        archive=archive,
+        archive_sha256=archive_sha,
+        commit_sha=COMMIT_SHA,
+        release_root=tmp_path,
+        attempt_id="202-2",
+    )
+
+    assert first == second
+    assert (first / ".source-archive.sha256").read_text().strip() == archive_sha
+    assert len((first / ".source-tree.sha256").read_text().strip()) == 64
+    with pytest.raises(RuntimeError, match="checksum"):
+        stage_release_snapshot(
+            archive=archive,
+            archive_sha256="f" * 64,
+            commit_sha=COMMIT_SHA,
+            release_root=tmp_path,
+            attempt_id="202-3",
+        )
+
+    (first / "release.txt").write_text("tampered\n")
+    with pytest.raises(RuntimeError, match="tree checksum"):
+        stage_release_snapshot(
+            archive=archive,
+            archive_sha256=archive_sha,
+            commit_sha=COMMIT_SHA,
+            release_root=tmp_path,
+            attempt_id="202-4",
+        )
+
+
+def test_agent_database_backups_are_private_and_retained(tmp_path: Path) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_path = backup_dir / "new.dump"
+    _write_secure_backup(
+        runner=BackupRunner(),  # type: ignore[arg-type]
+        command=["pg_dump"],
+        backup_path=backup_path,
+        cwd=tmp_path,
+        env={},
+    )
+
+    assert backup_path.read_bytes() == b"agent-database-backup"
+    assert os.stat(backup_dir).st_mode & 0o777 == 0o700
+    assert os.stat(backup_path).st_mode & 0o777 == 0o600
+    for index in range(12):
+        (backup_dir / f"old-{index:02d}.dump").write_bytes(b"old")
+    _prune_backups(backup_dir, keep=10)
+    assert len(list(backup_dir.glob("*.dump"))) == 10
+
+
+def test_agent_drain_waits_for_active_runs_and_context_jobs() -> None:
+    now = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    _wait_for_drain(
+        postgres_container="postgres-1",
+        runner=DrainRunner([3, 1, 0]),  # type: ignore[arg-type]
+        timeout_seconds=30,
+        poll_seconds=2,
+        clock=lambda: now[0],
+        sleeper=sleep,
+    )
+
+    assert sleeps == [2, 2]
+
+
+def test_failed_agent_switch_restores_the_current_full_stack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate = AgentReleaseSpec(
+        image_ref=IMAGE_REF,
+        commit_sha=COMMIT_SHA,
+        repo_dir=tmp_path / "candidate",
+        env_file=tmp_path / "deploy.env",
+        release_root=Path("/opt/momcozy-lab"),
+        public_url="https://agent.example.test:8443",
+        ca_file=tmp_path / "ca.pem",
+        product_manifest=tmp_path / "product.json",
+    )
+    current = AgentReleaseSpec(
+        image_ref=f"ghcr.io/hensonzh/momcozy-lab-agent@sha256:{'e' * 64}",
+        commit_sha="d" * 40,
+        repo_dir=tmp_path / "current",
+        env_file=candidate.env_file,
+        release_root=candidate.release_root,
+        public_url=candidate.public_url,
+        ca_file=candidate.ca_file,
+        product_manifest=candidate.product_manifest,
+    )
+    restored: list[tuple[AgentReleaseSpec | None, bool]] = []
+    runner = FailingReadinessRunner()
+
+    monkeypatch.setattr(staging_release, "_validate_spec_files", lambda _spec: None)
+    monkeypatch.setattr(staging_release, "_validate_env_file", lambda _path: None)
+    monkeypatch.setattr(staging_release, "_read_json", lambda _path: {})
+    monkeypatch.setattr(
+        staging_release,
+        "validate_product_manifest",
+        lambda *_args: {
+            "commit": "c" * 40,
+            "image_digest": "sha256:" + "f" * 64,
+            "openapi_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        staging_release,
+        "_check_collision_boundaries",
+        lambda _runner: {"postgres": "postgres-1"},
+    )
+    monkeypatch.setattr(staging_release, "_verify_image_revision", lambda *_args: None)
+    monkeypatch.setattr(staging_release, "_read_image_migration_head", lambda *_args: "head")
+    monkeypatch.setattr(staging_release, "_read_database_revision", lambda **_kwargs: "head")
+    monkeypatch.setattr(staging_release, "_current_release_spec", lambda _spec: current)
+    monkeypatch.setattr(staging_release, "_wait_for_drain", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        staging_release,
+        "_restore_agent",
+        lambda *, previous, failed, runner, full_stack: restored.append(
+            (previous, full_stack)
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="not ready"):
+        staging_release.deploy(candidate, runner)  # type: ignore[arg-type]
+
+    assert restored == [(current, True)]
+    assert not any("migrate" in command for command in runner.commands)
+
+
+def test_first_agent_deploy_migrates_empty_schema_without_querying_run_tables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate = AgentReleaseSpec(
+        image_ref=IMAGE_REF,
+        commit_sha=COMMIT_SHA,
+        repo_dir=tmp_path / "candidate",
+        env_file=tmp_path / "deploy.env",
+        release_root=Path("/opt/momcozy-lab"),
+        public_url="https://agent.example.test:8443",
+        ca_file=tmp_path / "ca.pem",
+        product_manifest=tmp_path / "product.json",
+    )
+    revisions = iter(["", "head"])
+    drain_calls: list[object] = []
+    runner = FailingReadinessRunner()
+
+    monkeypatch.setattr(staging_release, "_validate_spec_files", lambda _spec: None)
+    monkeypatch.setattr(staging_release, "_validate_env_file", lambda _path: None)
+    monkeypatch.setattr(staging_release, "_read_json", lambda _path: {})
+    monkeypatch.setattr(
+        staging_release,
+        "validate_product_manifest",
+        lambda *_args: {
+            "commit": "c" * 40,
+            "image_digest": "sha256:" + "f" * 64,
+            "openapi_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        staging_release,
+        "_check_collision_boundaries",
+        lambda _runner: {"postgres": "postgres-1"},
+    )
+    monkeypatch.setattr(staging_release, "_verify_image_revision", lambda *_args: None)
+    monkeypatch.setattr(staging_release, "_read_image_migration_head", lambda *_args: "head")
+    monkeypatch.setattr(
+        staging_release,
+        "_read_database_revision",
+        lambda **_kwargs: next(revisions),
+    )
+    monkeypatch.setattr(staging_release, "_current_release_spec", lambda _spec: None)
+    monkeypatch.setattr(
+        staging_release,
+        "_wait_for_drain",
+        lambda **kwargs: drain_calls.append(kwargs),
+    )
+    monkeypatch.setattr(staging_release, "_write_secure_backup", lambda **_kwargs: None)
+    monkeypatch.setattr(staging_release, "_prune_backups", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(staging_release, "_restore_agent", lambda **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="not ready"):
+        staging_release.deploy(candidate, runner)  # type: ignore[arg-type]
+
+    assert drain_calls == []
+    assert any("migrate" in command for command in runner.commands)

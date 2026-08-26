@@ -107,7 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.worker_heartbeat_probe = RedisWorkerHeartbeatProbe(
         client=redis_client,
         timeout_seconds=resolved_settings.redis_timeout_seconds,
-        expected_version=resolved_settings.app_version,
+        expected_version=resolved_settings.worker_heartbeat_generation,
     )
     app.state.agent_run_controls = AgentRunControls(redis_client)
     app.state.agent_run_admission = RedisRunAdmission(

@@ -116,10 +116,11 @@ jobs:
         env:
           MOMCOZY_AGENT_IMAGE: ghcr.io/hensonzh/momcozy-lab-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
           MOMCOZY_AGENT_ENV_FILE: env/compose.staging.env.example
+          MOMCOZY_AGENT_RELEASE_ID: 0000000000000000000000000000000000000000
           MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD: ci-agent-postgres-password
-          MOMCOZY_STAGING_REDIS_PASSWORD: ci-redis-password
-          MOMCOZY_STAGING_MINIO_ROOT_USER: ci-minio-user
-          MOMCOZY_STAGING_MINIO_ROOT_PASSWORD: ci-minio-password
+          MOMCOZY_STAGING_AGENT_REDIS_PASSWORD: ci-agent-redis-password
+          MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY: ci-agent-minio-access
+          MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY: ci-agent-minio-secret
         run: >-
           docker compose
           --env-file env/compose.staging.env.example

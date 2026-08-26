@@ -43,7 +43,7 @@ class RedisWorkerHeartbeat:
         await cast(
             Awaitable[Any],
             self.client.set(
-                _worker_key(self.role),
+                worker_heartbeat_key(self.role),
                 self.version,
                 ex=self.ttl_seconds,
             ),
@@ -103,7 +103,7 @@ class RedisWorkerHeartbeatProbe:
         self.expected_version = expected_version
 
     async def missing_roles(self) -> tuple[str, ...]:
-        keys = [_worker_key(role) for role in WORKER_ROLES]
+        keys = [worker_heartbeat_key(role) for role in WORKER_ROLES]
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 values = await cast(
@@ -119,5 +119,7 @@ class RedisWorkerHeartbeatProbe:
         )
 
 
-def _worker_key(role: str) -> str:
+def worker_heartbeat_key(role: str) -> str:
+    if role not in WORKER_ROLES:
+        raise ValueError("worker heartbeat role is invalid")
     return f"{_KEY_PREFIX}{role}"

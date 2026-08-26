@@ -80,7 +80,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
     worker_heartbeat = RedisWorkerHeartbeat(
         client=redis_client,
         role="agent-worker",
-        version=settings.app_version,
+        version=settings.worker_heartbeat_generation,
         interval_seconds=settings.worker_heartbeat_interval_seconds,
         ttl_seconds=settings.worker_heartbeat_ttl_seconds,
     )

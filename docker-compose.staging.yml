@@ -6,14 +6,15 @@ x-runtime-service: &runtime-service
     - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.staging.env}
   environment:
     DATABASE_URL: postgresql+asyncpg://agent_runtime_staging:${MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD:?Set MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD}@staging-postgres:5432/agent_runtime_staging
-    REDIS_URL: redis://:${MOMCOZY_STAGING_REDIS_PASSWORD:?Set MOMCOZY_STAGING_REDIS_PASSWORD}@staging-redis:6379/1
+    REDIS_URL: redis://agent-runtime:${MOMCOZY_STAGING_AGENT_REDIS_PASSWORD:?Set MOMCOZY_STAGING_AGENT_REDIS_PASSWORD}@staging-redis:6379/1
     RUNTIME_OUTPUT_STORE_ENDPOINT_URL: http://staging-minio:9000
-    RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID: ${MOMCOZY_STAGING_MINIO_ROOT_USER:?Set MOMCOZY_STAGING_MINIO_ROOT_USER}
-    RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY: ${MOMCOZY_STAGING_MINIO_ROOT_PASSWORD:?Set MOMCOZY_STAGING_MINIO_ROOT_PASSWORD}
+    RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID: ${MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY:?Set MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY}
+    RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY: ${MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY:?Set MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY}
+    RUNTIME_RELEASE_ID: ${MOMCOZY_AGENT_RELEASE_ID:?Set MOMCOZY_AGENT_RELEASE_ID from the immutable release manifest}
     MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD: ""
-    MOMCOZY_STAGING_REDIS_PASSWORD: ""
-    MOMCOZY_STAGING_MINIO_ROOT_USER: ""
-    MOMCOZY_STAGING_MINIO_ROOT_PASSWORD: ""
+    MOMCOZY_STAGING_AGENT_REDIS_PASSWORD: ""
+    MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY: ""
+    MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY: ""
   init: true
   read_only: true
   tmpfs:
@@ -30,6 +31,10 @@ services:
     <<: *runtime-service
     command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
     restart: "no"
+    profiles:
+      - tools
+    cpus: 0.5
+    mem_limit: 512m
 
   api:
     <<: *runtime-service
@@ -50,11 +55,15 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 768m
 
   worker:
     <<: *runtime-service
     command: ["python", "-m", "app.workers.agent_run"]
     restart: unless-stopped
+    cpus: 2.0
+    mem_limit: 3g
 
 networks:
   staging:

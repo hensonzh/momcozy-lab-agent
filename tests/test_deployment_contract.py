@@ -162,9 +162,9 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
         "@staging-postgres:5432/agent_runtime_staging"
     ) in env
     assert (
-        "REDIS_URL=redis://:${MOMCOZY_STAGING_REDIS_PASSWORD}"
-        "@staging-redis:6379/1"
-    ) in env
+        "REDIS_URL: redis://agent-runtime:"
+        "${MOMCOZY_STAGING_AGENT_REDIS_PASSWORD:?"
+    ) in compose
     assert "PRODUCT_BACKEND_BASE_URL=http://product-backend:8000" in env
     assert (
         "AUTH_JWKS_URL=http://product-backend:8000/.well-known/jwks.json"
@@ -173,9 +173,9 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     assert "RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://staging-minio:9000" in env
     for required_secret in (
         "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
-        "MOMCOZY_STAGING_REDIS_PASSWORD",
-        "MOMCOZY_STAGING_MINIO_ROOT_USER",
-        "MOMCOZY_STAGING_MINIO_ROOT_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
     ):
         assert f"${{{required_secret}:?" in compose
         assert f'{required_secret}: ""' in compose
@@ -183,6 +183,30 @@ def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
     assert not (ROOT / "env" / "compose.test.env.example").exists()
     assert not (ROOT / "docker-compose.prod.yml").exists()
     assert not (ROOT / "env" / "compose.prod.env.example").exists()
+
+
+def test_staging_runtime_has_explicit_migration_release_identity_and_limits() -> None:
+    compose = STAGING_COMPOSE.read_text()
+    env = STAGING_ENV.read_text()
+
+    migrate = compose.split("  migrate:", maxsplit=1)[1].split("\n  api:", maxsplit=1)[0]
+    assert "profiles:" in migrate
+    assert "- tools" in migrate
+    assert "RUNTIME_RELEASE_ID: ${MOMCOZY_AGENT_RELEASE_ID:?" in compose
+    assert "MOMCOZY_AGENT_RELEASE_ID=" not in env
+    assert "MOMCOZY_AGENT_IMAGE=" not in env
+    assert "MOMCOZY_STAGING_REDIS_PASSWORD" not in compose + env
+    assert "MOMCOZY_STAGING_MINIO_ROOT_USER" not in compose + env
+    assert "MOMCOZY_STAGING_MINIO_ROOT_PASSWORD" not in compose + env
+    assert "PRODUCT_BACKEND_SERVICE_KEY=\n" in env
+    assert "RUNTIME_ADMIN_SERVICE_KEY=\n" in env
+
+    for cpu, memory in (
+        ("cpus: 0.5", "mem_limit: 768m"),
+        ("cpus: 2.0", "mem_limit: 3g"),
+    ):
+        assert cpu in compose
+        assert memory in compose
 
 
 def test_ci_validates_staging_compose_and_offline_ops_entrypoints() -> None:
