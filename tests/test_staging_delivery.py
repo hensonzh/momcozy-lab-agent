@@ -95,6 +95,11 @@ def test_ci_publishes_sha_tagged_runtime_only_after_eval_and_container_gates() -
     assert "docker/build-push-action@" in workflow
     assert "ghcr.io/${{ github.repository }}:${{ github.sha }}" in workflow
     assert "org.opencontainers.image.revision=${{ github.sha }}" in workflow
+    assert (
+        '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+        in workflow
+    )
+    assert r'\"org.opencontainers.image.revision\"' not in workflow
     assert "steps.push.outputs.digest" in workflow
     assert "agent-image-manifest-${{ github.sha }}" in workflow
 

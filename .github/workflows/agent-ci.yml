@@ -221,7 +221,7 @@ jobs:
       - name: Load and verify the image revision
         run: |
           docker load --input /tmp/agent-image/momcozy-lab-agent-image.tar
-          test "$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' momcozy-lab-agent:ci)" = "${GITHUB_SHA}"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' momcozy-lab-agent:ci)" = "${GITHUB_SHA}"
 
       - name: Log in to GHCR
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1

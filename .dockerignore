@@ -10,5 +10,6 @@ docs/*
 !docs/contracts/
 docs/contracts/*
 !docs/contracts/product.openapi.generated.json
+!docs/runtime-contract-catalog.generated.json
 env
 *.pyc

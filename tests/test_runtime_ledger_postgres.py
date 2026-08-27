@@ -600,7 +600,19 @@ async def _context_compaction_scenario() -> None:
         assert [
             str(item.get("type") or "")
             for item in compactor.input_items
-        ] == ["", "function_call", "function_call_output"]
+        ] == [
+            "",
+            "function_call",
+            "function_call_output",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+        assert [
+            item.get("content") for item in compactor.input_items[3:]
+        ] == [f"retained-{index}" for index in range(5)]
 
         async with session_factory() as session:
             repository = RuntimeLedgerRepository(session)

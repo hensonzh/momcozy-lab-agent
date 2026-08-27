@@ -135,9 +135,15 @@ def test_runtime_installs_and_documents_azure_provider_support() -> None:
 
 def test_runtime_image_contains_versioned_behavior_eval_catalog() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
+    dockerignore = (ROOT / ".dockerignore").read_text()
 
     assert "COPY --chown=app:app evals evals" in dockerfile
     assert "COPY --chown=app:app docs/contracts docs/contracts" in dockerfile
+    assert (
+        "COPY --chown=app:app docs/runtime-contract-catalog.generated.json "
+        "docs/runtime-contract-catalog.generated.json"
+    ) in dockerfile
+    assert "!docs/runtime-contract-catalog.generated.json" in dockerignore
 
 
 def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
