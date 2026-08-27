@@ -500,9 +500,6 @@ class ResponsesAgentsExecutionEngine:
         if deferred:
             tools.append(
                 ToolSearchTool(
-                    description=(
-                        "按当前任务搜索并加载最相关的业务工具或工具 namespace。"
-                    ),
                     execution="server",
                 )
             )

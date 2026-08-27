@@ -370,10 +370,16 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         "role": "user",
         "content": "你好",
     }
-    assert any(
-        tool["type"] == "tool_search"
+    assert [
+        tool
         for tool in request["tools"]
-    )
+        if tool["type"] == "tool_search"
+    ] == [
+        {
+            "type": "tool_search",
+            "execution": "server",
+        }
+    ]
     eager_function_tools = {
         tool["name"]: tool
         for tool in request["tools"]
