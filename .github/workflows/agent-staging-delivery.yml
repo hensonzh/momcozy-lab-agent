@@ -24,6 +24,7 @@ permissions:
   actions: read
   contents: read
   issues: read
+  packages: read
 
 concurrency:
   group: momcozy-lab-agent-staging
@@ -113,6 +114,7 @@ jobs:
       PRODUCT_RELEASE_MANIFEST: /opt/momcozy-lab/current/backend/release-manifest.json
       STAGING_RELEASE_LOCK: /opt/momcozy-lab/shared/staging-release.lock
       REMOTE_RELEASE_TOOL: /tmp/momcozy-agent-release-tool-${{ github.run_id }}-${{ github.run_attempt }}.py
+      REMOTE_DOCKER_CONFIG: /tmp/momcozy-agent-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out the trusted main release tooling
         uses: actions/checkout@v4
@@ -191,6 +193,19 @@ jobs:
           printf '%s\n' "${STAGING_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
           printf '%s\n' "${STAGING_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
 
+      - name: Authenticate the host to GHCR with an ephemeral token
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          test -n "${GHCR_TOKEN}"
+          printf '%s' "${GHCR_TOKEN}" | ssh -p "${STAGING_SSH_PORT}" \
+            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "install -d -m 0700 '${REMOTE_DOCKER_CONFIG}' && DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker login ghcr.io --username '${GHCR_USERNAME}' --password-stdin"
+
       - name: Install the trusted main release tool on the host
         env:
           STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
@@ -225,7 +240,7 @@ jobs:
         run: |
           release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
           ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
+            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
 
       - name: Roll back application code without downgrading the database
         if: inputs.operation == 'rollback'
@@ -235,7 +250,17 @@ jobs:
           STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
+            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
+
+      - name: Remove ephemeral host registry credentials
+        if: always()
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker logout ghcr.io >/dev/null 2>&1 || true; rm -f '${REMOTE_DOCKER_CONFIG}/config.json'; rmdir '${REMOTE_DOCKER_CONFIG}' 2>/dev/null || true" || true
 
       - name: Remove transient SSH material
         if: always()
