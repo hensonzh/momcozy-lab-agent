@@ -210,7 +210,8 @@ def test_agent_deploy_pauses_admission_drains_then_replaces(
     assert joined.index("stop --timeout 30 api") < joined.index(
         "stop --timeout 60 worker"
     )
-    assert "clear_worker_heartbeat.py" in joined
+    assert "python -m scripts.clear_worker_heartbeat" in joined
+    assert "python scripts/clear_worker_heartbeat.py" not in joined
     assert "--no-deps --force-recreate api worker" in joined
     assert "--no-build" in joined
     assert "docker compose build" not in joined
