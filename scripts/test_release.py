@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage, deploy, restart, or roll back one Agent Runtime staging release."""
+"""Stage, deploy, restart, or roll back one Agent Runtime test release."""
 
 from __future__ import annotations
 
@@ -21,13 +21,13 @@ from typing import IO, Any, Callable, Sequence, cast
 
 SERVICE_NAME = "agent-runtime"
 IMAGE_REPOSITORY = "ghcr.io/hensonzh/momcozy-lab-agent"
-COMPOSE_PROJECT = "momcozy-lab-agent-staging"
-INFRA_COMPOSE_PROJECT = "momcozy-lab-backend-staging"
-STAGING_NETWORK = "momcozy-lab-staging"
+COMPOSE_PROJECT = "momcozy-lab-agent-test"
+INFRA_COMPOSE_PROJECT = "momcozy-lab-backend-test"
+TEST_NETWORK = "momcozy-lab-test"
 EXPECTED_RELEASE_ROOT = Path("/opt/momcozy-lab")
 OPENAPI_PATH = Path("docs/openapi.generated.json")
 PRODUCT_CONTRACT_PATH = Path("docs/contracts/product.openapi.generated.json")
-COMPOSE_PATH = Path("docker-compose.staging.yml")
+COMPOSE_PATH = Path("docker-compose.test.yml")
 FULL_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 IMAGE_REF_PATTERN = re.compile(
@@ -119,8 +119,8 @@ def validate_product_manifest(
 ) -> dict[str, Any]:
     if manifest.get("service") != "product-backend":
         raise ValueError("Product Backend manifest has the wrong service identity")
-    if manifest.get("environment") != "staging":
-        raise ValueError("Product Backend manifest is not a staging release")
+    if manifest.get("environment") != "test":
+        raise ValueError("Product Backend manifest is not a test release")
     validate_commit_sha(str(manifest.get("commit", "")))
     digest = str(manifest.get("image_digest", ""))
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
@@ -158,7 +158,7 @@ def build_release_manifest(
     return {
         "schema_version": 1,
         "service": SERVICE_NAME,
-        "environment": "staging",
+        "environment": "test",
         "commit": commit_sha,
         "image_ref": image_ref,
         "image_digest": image_ref.rsplit("@", maxsplit=1)[1],
@@ -406,7 +406,7 @@ def deploy(spec: AgentReleaseSpec, runner: CommandRunner) -> Path:
                     f"{restore_error}"
                 ) from deploy_error
         raise
-    print(f"Agent Runtime staging release promoted: {manifest_path}")
+    print(f"Agent Runtime test release promoted: {manifest_path}")
     return manifest_path
 
 
@@ -522,7 +522,7 @@ def rollback(
         raise
     _replace_symlink(previous_link, current_dir)
     _replace_symlink(current_link, previous_dir)
-    print(f"Agent Runtime staging rolled back to {previous.commit_sha}")
+    print(f"Agent Runtime test rolled back to {previous.commit_sha}")
     return previous_dir / "release-manifest.json"
 
 
@@ -566,7 +566,7 @@ def _validate_spec_files(spec: AgentReleaseSpec) -> None:
 def _validate_env_file(path: Path) -> None:
     mode = path.stat().st_mode & 0o777
     if mode & 0o077:
-        raise PermissionError(f"staging env must not be group/world readable: {mode:o}")
+        raise PermissionError(f"test env must not be group/world readable: {mode:o}")
     values = _read_env_values(path)
     release_owned = {
         "MOMCOZY_AGENT_IMAGE",
@@ -579,10 +579,10 @@ def _validate_env_file(path: Path) -> None:
             f"release-owned values must not be in deploy.env: {', '.join(stale)}"
         )
     required = (
-        "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
-        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
+        "MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD",
+        "MOMCOZY_TEST_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY",
         "AUTH_JWKS_URL",
         "PRODUCT_BACKEND_BASE_URL",
         "PRODUCT_BACKEND_SERVICE_KEY",
@@ -591,18 +591,18 @@ def _validate_env_file(path: Path) -> None:
     )
     missing = [name for name in required if not values.get(name, "").strip()]
     if missing:
-        raise ValueError(f"staging env is missing required values: {', '.join(missing)}")
+        raise ValueError(f"test env is missing required values: {', '.join(missing)}")
     secret_names = (
-        "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
-        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
+        "MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD",
+        "MOMCOZY_TEST_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY",
         "PRODUCT_BACKEND_SERVICE_KEY",
         "RUNTIME_ADMIN_SERVICE_KEY",
     )
     unsafe = [name for name in secret_names if _is_known_placeholder(values[name])]
     if unsafe:
-        raise ValueError(f"staging env contains placeholder values: {', '.join(unsafe)}")
+        raise ValueError(f"test env contains placeholder values: {', '.join(unsafe)}")
     if values["PRODUCT_BACKEND_SERVICE_KEY"] == values["RUNTIME_ADMIN_SERVICE_KEY"]:
         raise ValueError("Product Backend and Runtime admin service keys must differ")
 
@@ -660,7 +660,7 @@ def _check_collision_boundaries(runner: CommandRunner) -> dict[str, str]:
             "docker",
             "network",
             "inspect",
-            STAGING_NETWORK,
+            TEST_NETWORK,
             "--format",
             '{{ index .Labels "com.docker.compose.project" }}',
         ],
@@ -668,7 +668,7 @@ def _check_collision_boundaries(runner: CommandRunner) -> dict[str, str]:
     )
     if (network.stdout or "").strip() != INFRA_COMPOSE_PROJECT:
         raise RuntimeError(
-            f"{STAGING_NETWORK} must be owned by {INFRA_COMPOSE_PROJECT}"
+            f"{TEST_NETWORK} must be owned by {INFRA_COMPOSE_PROJECT}"
         )
 
     result: dict[str, str] = {}
@@ -693,7 +693,7 @@ def _check_collision_boundaries(runner: CommandRunner) -> dict[str, str]:
         ]
         if len(ids) != 1:
             raise RuntimeError(
-                f"expected exactly one Product Backend staging {service}"
+                f"expected exactly one Product Backend test {service}"
             )
         state = runner.run(
             [
@@ -706,7 +706,7 @@ def _check_collision_boundaries(runner: CommandRunner) -> dict[str, str]:
             capture_output=True,
         )
         if (state.stdout or "").strip() != "true healthy":
-            raise RuntimeError(f"shared staging {service} is not healthy")
+            raise RuntimeError(f"shared test {service} is not healthy")
         result[service] = ids[0]
     return result
 
@@ -744,9 +744,9 @@ def _active_work_count(postgres_container: str, runner: CommandRunner) -> int:
             postgres_container,
             "psql",
             "--username",
-            "momcozy_staging_admin",
+            "momcozy_test_admin",
             "--dbname",
-            "agent_runtime_staging",
+            "agent_runtime_test",
             "--tuples-only",
             "--no-align",
             "--command",
@@ -853,9 +853,9 @@ def _psql_query(
             postgres_container,
             "psql",
             "--username",
-            "momcozy_staging_admin",
+            "momcozy_test_admin",
             "--dbname",
-            "agent_runtime_staging",
+            "agent_runtime_test",
             "--tuples-only",
             "--no-align",
             "--command",
@@ -873,9 +873,9 @@ def _pg_dump_command(postgres_container: str) -> list[str]:
         postgres_container,
         "pg_dump",
         "--username",
-        "momcozy_staging_admin",
+        "momcozy_test_admin",
         "--dbname",
-        "agent_runtime_staging",
+        "agent_runtime_test",
         "--format",
         "custom",
     ]

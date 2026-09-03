@@ -1,4 +1,4 @@
-name: agent-staging-delivery
+name: agent-test-delivery
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: momcozy-lab-agent-staging
+  group: momcozy-lab-agent-test
   cancel-in-progress: false
 
 jobs:
@@ -36,35 +36,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Wait for independent staging approval
+      - name: Wait for independent test approval
         env:
           GH_TOKEN: ${{ github.token }}
-          STAGING_APPROVERS: ${{ vars.STAGING_APPROVERS }}
-          STAGING_APPROVAL_ISSUE: ${{ vars.STAGING_APPROVAL_ISSUE }}
+          TEST_APPROVERS: ${{ vars.TEST_APPROVERS }}
+          TEST_APPROVAL_ISSUE: ${{ vars.TEST_APPROVAL_ISSUE }}
         run: |
           set -euo pipefail
-          [[ "${STAGING_APPROVAL_ISSUE}" =~ ^[1-9][0-9]*$ ]] || {
-            echo "STAGING_APPROVAL_ISSUE must name the repository's approval issue." >&2
+          [[ "${TEST_APPROVAL_ISSUE}" =~ ^[1-9][0-9]*$ ]] || {
+            echo "TEST_APPROVAL_ISSUE must name the repository's approval issue." >&2
             exit 1
           }
 
-          IFS=',' read -r -a raw_approvers <<< "${STAGING_APPROVERS}"
+          IFS=',' read -r -a raw_approvers <<< "${TEST_APPROVERS}"
           normalized_approvers=","
           for raw_approver in "${raw_approvers[@]}"; do
             approver="${raw_approver//[[:space:]]/}"
             approver="${approver,,}"
             [[ "${approver}" =~ ^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$ ]] || {
-              echo "STAGING_APPROVERS must be a comma-separated GitHub login allowlist." >&2
+              echo "TEST_APPROVERS must be a comma-separated GitHub login allowlist." >&2
               exit 1
             }
             normalized_approvers+="${approver},"
           done
           [[ "${normalized_approvers}" != "," ]] || {
-            echo "STAGING_APPROVERS must contain at least one GitHub login." >&2
+            echo "TEST_APPROVERS must contain at least one GitHub login." >&2
             exit 1
           }
 
-          expected_approval="/approve-staging ${GITHUB_REPOSITORY} ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT} ${GITHUB_SHA}"
+          expected_approval="/approve-test ${GITHUB_REPOSITORY} ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT} ${GITHUB_SHA}"
           printf 'Waiting for an allowlisted reviewer to comment:\n%s\n' "${expected_approval}"
           printf 'Approval command: `%s`\n' "${expected_approval}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -72,7 +72,7 @@ jobs:
           while (( SECONDS < deadline )); do
             candidate_output="$(
               EXPECTED_APPROVAL="${expected_approval}" gh api --paginate \
-                "repos/${GITHUB_REPOSITORY}/issues/${STAGING_APPROVAL_ISSUE}/comments?per_page=100" \
+                "repos/${GITHUB_REPOSITORY}/issues/${TEST_APPROVAL_ISSUE}/comments?per_page=100" \
                 --jq '.[] | select(.body == env.EXPECTED_APPROVAL) | .user.login'
             )"
             approved_by=""
@@ -87,12 +87,12 @@ jobs:
               fi
             done <<< "${candidate_output}"
             if [[ -n "${approved_by}" ]]; then
-              echo "Staging delivery approved by ${approved_by}."
+              echo "Test delivery approved by ${approved_by}."
               exit 0
             fi
             sleep 10
           done
-          echo "Timed out waiting for independent staging approval." >&2
+          echo "Timed out waiting for independent test approval." >&2
           exit 1
 
   deliver:
@@ -101,18 +101,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     environment:
-      name: staging
+      name: test
       url: https://agent-test.lute-momcozylab.luteos.cloud:8443
     env:
       REQUESTED_OPERATION: ${{ inputs.operation }}
       REQUESTED_COMMIT_SHA: ${{ inputs.commit_sha }}
       CONFIRM_SCHEMA_COMPATIBLE: ${{ inputs.confirm_schema_compatible }}
-      STAGING_RELEASE_ROOT: /opt/momcozy-lab
-      STAGING_ENV_FILE: /opt/momcozy-lab/shared/agent/deploy.env
-      STAGING_CA_FILE: /etc/nginx/tls/momcozy-ca/ca.pem
-      STAGING_PUBLIC_URL: https://agent-test.lute-momcozylab.luteos.cloud:8443
+      TEST_RELEASE_ROOT: /opt/momcozy-lab
+      TEST_ENV_FILE: /opt/momcozy-lab/shared/agent/deploy.env
+      TEST_CA_FILE: /etc/nginx/tls/momcozy-ca/ca.pem
+      TEST_PUBLIC_URL: https://agent-test.lute-momcozylab.luteos.cloud:8443
       PRODUCT_RELEASE_MANIFEST: /opt/momcozy-lab/current/backend/release-manifest.json
-      STAGING_RELEASE_LOCK: /opt/momcozy-lab/shared/staging-release.lock
+      TEST_RELEASE_LOCK: /opt/momcozy-lab/shared/test-release.lock
       REMOTE_RELEASE_TOOL: /tmp/momcozy-agent-release-tool-${{ github.run_id }}-${{ github.run_attempt }}.py
       REMOTE_DOCKER_CONFIG: /tmp/momcozy-agent-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -129,7 +129,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
-          from scripts.staging_release import validate_commit_sha
+          from scripts.test_release import validate_commit_sha
 
           validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
           PY
@@ -159,7 +159,7 @@ jobs:
           import json
           import os
           from pathlib import Path
-          from scripts.staging_release import validate_commit_sha, validate_image_ref
+          from scripts.test_release import validate_commit_sha, validate_image_ref
 
           requested = validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
           payload = json.loads(Path(os.environ["CI_MANIFEST_PATH"]).read_text())
@@ -185,81 +185,81 @@ jobs:
 
       - name: Configure verified SSH host access
         env:
-          STAGING_SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
-          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+          TEST_SSH_PRIVATE_KEY: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          TEST_SSH_KNOWN_HOSTS: ${{ secrets.TEST_SSH_KNOWN_HOSTS }}
         run: |
           install -d -m 0700 "${HOME}/.ssh"
           install -m 0600 /dev/null "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${STAGING_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${STAGING_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          printf '%s\n' "${TEST_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${TEST_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
 
       - name: Authenticate the host to GHCR with an ephemeral token
         env:
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
           test -n "${GHCR_TOKEN}"
-          printf '%s' "${GHCR_TOKEN}" | ssh -p "${STAGING_SSH_PORT}" \
-            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+          printf '%s' "${GHCR_TOKEN}" | ssh -p "${TEST_SSH_PORT}" \
+            "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
             "install -d -m 0700 '${REMOTE_DOCKER_CONFIG}' && DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker login ghcr.io --username '${GHCR_USERNAME}' --password-stdin"
 
       - name: Install the trusted main release tool on the host
         env:
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
-          scp -P "${STAGING_SSH_PORT}" scripts/staging_release.py \
-            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
+          scp -P "${TEST_SSH_PORT}" scripts/test_release.py \
+            "${TEST_SSH_USER}@${TEST_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
 
       - name: Stage the exact commit without uncommitted files
         if: inputs.operation == 'deploy'
         env:
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
           archive="${RUNNER_TEMP}/agent-${RELEASE_COMMIT_SHA}.tar.gz"
           git archive --format=tar.gz --output "${archive}" "${RELEASE_COMMIT_SHA}"
           archive_sha256="$(sha256sum "${archive}" | cut -d ' ' -f 1)"
           remote_archive="/tmp/momcozy-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
-          scp -P "${STAGING_SSH_PORT}" "${archive}" \
-            "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:${remote_archive}"
-          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "python3 '${REMOTE_RELEASE_TOOL}' stage-snapshot --archive '${remote_archive}' --archive-sha256 '${archive_sha256}' --commit-sha '${RELEASE_COMMIT_SHA}' --release-root '${STAGING_RELEASE_ROOT}' --attempt-id '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
+          scp -P "${TEST_SSH_PORT}" "${archive}" \
+            "${TEST_SSH_USER}@${TEST_SSH_HOST}:${remote_archive}"
+          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
+            "python3 '${REMOTE_RELEASE_TOOL}' stage-snapshot --archive '${remote_archive}' --archive-sha256 '${archive_sha256}' --commit-sha '${RELEASE_COMMIT_SHA}' --release-root '${TEST_RELEASE_ROOT}' --attempt-id '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
 
       - name: Deploy the immutable runtime under the host lock
         if: inputs.operation == 'deploy'
         env:
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
-          release_dir="${STAGING_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
-          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
+          release_dir="${TEST_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
+          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
+            "/usr/bin/flock --exclusive --timeout 1800 '${TEST_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${TEST_ENV_FILE}' --release-root '${TEST_RELEASE_ROOT}' --public-url '${TEST_PUBLIC_URL}' --ca-file '${TEST_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
 
       - name: Roll back application code without downgrading the database
         if: inputs.operation == 'rollback'
         env:
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
-          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${STAGING_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${STAGING_ENV_FILE}' --release-root '${STAGING_RELEASE_ROOT}' --public-url '${STAGING_PUBLIC_URL}' --ca-file '${STAGING_CA_FILE}' --confirm-schema-compatible"
+          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
+            "/usr/bin/flock --exclusive --timeout 1800 '${TEST_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${TEST_ENV_FILE}' --release-root '${TEST_RELEASE_ROOT}' --public-url '${TEST_PUBLIC_URL}' --ca-file '${TEST_CA_FILE}' --confirm-schema-compatible"
 
       - name: Remove ephemeral host registry credentials
         if: always()
         env:
-          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
+          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
+          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
         run: |
-          ssh -p "${STAGING_SSH_PORT}" "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
             "DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker logout ghcr.io >/dev/null 2>&1 || true; rm -f '${REMOTE_DOCKER_CONFIG}/config.json'; rmdir '${REMOTE_DOCKER_CONFIG}' 2>/dev/null || true" || true
 
       - name: Remove transient SSH material

@@ -57,8 +57,8 @@ checkpoint。job 的幂等键与 worker 兼容性检查同时绑定该快照，�
 
 ## 配置
 
-共享服务器在私有 `env/compose.staging.env` 中修改 provider 配置；仓库中的
-`env/compose.staging.env.example` 只是无密钥模板。当前不维护 production 部署配置。
+共享服务器在私有 `env/compose.test.env` 中修改 provider 配置；仓库中的
+`env/compose.test.env.example` 只是无密钥模板。当前不维护 production 部署配置。
 不要在 `app/core/settings.py` 中硬编码服务商。
 
 通用设置：
@@ -137,7 +137,7 @@ provider/model 维度。上游 request ID、状态码和 `retry_after` 可以进
 
 ## 发布门禁与切换
 
-切换服务商前必须在 staging 使用与生产相同的 region、deployment type、模型版本和
+切换服务商前必须在 test 使用与生产相同的 region、deployment type、模型版本和
 认证方式完成：
 
 1. provider/settings/error/token-counter 的确定性测试；
@@ -159,5 +159,5 @@ provider/model 维度。上游 request ID、状态码和 `retry_after` 可以进
 第三个服务商需要实现/组装同一个 `ProviderRuntimeBundle`，并新增独立 profile、
 认证、错误映射和 token 预算策略。只有协议形状相似不够：Tool Search、Structured
 Output、流事件、缓存字段、错误分类和模型版本语义都必须通过 contract tests 与真实
-staging smoke。若服务商缺少 Runtime 必需能力，应新增明确的产品/Runtime 方案，
+test smoke。若服务商缺少 Runtime 必需能力，应新增明确的产品/Runtime 方案，
 而不是在 adapter 中偷偷模拟或删除能力。

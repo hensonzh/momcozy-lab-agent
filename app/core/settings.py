@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 
-VALID_APP_ENVS = {"local", "test", "staging", "production"}
+VALID_APP_ENVS = {"local", "test", "production"}
 PRODUCTION_ENVS = {"production"}
 MODEL_REASONING_EFFORTS = {
     "none",
@@ -393,18 +393,18 @@ class Settings:
         )
         parsed_jwks_url = urlparse(self.auth_jwks_url)
         if normalized_app_env not in VALID_APP_ENVS:
-            errors.append("APP_ENV must be one of: local, test, staging, production")
+            errors.append("APP_ENV must be one of: local, test, production")
         if self.runtime_release_id and not re.fullmatch(
             r"[0-9a-f]{40}", self.runtime_release_id
         ):
             errors.append("RUNTIME_RELEASE_ID must be a full lowercase commit SHA")
         if (
-            normalized_app_env == "staging"
+            normalized_app_env == "test"
             and self.worker_heartbeats_required
             and not self.runtime_release_id
         ):
             errors.append(
-                "RUNTIME_RELEASE_ID is required for staging worker heartbeats"
+                "RUNTIME_RELEASE_ID is required for test worker heartbeats"
             )
         if parsed_database_url.scheme != "postgresql+asyncpg" or not parsed_database_url.netloc or not parsed_database_url.path.strip("/"):
             errors.append("DATABASE_URL must be an absolute postgresql+asyncpg URL")

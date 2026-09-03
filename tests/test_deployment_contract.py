@@ -3,12 +3,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ENV = ROOT / "env" / "compose.local.env.example"
-STAGING_ENV = ROOT / "env" / "compose.staging.env.example"
+TEST_ENV = ROOT / "env" / "compose.test.env.example"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-ci.yml"
 CI_COMPOSE = ROOT / "docker-compose.ci.yml"
 CI_JWKS = ROOT / "tests" / "fixtures" / "jwks" / ".well-known" / "jwks.json"
 LOCAL_COMPOSE = ROOT / "docker-compose.local.yml"
-STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
+TEST_COMPOSE = ROOT / "docker-compose.test.yml"
 NGINX_CONFIG = ROOT / "deploy" / "nginx" / "momcozy-lab-agent-runtime.conf"
 
 
@@ -16,19 +16,19 @@ def test_project_metadata_uses_agent_name() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text()
     ci_compose = CI_COMPOSE.read_text()
     local_compose = LOCAL_COMPOSE.read_text()
-    staging_compose = STAGING_COMPOSE.read_text()
+    test_compose = TEST_COMPOSE.read_text()
 
     assert 'name = "agent"' in pyproject
     assert "name: momcozy-lab-agent-ci" in ci_compose
     assert local_compose.startswith("name: momcozy-lab-agent-local\n")
-    assert staging_compose.startswith("name: momcozy-lab-agent-staging\n")
+    assert test_compose.startswith("name: momcozy-lab-agent-test\n")
     assert ci_compose.count("image: momcozy-lab-agent:ci") == 3
     assert ci_compose.count("APP_ENV: test") == 3
     assert "image: momcozy-lab-agent:local" in local_compose
-    assert "${MOMCOZY_AGENT_IMAGE:?" in staging_compose
-    assert "build:" not in staging_compose
-    assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + staging_compose
-    assert "MOMCOZY_AGENT_RUNTIME_" not in local_compose + staging_compose
+    assert "${MOMCOZY_AGENT_IMAGE:?" in test_compose
+    assert "build:" not in test_compose
+    assert "MOMCOZY_AGENT_ENV_FILE" in local_compose + test_compose
+    assert "MOMCOZY_AGENT_RUNTIME_" not in local_compose + test_compose
     assert not (ROOT / "docker-compose.production.yml").exists()
     assert not (ROOT / "env" / "compose.production.env.example").exists()
     assert CI_WORKFLOW.exists()
@@ -52,7 +52,7 @@ def test_local_environment_declares_runtime_public_key_contract() -> None:
 
 
 def test_environment_examples_align_model_output_and_context_reserve() -> None:
-    for path in (LOCAL_ENV, STAGING_ENV):
+    for path in (LOCAL_ENV, TEST_ENV):
         env = path.read_text()
         assert "AGENT_MODEL_MAX_OUTPUT_TOKENS=8000" in env
         assert "AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS=8000" in env
@@ -78,12 +78,12 @@ def test_agent_runtime_nginx_site_is_private_sni_and_sse_safe() -> None:
     assert "listen 443" not in config
     assert "default_server" not in config
     assert (
-        "ssl_certificate /etc/nginx/tls/momcozy-lab-staging/fullchain.pem;"
+        "ssl_certificate /etc/nginx/tls/momcozy-lab-test/fullchain.pem;"
         in config
     )
     assert (
         "ssl_certificate_key "
-        "/etc/nginx/tls/momcozy-lab-staging/privkey.pem;" in config
+        "/etc/nginx/tls/momcozy-lab-test/privkey.pem;" in config
     )
     assert "ssl_protocols TLSv1.2 TLSv1.3;" in config
     assert "ssl_session_tickets off;" in config
@@ -125,7 +125,7 @@ def test_runtime_installs_and_documents_azure_provider_support() -> None:
     assert "AZURE_OPENAI_TOKEN_SCOPE=https://ai.azure.com/.default" in (
         provider_doc
     )
-    for path in (LOCAL_ENV, STAGING_ENV):
+    for path in (LOCAL_ENV, TEST_ENV):
         env = path.read_text()
         assert "AGENT_MODEL_REASONING_EFFORT=low" in env
         assert "AGENT_MODEL_TEXT_VERBOSITY=low" in env
@@ -146,54 +146,54 @@ def test_runtime_image_contains_versioned_behavior_eval_catalog() -> None:
     assert "!docs/runtime-contract-catalog.generated.json" in dockerignore
 
 
-def test_staging_profile_uses_one_environment_name_end_to_end() -> None:
-    compose = STAGING_COMPOSE.read_text()
-    env = STAGING_ENV.read_text()
+def test_test_profile_uses_one_environment_name_end_to_end() -> None:
+    compose = TEST_COMPOSE.read_text()
+    env = TEST_ENV.read_text()
 
-    assert "name: momcozy-lab-agent-staging" in compose
+    assert "name: momcozy-lab-agent-test" in compose
     assert "image: ${MOMCOZY_AGENT_IMAGE:?" in compose
-    assert "env/compose.staging.env" in compose
-    assert "${MOMCOZY_AGENT_STAGING_PORT:-8002}:8000" in compose
-    assert "APP_ENV=staging" in env
-    assert "AUTH_JWT_ISSUER=momcozy-staging" in env
-    assert "RUNTIME_OUTPUT_STORE_BUCKET=agent-runtime-staging" in env
-    assert "name: momcozy-lab-staging" in compose
+    assert "env/compose.test.env" in compose
+    assert "${MOMCOZY_AGENT_TEST_PORT:-8002}:8000" in compose
+    assert "APP_ENV=test" in env
+    assert "AUTH_JWT_ISSUER=momcozy-test" in env
+    assert "RUNTIME_OUTPUT_STORE_BUCKET=agent-runtime-test" in env
+    assert "name: momcozy-lab-test" in compose
     assert "external: true" in compose
     assert "\n  postgres:" not in compose
     assert "\n  redis:" not in compose
     assert "\n  minio:" not in compose
     assert (
-        "DATABASE_URL=postgresql+asyncpg://agent_runtime_staging:"
-        "${MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD}"
-        "@staging-postgres:5432/agent_runtime_staging"
+        "DATABASE_URL=postgresql+asyncpg://agent_runtime_test:"
+        "${MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD}"
+        "@test-postgres:5432/agent_runtime_test"
     ) in env
     assert (
         "REDIS_URL: redis://agent-runtime:"
-        "${MOMCOZY_STAGING_AGENT_REDIS_PASSWORD:?"
+        "${MOMCOZY_TEST_AGENT_REDIS_PASSWORD:?"
     ) in compose
     assert "PRODUCT_BACKEND_BASE_URL=http://product-backend:8000" in env
     assert (
         "AUTH_JWKS_URL=http://product-backend:8000/.well-known/jwks.json"
         in env
     )
-    assert "RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://staging-minio:9000" in env
+    assert "RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://test-minio:9000" in env
     for required_secret in (
-        "MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_REDIS_PASSWORD",
-        "MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY",
-        "MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY",
+        "MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD",
+        "MOMCOZY_TEST_AGENT_REDIS_PASSWORD",
+        "MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY",
+        "MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY",
     ):
         assert f"${{{required_secret}:?" in compose
         assert f'{required_secret}: ""' in compose
-    assert not (ROOT / "docker-compose.test.yml").exists()
-    assert not (ROOT / "env" / "compose.test.env.example").exists()
+    assert not (ROOT / "docker-compose.staging.yml").exists()
+    assert not (ROOT / "env" / "compose.staging.env.example").exists()
     assert not (ROOT / "docker-compose.prod.yml").exists()
     assert not (ROOT / "env" / "compose.prod.env.example").exists()
 
 
-def test_staging_runtime_has_explicit_migration_release_identity_and_limits() -> None:
-    compose = STAGING_COMPOSE.read_text()
-    env = STAGING_ENV.read_text()
+def test_test_runtime_has_explicit_migration_release_identity_and_limits() -> None:
+    compose = TEST_COMPOSE.read_text()
+    env = TEST_ENV.read_text()
 
     migrate = compose.split("  migrate:", maxsplit=1)[1].split("\n  api:", maxsplit=1)[0]
     assert "profiles:" in migrate
@@ -201,9 +201,9 @@ def test_staging_runtime_has_explicit_migration_release_identity_and_limits() ->
     assert "RUNTIME_RELEASE_ID: ${MOMCOZY_AGENT_RELEASE_ID:?" in compose
     assert "MOMCOZY_AGENT_RELEASE_ID=" not in env
     assert "MOMCOZY_AGENT_IMAGE=" not in env
-    assert "MOMCOZY_STAGING_REDIS_PASSWORD" not in compose + env
-    assert "MOMCOZY_STAGING_MINIO_ROOT_USER" not in compose + env
-    assert "MOMCOZY_STAGING_MINIO_ROOT_PASSWORD" not in compose + env
+    assert "MOMCOZY_TEST_REDIS_PASSWORD" not in compose + env
+    assert "MOMCOZY_TEST_MINIO_ROOT_USER" not in compose + env
+    assert "MOMCOZY_TEST_MINIO_ROOT_PASSWORD" not in compose + env
     assert "PRODUCT_BACKEND_SERVICE_KEY=\n" in env
     assert "RUNTIME_ADMIN_SERVICE_KEY=\n" in env
 
@@ -215,13 +215,13 @@ def test_staging_runtime_has_explicit_migration_release_identity_and_limits() ->
         assert memory in compose
 
 
-def test_ci_validates_staging_compose_and_offline_ops_entrypoints() -> None:
+def test_ci_validates_test_compose_and_offline_ops_entrypoints() -> None:
     workflow = CI_WORKFLOW.read_text()
 
     assert "docker-compose.production.yml" not in workflow
     assert "compose.production.env" not in workflow
-    assert "--env-file env/compose.staging.env.example" in workflow
-    assert "-f docker-compose.staging.yml" in workflow
+    assert "--env-file env/compose.test.env.example" in workflow
+    assert "-f docker-compose.test.yml" in workflow
     assert "config --quiet" in workflow
     assert "-f docker-compose.ci.yml" in workflow
     assert "python scripts/check_product_backend_contract.py" in workflow

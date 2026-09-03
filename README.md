@@ -52,10 +52,10 @@ actions all derive their `/v1/agent/*` URLs from it. See
 [deployment.md](docs/deployment.md) for deployment and rollback.
 
 Environment names are fixed across current Agent Runtime artifacts: `local` is
-developer work, `test` is reserved for automated tests/CI, and `staging` is the
-shared internal server. The shared server uses `docker-compose.staging.yml`
-together with `env/compose.staging.env`; no production deployment profile is
-currently shipped.
+developer work and `test` is the shared internal server profile. CI remains an
+ephemeral verification lane (`momcozy-lab-agent-ci`), not a third deployable
+environment. The shared server uses `docker-compose.test.yml` together with
+`env/compose.test.env`; no production deployment profile is currently shipped.
 
 ## Local Run
 
@@ -92,36 +92,36 @@ idle worker validate its startup contract without calling a real provider.
 Readiness requires the API, migration, worker heartbeat, PostgreSQL, Redis, and
 JWKS checks to pass before the stack is cleaned up.
 
-## Staging Run
+## Test Run
 
-Copy `env/compose.staging.env.example` to the private host env. Copy only the
+Copy `env/compose.test.env.example` to the private host env. Copy only the
 Agent-scoped PostgreSQL password, Redis ACL password, and MinIO bucket access
-pair from Product Backend's private staging env, fill the remaining secrets,
-and set mode `0600`. Start Product Backend staging first, then use the protected
-`agent-staging-delivery` workflow. A bare Compose `up` is not a release path;
+pair from Product Backend's private test env, fill the remaining secrets,
+and set mode `0600`. Start Product Backend test first, then use the protected
+`agent-test-delivery` workflow. A bare Compose `up` is not a release path;
 the release script injects the manifest-owned image and heartbeat generation.
 
-The staging API binds to `127.0.0.1:8002` by default; the Product Backend uses
+The test API binds to `127.0.0.1:8002` by default; the Product Backend uses
 the adjacent `127.0.0.1:8001`. Port `8010` remains local-development-only.
-Agent Runtime joins the external `momcozy-lab-staging` network. Product Backend
+Agent Runtime joins the external `momcozy-lab-test` network. Product Backend
 Compose owns the single PostgreSQL, Redis, and MinIO instances; Agent Runtime uses database
-`agent_runtime_staging`, Redis DB 1 with `agent-runtime:*` keys, and bucket
-`agent-runtime-staging`.
+`agent_runtime_test`, Redis DB 1 with `agent-runtime:*` keys, and bucket
+`agent-runtime-test`.
 
-The public staging origin is
+The public test origin is
 `https://agent-test.lute-momcozylab.luteos.cloud:8443`. Host Nginx routes that
 SNI site to `127.0.0.1:8002`; it does not expose the container port directly.
 See [deployment.md](docs/deployment.md) for the service-specific Nginx template
 and installation contract.
 
-Staging has no on-host build tag. The protected workflow obtains the
+Test has no on-host build tag. The protected workflow obtains the
 digest-qualified image from the requested main commit's successful CI manifest;
 neither image nor release identity is stored in `deploy.env`. Legacy names such
 as `momcozy-production-backend` are not valid for this service.
 
 A successful `agent-ci` run on `main` publishes the exact image already tested
 by unit, migration, container, behavior-eval, and Runtime v1 gates. The manual,
-protected `agent-staging-delivery` workflow consumes that digest, validates the
+protected `agent-test-delivery` workflow consumes that digest, validates the
 current Product Backend release manifest and pinned OpenAPI contract, pauses API
 admission, drains active work before stopping the worker, and backs up/migrates
 only when the schema revision changes. It clears the prior heartbeat, checks

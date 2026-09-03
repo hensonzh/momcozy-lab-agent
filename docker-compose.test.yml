@@ -1,20 +1,20 @@
-name: momcozy-lab-agent-staging
+name: momcozy-lab-agent-test
 
 x-runtime-service: &runtime-service
   image: ${MOMCOZY_AGENT_IMAGE:?Set MOMCOZY_AGENT_IMAGE to an immutable digest reference}
   env_file:
-    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.staging.env}
+    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.test.env}
   environment:
-    DATABASE_URL: postgresql+asyncpg://agent_runtime_staging:${MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD:?Set MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD}@staging-postgres:5432/agent_runtime_staging
-    REDIS_URL: redis://agent-runtime:${MOMCOZY_STAGING_AGENT_REDIS_PASSWORD:?Set MOMCOZY_STAGING_AGENT_REDIS_PASSWORD}@staging-redis:6379/1
-    RUNTIME_OUTPUT_STORE_ENDPOINT_URL: http://staging-minio:9000
-    RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID: ${MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY:?Set MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY}
-    RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY: ${MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY:?Set MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY}
+    DATABASE_URL: postgresql+asyncpg://agent_runtime_test:${MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD:?Set MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD}@test-postgres:5432/agent_runtime_test
+    REDIS_URL: redis://agent-runtime:${MOMCOZY_TEST_AGENT_REDIS_PASSWORD:?Set MOMCOZY_TEST_AGENT_REDIS_PASSWORD}@test-redis:6379/1
+    RUNTIME_OUTPUT_STORE_ENDPOINT_URL: http://test-minio:9000
+    RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID: ${MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY:?Set MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY}
+    RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY: ${MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY:?Set MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY}
     RUNTIME_RELEASE_ID: ${MOMCOZY_AGENT_RELEASE_ID:?Set MOMCOZY_AGENT_RELEASE_ID from the immutable release manifest}
-    MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD: ""
-    MOMCOZY_STAGING_AGENT_REDIS_PASSWORD: ""
-    MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY: ""
-    MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY: ""
+    MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD: ""
+    MOMCOZY_TEST_AGENT_REDIS_PASSWORD: ""
+    MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY: ""
+    MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY: ""
   init: true
   read_only: true
   tmpfs:
@@ -24,7 +24,7 @@ x-runtime-service: &runtime-service
   security_opt:
     - no-new-privileges:true
   networks:
-    - staging
+    - test
 
 services:
   migrate:
@@ -39,9 +39,9 @@ services:
   api:
     <<: *runtime-service
     ports:
-      - "127.0.0.1:${MOMCOZY_AGENT_STAGING_PORT:-8002}:8000"
+      - "127.0.0.1:${MOMCOZY_AGENT_TEST_PORT:-8002}:8000"
     networks:
-      staging:
+      test:
         aliases:
           - agent-api
     healthcheck:
@@ -66,6 +66,6 @@ services:
     mem_limit: 3g
 
 networks:
-  staging:
-    name: momcozy-lab-staging
+  test:
+    name: momcozy-lab-test
     external: true

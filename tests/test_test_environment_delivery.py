@@ -7,8 +7,8 @@ from typing import IO, cast
 
 import pytest
 
-import scripts.staging_release as staging_release
-from scripts.staging_release import (
+import scripts.test_release as test_release
+from scripts.test_release import (
     AgentReleaseSpec,
     _promote_release_pointer,
     _prune_backups,
@@ -26,8 +26,8 @@ from scripts.staging_release import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-ci.yml"
-DELIVERY_WORKFLOW = ROOT / ".github" / "workflows" / "agent-staging-delivery.yml"
-STAGING_COMPOSE = ROOT / "docker-compose.staging.yml"
+DELIVERY_WORKFLOW = ROOT / ".github" / "workflows" / "agent-test-delivery.yml"
+TEST_COMPOSE = ROOT / "docker-compose.test.yml"
 DIGEST = "sha256:" + "a" * 64
 COMMIT_SHA = "b" * 40
 IMAGE_REF = f"ghcr.io/hensonzh/momcozy-lab-agent@{DIGEST}"
@@ -77,8 +77,8 @@ class FailingReadinessRunner:
         return subprocess.CompletedProcess(command, 0, stdout="")
 
 
-def test_staging_compose_only_consumes_an_explicit_release_image_and_migrates_explicitly() -> None:
-    compose = STAGING_COMPOSE.read_text()
+def test_test_compose_only_consumes_an_explicit_release_image_and_migrates_explicitly() -> None:
+    compose = TEST_COMPOSE.read_text()
 
     assert "${MOMCOZY_AGENT_IMAGE:?" in compose
     assert "build:" not in compose
@@ -104,32 +104,32 @@ def test_ci_publishes_sha_tagged_runtime_only_after_eval_and_container_gates() -
     assert "agent-image-manifest-${{ github.sha }}" in workflow
 
 
-def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> None:
+def test_test_delivery_is_manual_protected_serial_and_host_key_checked() -> None:
     workflow = DELIVERY_WORKFLOW.read_text()
 
     assert "workflow_dispatch:" in workflow
-    assert "name: staging" in workflow
-    assert "group: momcozy-lab-agent-staging" in workflow
+    assert "name: test" in workflow
+    assert "group: momcozy-lab-agent-test" in workflow
     assert "issues: read" in workflow
     assert "packages: read" in workflow
-    assert "Wait for independent staging approval" in workflow
-    assert "STAGING_APPROVERS" in workflow
-    assert "STAGING_APPROVAL_ISSUE" in workflow
-    assert "/approve-staging" in workflow
+    assert "Wait for independent test approval" in workflow
+    assert "TEST_APPROVERS" in workflow
+    assert "TEST_APPROVAL_ISSUE" in workflow
+    assert "/approve-test" in workflow
     assert "GITHUB_TRIGGERING_ACTOR" not in workflow
     assert "Ignoring self-approval" not in workflow
     assert "needs: approve" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "ref: main" not in workflow
     assert "timeout-minutes: 75" in workflow
-    assert "STAGING_SSH_KNOWN_HOSTS" in workflow
+    assert "TEST_SSH_KNOWN_HOSTS" in workflow
     assert "Authenticate the host to GHCR with an ephemeral token" in workflow
     assert "GHCR_TOKEN: ${{ github.token }}" in workflow
     assert "REMOTE_DOCKER_CONFIG:" in workflow
     assert "docker login ghcr.io" in workflow
     assert "docker logout ghcr.io" in workflow
     assert "git archive" in workflow
-    assert "scripts/staging_release.py" in workflow
+    assert "scripts/test_release.py" in workflow
     assert "--image-ref" in workflow
     assert "rollback" in workflow
     assert "image_ref:" not in workflow
@@ -139,12 +139,12 @@ def test_staging_delivery_is_manual_protected_serial_and_host_key_checked() -> N
     assert "gh run download" in workflow
     assert "agent-image-manifest-" in workflow
     assert "/usr/bin/flock" in workflow
-    assert "staging-release.lock" in workflow
+    assert "test-release.lock" in workflow
     for run_block in _literal_run_blocks(workflow):
         assert "${{ inputs." not in run_block
     assert "StrictHostKeyChecking=no" not in workflow
     assert "docker compose build" not in workflow
-    release_script = (ROOT / "scripts" / "staging_release.py").read_text()
+    release_script = (ROOT / "scripts" / "test_release.py").read_text()
     assert '"sport = :8002"' in release_script
     assert '"PRODUCT_BACKEND_SERVICE_KEY"' in release_script
     assert '"PRODUCT_BACKEND_SERVICE_API_KEY"' not in release_script
@@ -180,7 +180,7 @@ def test_release_identifiers_reject_mutable_or_ambiguous_values() -> None:
     with pytest.raises(ValueError):
         validate_commit_sha("abc1234")
     with pytest.raises(ValueError):
-        validate_image_ref("momcozy-lab-agent:staging")
+        validate_image_ref("momcozy-lab-agent:test")
     with pytest.raises(ValueError):
         validate_release_root(Path("/opt/momcozy"))
 
@@ -195,7 +195,7 @@ def test_agent_deploy_pauses_admission_drains_then_replaces(
         env_file=tmp_path / "agent.env",
         release_root=Path("/opt/momcozy-lab"),
         public_url="https://agent.example.test:8443",
-        ca_file=Path("/etc/ssl/staging-ca.pem"),
+        ca_file=Path("/etc/ssl/test-ca.pem"),
         product_manifest=tmp_path / "backend-manifest.json",
     )
 
@@ -224,7 +224,7 @@ def test_product_manifest_must_match_the_pinned_agent_contract(tmp_path: Path) -
     contract_hash = hashlib.sha256(product_contract.read_bytes()).hexdigest()
     manifest = {
         "service": "product-backend",
-        "environment": "staging",
+        "environment": "test",
         "commit": "c" * 40,
         "image_digest": "sha256:" + "d" * 64,
         "openapi_sha256": contract_hash,
@@ -259,7 +259,7 @@ def test_release_manifest_records_product_dependency_and_runtime_identity() -> N
 def test_release_snapshot_retry_reuses_only_the_same_archive(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(staging_release, "EXPECTED_RELEASE_ROOT", tmp_path)
+    monkeypatch.setattr(test_release, "EXPECTED_RELEASE_ROOT", tmp_path)
     source = tmp_path / "source"
     source.mkdir()
     (source / "release.txt").write_text("immutable\n")
@@ -372,11 +372,11 @@ def test_failed_agent_switch_restores_the_current_full_stack(
     restored: list[tuple[AgentReleaseSpec | None, bool]] = []
     runner = FailingReadinessRunner()
 
-    monkeypatch.setattr(staging_release, "_validate_spec_files", lambda _spec: None)
-    monkeypatch.setattr(staging_release, "_validate_env_file", lambda _path: None)
-    monkeypatch.setattr(staging_release, "_read_json", lambda _path: {})
+    monkeypatch.setattr(test_release, "_validate_spec_files", lambda _spec: None)
+    monkeypatch.setattr(test_release, "_validate_env_file", lambda _path: None)
+    monkeypatch.setattr(test_release, "_read_json", lambda _path: {})
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "validate_product_manifest",
         lambda *_args: {
             "commit": "c" * 40,
@@ -385,17 +385,17 @@ def test_failed_agent_switch_restores_the_current_full_stack(
         },
     )
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "_check_collision_boundaries",
         lambda _runner: {"postgres": "postgres-1"},
     )
-    monkeypatch.setattr(staging_release, "_verify_image_revision", lambda *_args: None)
-    monkeypatch.setattr(staging_release, "_read_image_migration_head", lambda *_args: "head")
-    monkeypatch.setattr(staging_release, "_read_database_revision", lambda **_kwargs: "head")
-    monkeypatch.setattr(staging_release, "_current_release_spec", lambda _spec: current)
-    monkeypatch.setattr(staging_release, "_wait_for_drain", lambda **_kwargs: None)
+    monkeypatch.setattr(test_release, "_verify_image_revision", lambda *_args: None)
+    monkeypatch.setattr(test_release, "_read_image_migration_head", lambda *_args: "head")
+    monkeypatch.setattr(test_release, "_read_database_revision", lambda **_kwargs: "head")
+    monkeypatch.setattr(test_release, "_current_release_spec", lambda _spec: current)
+    monkeypatch.setattr(test_release, "_wait_for_drain", lambda **_kwargs: None)
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "_restore_agent",
         lambda *, previous, failed, runner, full_stack: restored.append(
             (previous, full_stack)
@@ -403,7 +403,7 @@ def test_failed_agent_switch_restores_the_current_full_stack(
     )
 
     with pytest.raises(RuntimeError, match="not ready"):
-        staging_release.deploy(candidate, runner)  # type: ignore[arg-type]
+        test_release.deploy(candidate, runner)  # type: ignore[arg-type]
 
     assert restored == [(current, True)]
     assert not any("migrate" in command for command in runner.commands)
@@ -426,11 +426,11 @@ def test_first_agent_deploy_migrates_empty_schema_without_querying_run_tables(
     drain_calls: list[object] = []
     runner = FailingReadinessRunner()
 
-    monkeypatch.setattr(staging_release, "_validate_spec_files", lambda _spec: None)
-    monkeypatch.setattr(staging_release, "_validate_env_file", lambda _path: None)
-    monkeypatch.setattr(staging_release, "_read_json", lambda _path: {})
+    monkeypatch.setattr(test_release, "_validate_spec_files", lambda _spec: None)
+    monkeypatch.setattr(test_release, "_validate_env_file", lambda _path: None)
+    monkeypatch.setattr(test_release, "_read_json", lambda _path: {})
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "validate_product_manifest",
         lambda *_args: {
             "commit": "c" * 40,
@@ -439,29 +439,29 @@ def test_first_agent_deploy_migrates_empty_schema_without_querying_run_tables(
         },
     )
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "_check_collision_boundaries",
         lambda _runner: {"postgres": "postgres-1"},
     )
-    monkeypatch.setattr(staging_release, "_verify_image_revision", lambda *_args: None)
-    monkeypatch.setattr(staging_release, "_read_image_migration_head", lambda *_args: "head")
+    monkeypatch.setattr(test_release, "_verify_image_revision", lambda *_args: None)
+    monkeypatch.setattr(test_release, "_read_image_migration_head", lambda *_args: "head")
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "_read_database_revision",
         lambda **_kwargs: next(revisions),
     )
-    monkeypatch.setattr(staging_release, "_current_release_spec", lambda _spec: None)
+    monkeypatch.setattr(test_release, "_current_release_spec", lambda _spec: None)
     monkeypatch.setattr(
-        staging_release,
+        test_release,
         "_wait_for_drain",
         lambda **kwargs: drain_calls.append(kwargs),
     )
-    monkeypatch.setattr(staging_release, "_write_secure_backup", lambda **_kwargs: None)
-    monkeypatch.setattr(staging_release, "_prune_backups", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(staging_release, "_restore_agent", lambda **_kwargs: None)
+    monkeypatch.setattr(test_release, "_write_secure_backup", lambda **_kwargs: None)
+    monkeypatch.setattr(test_release, "_prune_backups", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(test_release, "_restore_agent", lambda **_kwargs: None)
 
     with pytest.raises(RuntimeError, match="not ready"):
-        staging_release.deploy(candidate, runner)  # type: ignore[arg-type]
+        test_release.deploy(candidate, runner)  # type: ignore[arg-type]
 
     assert drain_calls == []
     assert any("migrate" in command for command in runner.commands)

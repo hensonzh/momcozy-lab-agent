@@ -58,7 +58,7 @@ The Agent Runtime worker refreshes a fixed role heartbeat key in Redis every
 `WORKER_HEARTBEAT_INTERVAL_SECONDS`; the key expires after
 `WORKER_HEARTBEAT_TTL_SECONDS`. With `WORKER_HEARTBEATS_REQUIRED=true`,
 `GET /v1/health/ready` checks that role and returns 503 when it is missing or
-reports a generation different from the API's `RUNTIME_RELEASE_ID`. Staging
+reports a generation different from the API's `RUNTIME_RELEASE_ID`. Test
 requires that value to be the full release commit. Delivery clears the old key
 before starting the new worker, so a still-live heartbeat from a previous
 release cannot satisfy readiness. Heartbeat keys contain only the release

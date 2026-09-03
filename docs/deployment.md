@@ -4,7 +4,7 @@
 
 Agent Runtime owns its API, run worker, Agent Runtime database, Redis keys, tools,
 actions, replay, and eval. Product Backend owns user and business data and
-exposes only typed internal APIs. Product Backend staging Compose owns the shared
+exposes only typed internal APIs. Product Backend test Compose owns the shared
 PostgreSQL, Redis, and MinIO service instances.
 
 The two services use independent databases and release pipelines. Flutter
@@ -13,20 +13,27 @@ configures the Agent Runtime origin with `MOMCOZY_AGENT_API_BASE_URL`.
 ## Environment Identity
 
 - `local`: developer-only Compose and local dependencies.
-- `test`: automated tests and CI only; never a shared server deployment.
-- `staging`: the shared internal server and Flutter staging flavor.
+- `test`: the shared internal server used by the Flutter `unified` flavor.
+- CI: an ephemeral verification lane with its own Compose project and image;
+  it is not a deployable environment profile.
 
 No production Compose/env profile is currently maintained.
-The requested `backend-test` and `agent-test` DNS labels are ingress names only;
-they do not rename the Compose/env profile from `staging` to `test`.
+The `backend-test` and `agent-test` DNS labels, Compose/env profile, runtime
+metadata, and release manifest all use the same `test` environment identity.
 
 The environment token must agree across the Compose filename, private env
-filename, and Compose project. Staging therefore uses
-`docker-compose.staging.yml`, `env/compose.staging.env`, and project
-`momcozy-lab-agent-staging`. The image repository remains environment-neutral,
-and staging accepts only a digest-qualified immutable artifact such as
-`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`; there is no on-host staging
-build or mutable staging tag.
+filename, and Compose project. Test therefore uses
+`docker-compose.test.yml`, `env/compose.test.env`, and project
+`momcozy-lab-agent-test`. The image repository remains environment-neutral,
+and test accepts only a digest-qualified immutable artifact such as
+`ghcr.io/hensonzh/momcozy-lab-agent@sha256:...`; there is no on-host test
+build or mutable test tag.
+
+This rename is not a compatibility alias for legacy
+`momcozy-lab-agent-staging` resources. The new profile expects the Product
+Backend-owned `momcozy-lab-test` network and test-named database/bucket. A host
+where a legacy container still owns `127.0.0.1:8002` must fail the collision
+gate until the shared data has been explicitly reset or migrated and verified.
 
 CI follows the same identity rule without becoming a deployable environment.
 `docker-compose.ci.yml` is a CI-only override for
@@ -34,10 +41,10 @@ CI follows the same identity rule without becoming a deployable environment.
 `momcozy-lab-agent-ci` and image `momcozy-lab-agent:ci`. Its public JWKS
 fixture supplies only verification keys, and the worker receives a non-secret
 CI credential solely to validate startup and heartbeat readiness. The CI file
-must never be used with the staging Compose stack.
+must never be used with the test Compose stack.
 
-On the shared server, Product Backend staging binds `127.0.0.1:8001` and Agent
-Runtime staging binds `127.0.0.1:8002`; `8010` is reserved for Agent Runtime
+On the shared server, Product Backend test binds `127.0.0.1:8001` and Agent
+Runtime test binds `127.0.0.1:8002`; `8010` is reserved for Agent Runtime
 local development.
 
 ## Database
@@ -49,40 +56,40 @@ recreating the Agent Runtime database before this baseline is deployed.
 The baseline stores the canonical non-secret provider identity on Context jobs
 and checkpoints; it must not be backfilled from a mutable deployment alias.
 
-## Standard Staging Delivery
+## Standard Test Delivery
 
 `agent-ci` builds the image once, runs the full unit/type/migration/container,
 behavior-eval, and Runtime v1 gates against it, then publishes that same image
 under the full commit SHA and records the registry digest. It does not deploy.
 
 The current private repository plan cannot enforce GitHub environment required
-reviewers. Create one repository issue for staging approvals, set repository
-variable `STAGING_APPROVAL_ISSUE` to its number, and set `STAGING_APPROVERS` to
+reviewers. Create one repository issue for test approvals, set repository
+variable `TEST_APPROVAL_ISSUE` to its number, and set `TEST_APPROVERS` to
 a comma-separated operator-login allowlist. Before any deployment secret is
 used, the workflow waits up to 30 minutes for an allowlisted operator to post
-the exact `/approve-staging ...` command shown in the job summary. The run
+the exact `/approve-test ...` command shown in the job summary. The run
 initiator may perform this separate confirmation, matching GitHub required
 reviewers when prevent-self-review is not enabled. It is bound to the repository,
 run ID, attempt, and immutable trigger
 SHA; absent configuration or approval fails closed.
 The current remote configuration uses issue `#1`,
-`STAGING_APPROVAL_ISSUE=1`, and `STAGING_APPROVERS=hensonzh`.
+`TEST_APPROVAL_ISSUE=1`, and `TEST_APPROVERS=hensonzh`.
 
-Keep the GitHub `staging` environment for deployment records. Configure
-`STAGING_SSH_HOST`, `STAGING_SSH_PORT`, `STAGING_SSH_USER`,
-`STAGING_SSH_PRIVATE_KEY`, and `STAGING_SSH_KNOWN_HOSTS` as staging-scoped
+Keep the GitHub `test` environment for deployment records. Configure
+`TEST_SSH_HOST`, `TEST_SSH_PORT`, `TEST_SSH_USER`,
+`TEST_SSH_PRIVATE_KEY`, and `TEST_SSH_KNOWN_HOSTS` as test-scoped
 secrets where supported, otherwise as repository secrets. The host deployment
 user must own `/opt/momcozy-lab`, have Docker access, and already be
 authenticated to pull the private GHCR package. Store the private Agent env at
 `/opt/momcozy-lab/shared/agent/deploy.env` with mode `0600`.
 
-Run `.github/workflows/agent-staging-delivery.yml` manually only after Product
+Run `.github/workflows/agent-test-delivery.yml` manually only after Product
 Backend has been deployed. Supply the full commit already merged into `main`;
 the workflow proves the commit against `main` and obtains the exact digest from
 that commit's successful `agent-ci` artifact. It stages the exact Git commit
 under `/opt/momcozy-lab/releases/agent/<commit>` and invokes trusted release
 tooling from the immutable workflow trigger SHA. Backend and Agent delivery share the host-wide
-`/opt/momcozy-lab/shared/staging-release.lock`. `scripts/staging_release.py`:
+`/opt/momcozy-lab/shared/test-release.lock`. `scripts/test_release.py`:
 
 1. rejects a mutable image, wrong release root, mismatched OCI revision label,
    occupied `127.0.0.1:8002`, or incorrectly owned shared network/PostgreSQL;
@@ -122,13 +129,13 @@ old code is incompatible with the current schema.
 
 ## Release Acceptance Detail
 
-1. Start Product Backend staging first. It creates network `momcozy-lab-staging`, the
-   `agent_runtime_staging` database/role, Redis logical DB 1, and bucket
-   `agent-runtime-staging`. Copy the Agent-scoped database password, Redis ACL
+1. Start Product Backend test first. It creates network `momcozy-lab-test`, the
+   `agent_runtime_test` database/role, Redis logical DB 1, and bucket
+   `agent-runtime-test`. Copy the Agent-scoped database password, Redis ACL
    password, and bucket-scoped MinIO access-key pair into Agent Runtime's
-   private `env/compose.staging.env`; never copy Redis admin or MinIO root
+   private `env/compose.test.env`; never copy Redis admin or MinIO root
    credentials into an application container.
-2. Validate `docker-compose.staging.yml` with that private env and confirm the
+2. Validate `docker-compose.test.yml` with that private env and confirm the
    Agent Runtime services join the external shared network.
    Before rolling out `agent_context_history_policy.v2`, stop new Run admission
    and drain queued, retry-wait, and running Context jobs created under `v1`;
@@ -175,7 +182,7 @@ old code is incompatible with the current schema.
    context-compaction/next-Run gate described in
    [context-compaction.md](context-compaction.md).
 15. Before changing provider, drain active Runs and Context jobs, run the live
-    staging capability/error/compaction checks in
+    test capability/error/compaction checks in
     [model-providers.md](model-providers.md), and compare Azure estimates with
     actual `usage.input_tokens`. Do not run two providers against the same
     durable worker queue during a cutover.
@@ -198,13 +205,13 @@ compression and keeps the connection timeout at one hour.
 The host must keep exactly one separate unknown-host rejection site. Individual
 service files must not declare `default_server`, because the legacy site,
 Product Backend, and Agent Runtime all share the host's `8443` listener. The
-shared staging leaf certificate at
-`/etc/nginx/tls/momcozy-lab-staging/fullchain.pem` must contain both DNS SANs:
+shared test leaf certificate at
+`/etc/nginx/tls/momcozy-lab-test/fullchain.pem` must contain both DNS SANs:
 
 - `backend-test.lute-momcozylab.luteos.cloud`
 - `agent-test.lute-momcozylab.luteos.cloud`
 
-Its private key is `/etc/nginx/tls/momcozy-lab-staging/privkey.pem`. Product
+Its private key is `/etc/nginx/tls/momcozy-lab-test/privkey.pem`. Product
 Backend and Agent Runtime deliberately reference this one SAN certificate;
 SNI selects the correct service site and loopback upstream.
 

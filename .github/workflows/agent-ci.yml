@@ -112,19 +112,19 @@ jobs:
             -f docker-compose.ci.yml \
             config --quiet
 
-      - name: Validate staging Compose configuration
+      - name: Validate test Compose configuration
         env:
           MOMCOZY_AGENT_IMAGE: ghcr.io/hensonzh/momcozy-lab-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          MOMCOZY_AGENT_ENV_FILE: env/compose.staging.env.example
+          MOMCOZY_AGENT_ENV_FILE: env/compose.test.env.example
           MOMCOZY_AGENT_RELEASE_ID: 0000000000000000000000000000000000000000
-          MOMCOZY_STAGING_AGENT_POSTGRES_PASSWORD: ci-agent-postgres-password
-          MOMCOZY_STAGING_AGENT_REDIS_PASSWORD: ci-agent-redis-password
-          MOMCOZY_STAGING_AGENT_MINIO_ACCESS_KEY: ci-agent-minio-access
-          MOMCOZY_STAGING_AGENT_MINIO_SECRET_KEY: ci-agent-minio-secret
+          MOMCOZY_TEST_AGENT_POSTGRES_PASSWORD: ci-agent-postgres-password
+          MOMCOZY_TEST_AGENT_REDIS_PASSWORD: ci-agent-redis-password
+          MOMCOZY_TEST_AGENT_MINIO_ACCESS_KEY: ci-agent-minio-access
+          MOMCOZY_TEST_AGENT_MINIO_SECRET_KEY: ci-agent-minio-secret
         run: >-
           docker compose
-          --env-file env/compose.staging.env.example
-          -f docker-compose.staging.yml
+          --env-file env/compose.test.env.example
+          -f docker-compose.test.yml
           config --quiet
 
       - name: Set up Docker Buildx
@@ -243,7 +243,7 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          python scripts/staging_release.py image-manifest \
+          python scripts/test_release.py image-manifest \
             --image-ref "ghcr.io/${GITHUB_REPOSITORY}@${IMAGE_DIGEST}" \
             --commit-sha "${GITHUB_SHA}" \
             --output agent-image-manifest.json

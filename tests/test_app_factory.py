@@ -62,6 +62,7 @@ def test_readiness_fails_closed_when_required_workers_are_missing() -> None:
         Settings(
             app_env="test",
             worker_heartbeats_required=True,
+            runtime_release_id="a" * 40,
         )
     )
     app.state.database_readiness_probe = PassingReadinessProbe()
