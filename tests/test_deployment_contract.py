@@ -24,6 +24,12 @@ def test_project_metadata_uses_agent_name() -> None:
     assert test_compose.startswith("name: momcozy-lab-agent-test\n")
     assert ci_compose.count("image: momcozy-lab-agent:ci") == 3
     assert ci_compose.count("APP_ENV: test") == 3
+    assert (
+        ci_compose.count(
+            'RUNTIME_RELEASE_ID: "0000000000000000000000000000000000000000"'
+        )
+        == 3
+    )
     assert "image: momcozy-lab-agent:local" in local_compose
     assert "${MOMCOZY_AGENT_IMAGE:?" in test_compose
     assert "build:" not in test_compose

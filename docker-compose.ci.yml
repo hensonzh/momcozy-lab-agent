@@ -20,11 +20,13 @@ services:
     image: momcozy-lab-agent:ci
     environment:
       APP_ENV: test
+      RUNTIME_RELEASE_ID: "0000000000000000000000000000000000000000"
 
   api:
     image: momcozy-lab-agent:ci
     environment:
       APP_ENV: test
+      RUNTIME_RELEASE_ID: "0000000000000000000000000000000000000000"
       AUTH_JWKS_URL: http://jwks/.well-known/jwks.json
     depends_on:
       jwks:
@@ -34,4 +36,5 @@ services:
     image: momcozy-lab-agent:ci
     environment:
       APP_ENV: test
+      RUNTIME_RELEASE_ID: "0000000000000000000000000000000000000000"
       OPENAI_API_KEY: ci-agent-runtime-openai-key
