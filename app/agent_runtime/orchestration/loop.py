@@ -121,9 +121,7 @@ class AgentLoop:
         tool_executor: ToolExecutor,
         runtime: RuntimeDefinition,
         transient_delta_publisher: TransientDeltaPublisher | None = None,
-        trusted_arguments_provider: (
-            TrustedToolArgumentsProvider | None
-        ) = None,
+        trusted_arguments_provider: (TrustedToolArgumentsProvider | None) = None,
         context_coordinator: ContextCoordinator | None = None,
         safety_policy: RuntimeSafetyPolicy | None = None,
     ) -> None:
@@ -142,6 +140,8 @@ class AgentLoop:
         self._run_id: UUID | None = None
         self._lease_token: UUID | None = None
         self._lease_guard: Callable[[], Awaitable[None]] | None = None
+        self._masked_user_text: str | None = None
+        self._response_policy: str = "non_health"
 
     async def process(
         self,
@@ -209,11 +209,7 @@ class AgentLoop:
                     "trace_id": result.trace_id,
                 },
                 error_code=result.error_code,
-                level=(
-                    logging.WARNING
-                    if result.status == "failed"
-                    else logging.INFO
-                ),
+                level=(logging.WARNING if result.status == "failed" else logging.INFO),
             )
             return result
 
@@ -266,7 +262,8 @@ class AgentLoop:
                 )
             except ApiError as exc:
                 if (
-                    exc.code not in {
+                    exc.code
+                    not in {
                         "model_context_window_exceeded",
                         "model_context_budget_exceeded",
                     }
@@ -287,6 +284,15 @@ class AgentLoop:
                     as_of_date=as_of_date,
                 )
             await self._ensure_active(run)
+            output_decision = self.safety_policy.evaluate_output_rules(answer.text)
+            if output_decision.decision == "block":
+                await self._record_safety_decision(run=run, decision=output_decision, event_type="safety.output")
+                await self.repository.append_event(
+                    run_id=run.id, event_type="message.withdrawn", payload={"violation_type": output_decision.category, "replacement": True}
+                )
+                answer = AgentAnswer(text=output_decision.response, agent=answer.agent)
+            elif output_decision.masked_text:
+                answer = AgentAnswer(text=output_decision.masked_text, agent=answer.agent)
             return await self._persist_final_and_complete(
                 run=run,
                 answer=answer,
@@ -302,11 +308,7 @@ class AgentLoop:
             return await self._fail(
                 run=run,
                 code=exc.code,
-                retryable=(
-                    explicit_retryable
-                    if isinstance(explicit_retryable, bool)
-                    else None
-                ),
+                retryable=(explicit_retryable if isinstance(explicit_retryable, bool) else None),
                 provider_details=_provider_failure_details(exc),
             )
         except Exception:
@@ -352,12 +354,13 @@ class AgentLoop:
     ) -> AgentAnswer | None:
         text = await self._current_user_text(run)
         decision = self.safety_policy.evaluate(text)
-        if decision.decision != "escalate":
+        self._response_policy = decision.response_policy
+        self._masked_user_text = decision.masked_text
+        if decision.decision not in {"escalate", "block"}:
+            if decision.masked_text or decision.response_policy != "non_health":
+                await self._record_safety_decision(run=run, decision=decision)
             return None
-        await self._record_safety_decision(
-            run=run,
-            decision=decision,
-        )
+        await self._record_safety_decision(run=run, decision=decision)
         return AgentAnswer(
             text=decision.response,
             agent=self.runtime.agent.name,
@@ -396,24 +399,22 @@ class AgentLoop:
         *,
         run: AgentRun,
         decision: RuntimeSafetyDecision,
+        event_type: str = "safety.decision",
     ) -> None:
         async with self._persistence_lock:
-            events = await self.repository.list_events_for_run(
-                run_id=run.id
-            )
-            if not any(
-                event.event_type == "safety.decision"
-                for event in events
-            ):
+            events = await self.repository.list_events_for_run(run_id=run.id)
+            if not any(event.event_type == event_type for event in events):
                 await self.repository.append_event(
                     run_id=run.id,
-                    event_type="safety.decision",
+                    event_type=event_type,
                     payload={
                         "category": decision.category,
                         "decision": decision.decision,
                         "policy_version": decision.policy_version,
                         "rule_id": decision.rule_id,
                         "severity": decision.severity,
+                        **({"response_policy": decision.response_policy} if decision.response_policy != "non_health" else {}),
+                        **({"masked": True} if decision.masked_text else {}),
                     },
                 )
             await self._checkpoint_unlocked()
@@ -461,6 +462,11 @@ class AgentLoop:
             agent_name=agent_name,
             initial_input_items=initial_input_items,
         )
+        if self._masked_user_text is not None:
+            for item in reversed(model_input):
+                if item.get("role") == "user":
+                    item["content"] = self._masked_user_text
+                    break
         await self._ensure_active(run)
         pending = _pending_calls(
             context_records,
@@ -492,9 +498,7 @@ class AgentLoop:
                 emit_deltas=emit_deltas,
             ),
             authorization_permissions=principal.permissions,
-            runtime_context=dict(
-                getattr(run, "context_state", None) or {}
-            ),
+            runtime_context={**dict(getattr(run, "context_state", None) or {}), "response_policy": self._response_policy},
             observation_context={
                 "run_id": str(run.id),
                 "thread_id": str(run.thread_id),
@@ -510,9 +514,7 @@ class AgentLoop:
     @staticmethod
     def _runtime_principal(run: AgentRun) -> RuntimePrincipal:
         try:
-            return RuntimePrincipal.from_authorization_context(
-                run.authorization_context
-            )
+            return RuntimePrincipal.from_authorization_context(run.authorization_context)
         except (TypeError, ValueError) as exc:
             raise ApiError(
                 code="runtime_authorization_context_invalid",
@@ -722,9 +724,7 @@ class AgentLoop:
                     "stream_schema_version": TEXT_STREAM_SCHEMA_VERSION,
                     "segment_count": self._stream_segment_count,
                     "content_utf8_bytes": len(answer.text.encode("utf-8")),
-                    "content_sha256": hashlib.sha256(
-                        answer.text.encode("utf-8")
-                    ).hexdigest(),
+                    "content_sha256": hashlib.sha256(answer.text.encode("utf-8")).hexdigest(),
                 },
             )
             completed_at = _utcnow()
@@ -763,9 +763,7 @@ class AgentLoop:
             self._stream_segment_count += 1
             self._stream_content.extend(delta.encode("utf-8"))
             prefix_utf8_bytes = len(self._stream_content)
-            prefix_sha256 = hashlib.sha256(
-                self._stream_content
-            ).hexdigest()
+            prefix_sha256 = hashlib.sha256(self._stream_content).hexdigest()
             publisher = self.transient_delta_publisher
             if publisher is None:
                 return
@@ -860,10 +858,8 @@ class AgentLoop:
     async def _context_records(self, run: AgentRun) -> list[Any]:
         async with self._persistence_lock:
             if self.context_coordinator is not None:
-                return (
-                    await self.context_coordinator.list_context_records(
-                        run=run,
-                    )
+                return await self.context_coordinator.list_context_records(
+                    run=run,
                 )
             return await self.repository.list_context_items_for_thread(
                 thread_id=run.thread_id,
@@ -908,9 +904,7 @@ class AgentLoop:
             if refreshed.status in TERMINAL_STATUSES:
                 return refreshed
             completed_at = _utcnow()
-            should_retry = (
-                _retryable(code) if retryable is None else retryable
-            )
+            should_retry = _retryable(code) if retryable is None else retryable
             error_details = {
                 "retryable": should_retry,
                 **dict(provider_details or {}),
@@ -984,11 +978,7 @@ class _LoopExecutionPort(AgentExecutionPort):
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]:
         coordinator = self.loop.context_coordinator
-        resolver = (
-            getattr(coordinator, "resolve_model_input", None)
-            if coordinator is not None
-            else None
-        )
+        resolver = getattr(coordinator, "resolve_model_input", None) if coordinator is not None else None
         if not callable(resolver):
             return tuple(dict(item) for item in input_items)
         return cast(
@@ -1006,11 +996,7 @@ class _LoopExecutionPort(AgentExecutionPort):
         tools: tuple[dict[str, Any], ...],
     ) -> None:
         coordinator = self.loop.context_coordinator
-        guard = (
-            getattr(coordinator, "ensure_model_request_fits", None)
-            if coordinator is not None
-            else None
-        )
+        guard = getattr(coordinator, "ensure_model_request_fits", None) if coordinator is not None else None
         if callable(guard):
             await guard(
                 run=self.run,
@@ -1058,9 +1044,7 @@ class _LoopExecutionPort(AgentExecutionPort):
         *,
         manifest: dict[str, Any],
     ) -> None:
-        await self.loop._execution_manifest_handler(
-            self.run
-        )(manifest)
+        await self.loop._execution_manifest_handler(self.run)(manifest)
 
     async def publish_text_delta(
         self,
@@ -1075,17 +1059,14 @@ class _LoopExecutionPort(AgentExecutionPort):
             agent_name,
         )(delta)
 
+
 def _pending_calls(
     context_records: list[Any],
     *,
     run_id: UUID,
     agent_name: str,
 ) -> tuple[_PendingToolCall, ...]:
-    outputs = {
-        str(record.item.get("call_id") or "")
-        for record in context_records
-        if record.item.get("type") == "function_call_output"
-    }
+    outputs = {str(record.item.get("call_id") or "") for record in context_records if record.item.get("type") == "function_call_output"}
     prefix = f"run:{run_id}:agent:{agent_name}:"
     calls: list[_PendingToolCall] = []
     for record in context_records:
@@ -1108,11 +1089,7 @@ def _pending_tool_call_from_item(
 ) -> _PendingToolCall:
     raw_arguments = item.get("arguments", "{}")
     try:
-        arguments = (
-            json.loads(raw_arguments)
-            if isinstance(raw_arguments, str)
-            else raw_arguments
-        )
+        arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
     except json.JSONDecodeError as exc:
         raise ApiError(
             code="model_provider_malformed_tool_call",
@@ -1151,17 +1128,11 @@ def _restore_agent_input(
     else:
         base_items = [dict(item) for item in initial_input_items]
 
-    own_records = [
-        record
-        for record in context_records
-        if record.run_id == run_id
-        and str(record.item_key).startswith(own_prefix)
-    ]
+    own_records = [record for record in context_records if record.run_id == run_id and str(record.item_key).startswith(own_prefix)]
     own_call_ids = {
         str(record.item.get("call_id") or "")
         for record in own_records
-        if record.item.get("type") == "function_call"
-        and record.item.get("call_id")
+        if record.item.get("type") == "function_call" and record.item.get("call_id")
     }
     own_action_ids = {
         action_id
@@ -1169,9 +1140,7 @@ def _restore_agent_input(
         if record.run_id == run_id
         and record.item.get("type") == "function_call_output"
         and str(record.item.get("call_id") or "") in own_call_ids
-        for action_id in (
-            _tool_output_action_id(record.item.get("output")),
-        )
+        for action_id in (_tool_output_action_id(record.item.get("output")),)
         if action_id
     }
     suffix_records = [
@@ -1180,10 +1149,7 @@ def _restore_agent_input(
         if record.run_id == run_id
         and (
             str(record.item_key).startswith(own_prefix)
-            or (
-                record.item.get("type") == "function_call_output"
-                and str(record.item.get("call_id") or "") in own_call_ids
-            )
+            or (record.item.get("type") == "function_call_output" and str(record.item.get("call_id") or "") in own_call_ids)
             or _runtime_action_id(record.item) in own_action_ids
         )
     ]
@@ -1209,11 +1175,7 @@ def _runtime_action_id(item: dict[str, Any]) -> str:
         content = json.loads(raw_content)
     except json.JSONDecodeError:
         return ""
-    runtime_action = (
-        content.get("runtime_action")
-        if isinstance(content, dict)
-        else None
-    )
+    runtime_action = content.get("runtime_action") if isinstance(content, dict) else None
     if not isinstance(runtime_action, dict):
         return ""
     return str(runtime_action.get("action_id") or "")
@@ -1226,12 +1188,7 @@ def _base_input_before_agent_records(
 ) -> list[dict[str, Any]]:
     agent_prefix = f"run:{run_id}:agent:"
     first_agent_sequence = min(
-        (
-            int(record.sequence)
-            for record in context_records
-            if record.run_id == run_id
-            and str(record.item_key).startswith(agent_prefix)
-        ),
+        (int(record.sequence) for record in context_records if record.run_id == run_id and str(record.item_key).startswith(agent_prefix)),
         default=None,
     )
     return [
@@ -1239,10 +1196,7 @@ def _base_input_before_agent_records(
         for record in context_records
         if first_agent_sequence is None
         or int(record.sequence) < first_agent_sequence
-        or (
-            record.run_id == run_id
-            and is_business_context_item(record)
-        )
+        or (record.run_id == run_id and is_business_context_item(record))
     ]
 
 
@@ -1288,9 +1242,7 @@ def _input_text(content: Any) -> str:
     return "\n".join(
         str(block.get("text") or "")
         for block in content
-        if isinstance(block, dict)
-        and block.get("type") in {"input_text", "text"}
-        and block.get("text")
+        if isinstance(block, dict) and block.get("type") in {"input_text", "text"} and block.get("text")
     )
 
 
@@ -1317,17 +1269,10 @@ def _provider_failure_details(exc: ApiError) -> dict[str, Any]:
     if isinstance(provider, str) and 0 < len(provider) <= 64:
         details["provider"] = provider
     provider_status = exc.details.get("provider_status")
-    if (
-        isinstance(provider_status, int)
-        and not isinstance(provider_status, bool)
-        and 100 <= provider_status <= 599
-    ):
+    if isinstance(provider_status, int) and not isinstance(provider_status, bool) and 100 <= provider_status <= 599:
         details["provider_status"] = provider_status
     provider_request_id = exc.details.get("provider_request_id")
-    if (
-        isinstance(provider_request_id, str)
-        and 0 < len(provider_request_id) <= 256
-    ):
+    if isinstance(provider_request_id, str) and 0 < len(provider_request_id) <= 256:
         details["provider_request_id"] = provider_request_id
     retry_after = exc.details.get("retry_after")
     if isinstance(retry_after, str) and 0 < len(retry_after) <= 256:
