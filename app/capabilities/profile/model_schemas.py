@@ -22,14 +22,6 @@ _PROFILE_UPDATE_SCHEMA = closed_object(
                     {"type": "integer", "minimum": 12, "maximum": 70},
                     "妈妈当前周岁；仅记录用户明确提供的年龄，传 null 表示清空。",
                 ),
-                "estimated_due_date": nullable(
-                    {"type": "string", "format": "date"},
-                    (
-                        "预产期，格式 YYYY-MM-DD。只用于尚未分娩的孕期资料；一旦存在妈妈实际分娩日期"
-                        "或当前宝宝实际出生日期，后端会把预产期清空，避免其干扰产后和奶量分析。"
-                        "传 null 可主动清空。"
-                    ),
-                ),
                 "delivery_count": nullable(
                     {"type": "integer", "minimum": 1, "maximum": 20},
                     "截至当前这次分娩的累计分娩次数，不是妊娠次数；传 null 表示清空。",
@@ -106,46 +98,19 @@ _PROFILE_UPDATE_SCHEMA = closed_object(
                         "maxLength": 120,
                         "description": "宝宝姓名或家庭称呼；只在用户明确更名时传入，当前字段不能清空。",
                     },
-                    "sex_at_birth": nullable(
-                        {
-                            "type": "string",
-                            "enum": [
-                                "female",
-                                "male",
-                                "intersex",
-                                "unknown",
-                                "undisclosed",
-                            ],
-                        },
-                        (
-                            "宝宝出生时登记的生理性别：female=女，male=男，intersex=间性，"
-                            "unknown=未知，undisclosed=用户不愿透露；传 null 表示清空。"
-                        ),
-                    ),
+                    "sex": {
+                        "type": "string", "enum": ["female", "male", "unspecified"],
+                        "description": "宝宝出生时登记的性别；female=女，male=男，unspecified=未指定，仅用于选择生长参考。",
+                    },
+                    "feeding_mode": {
+                        "type": "string", "enum": ["exclusive_breastfeeding", "expressed_milk_feeding", "mixed_feeding", "formula_feeding", "unknown"],
+                        "description": "这个宝宝目前的喂养方式；不代表妈妈产奶量或宝宝实际摄入量。",
+                    },
                     "birth_date": nullable(
                         {"type": "string", "format": "date"},
                         (
                             "宝宝实际出生日期，格式 YYYY-MM-DD；应与其所属当前分娩以及妈妈实际分娩日期一致，"
                             "传 null 表示清空。"
-                        ),
-                    ),
-                    "birth_weight_kg": nullable(
-                        {
-                            "type": "number",
-                            "minimum": 0.2,
-                            "maximum": 10,
-                        },
-                        "宝宝出生体重，单位 kg；传 null 表示清空。",
-                    ),
-                    "gestational_age_at_birth_days": nullable(
-                        {
-                            "type": "integer",
-                            "minimum": 140,
-                            "maximum": 315,
-                        },
-                        (
-                            "宝宝出生孕周换算后的总孕天数，例如 39周2天传 275；"
-                            "这是出生时确定的事实，传 null 表示清空。"
                         ),
                     ),
                 },

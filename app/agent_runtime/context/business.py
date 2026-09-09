@@ -53,7 +53,6 @@ class BusinessContextInfant(_StrictContextModel):
     birth_order: int | None = Field(default=None, ge=1, le=10)
     age_days: int | None = Field(default=None, ge=0)
     age_months: int | None = Field(default=None, ge=0)
-    is_preterm: bool | None = None
 
 
 class BusinessContextMissingField(_StrictContextModel):
@@ -219,11 +218,6 @@ def project_business_context(
                 birth_order=infant.birth_order,
                 age_days=infant.age_days,
                 age_months=infant.age_months,
-                is_preterm=(
-                    infant.gestational_age_at_birth.is_preterm
-                    if infant.gestational_age_at_birth is not None
-                    else None
-                ),
             )
             for infant in profile.infants
         ],

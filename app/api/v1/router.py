@@ -5,11 +5,13 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from app.api.agent_runtime.router import router as agent_router
+from app.care_reports.router import router as care_reports_router
 from app.core.errors import ApiError
 
 
 router = APIRouter(prefix="/v1")
 router.include_router(agent_router)
+router.include_router(care_reports_router)
 
 
 @router.get("/health/live")

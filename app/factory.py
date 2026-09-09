@@ -129,6 +129,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         RequestBodyLimitMiddleware,
         max_body_bytes=resolved_settings.api_max_request_body_bytes,
+        path_limits={
+            '/v1/internal/care-reports/generate': 128 * 1024,
+            '/v1/internal/care-reports/sources': 48 * 1024,
+        },
     )
 
     @app.middleware("http")

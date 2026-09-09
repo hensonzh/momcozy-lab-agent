@@ -15,7 +15,7 @@ FeedingMode = Literal[
     "formula_feeding",
     "unknown",
 ]
-SexAtBirth = Literal["female", "male", "intersex", "unknown", "undisclosed"]
+BabySex = Literal["female", "male", "unspecified"]
 InfantScope = Literal["current_delivery", "all"]
 ProfileMissingFieldCode = Literal[
     "mother_age_missing",
@@ -25,12 +25,10 @@ ProfileMissingFieldCode = Literal[
     "mother_cesarean_history_missing",
     "mother_postpartum_days_unavailable",
     "mother_current_feeding_mode_missing",
-    "current_infant_profiles_missing",
-    "infant_sex_at_birth_missing",
+    "current_baby_profiles_missing",
+    "infant_sex_missing",
     "infant_age_days_unavailable",
     "infant_age_months_unavailable",
-    "infant_birth_weight_missing",
-    "infant_gestational_age_missing",
     "infant_latest_measurement_missing",
 ]
 ProfileDataQualityIssueCode = Literal[
@@ -45,16 +43,14 @@ MotherProfileField = Literal[
     "current_delivery_method",
     "current_feeding_mode",
     "delivery_count",
-    "estimated_due_date",
     "has_cesarean_history",
     "preferred_name",
 ]
-InfantProfileField = Literal[
+BabyProfileField = Literal[
     "birth_date",
-    "birth_weight_kg",
-    "gestational_age_at_birth_days",
     "name",
-    "sex_at_birth",
+    "sex",
+    "feeding_mode",
 ]
 
 
@@ -71,7 +67,6 @@ class ProfileReadRequest(_StrictContract):
 class ProfileMother(_StrictContract):
     preferred_name: str | None = Field(max_length=120)
     age: int | None = Field(ge=12, le=70)
-    estimated_due_date: date | None
     delivery_count: int | None = Field(ge=1, le=20)
     current_delivery_method: DeliveryMethod | None
     actual_delivery_date: date | None
@@ -80,19 +75,6 @@ class ProfileMother(_StrictContract):
     current_feeding_mode: FeedingMode | None
 
 
-class GestationalAgeAtBirth(_StrictContract):
-    total_days: int = Field(ge=140, le=315)
-    weeks: int = Field(ge=20, le=45)
-    days: int = Field(ge=0, le=6)
-    is_preterm: bool
-
-    @model_validator(mode="after")
-    def validate_derived_values(self) -> GestationalAgeAtBirth:
-        if self.weeks != self.total_days // 7 or self.days != self.total_days % 7:
-            raise ValueError("gestational age display does not match total_days")
-        if self.is_preterm != (self.total_days < 259):
-            raise ValueError("is_preterm does not match total_days")
-        return self
 
 
 class LatestInfantMeasurement(_StrictContract):
@@ -107,12 +89,11 @@ class ProfileInfant(_StrictContract):
     name: str = Field(min_length=1, max_length=120)
     is_current_delivery: bool
     birth_order: int | None = Field(ge=1, le=10)
-    sex_at_birth: SexAtBirth | None
+    sex: BabySex
+    feeding_mode: FeedingMode
     birth_date: date | None
     age_days: int | None = Field(ge=0)
     age_months: int | None = Field(ge=0)
-    birth_weight_kg: float | None = Field(ge=0.2, le=10)
-    gestational_age_at_birth: GestationalAgeAtBirth | None
     latest_measurement: LatestInfantMeasurement | None
 
 
@@ -138,7 +119,6 @@ class ProfileReadResponse(_StrictContract):
 class ProfileMotherUpdate(_StrictContract):
     preferred_name: str | None = Field(default=None, min_length=1, max_length=120)
     age: int | None = Field(default=None, ge=12, le=70)
-    estimated_due_date: date | None = None
     delivery_count: int | None = Field(default=None, ge=1, le=20)
     current_delivery_method: DeliveryMethod | None = None
     actual_delivery_date: date | None = None
@@ -155,10 +135,9 @@ class ProfileMotherUpdate(_StrictContract):
 class ProfileInfantUpdate(_StrictContract):
     infant_id: UUID
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    sex_at_birth: SexAtBirth | None = None
+    sex: BabySex | None = None
+    feeding_mode: FeedingMode | None = None
     birth_date: date | None = None
-    birth_weight_kg: float | None = Field(default=None, ge=0.2, le=10)
-    gestational_age_at_birth_days: int | None = Field(default=None, ge=140, le=315)
 
     @model_validator(mode="after")
     def require_update(self) -> ProfileInfantUpdate:
@@ -243,7 +222,7 @@ class ProfileUpdateApplyRequest(_StrictContract):
 
 class ProfileInfantUpdateSummary(_StrictContract):
     infant_id: UUID
-    fields: list[InfantProfileField]
+    fields: list[BabyProfileField]
 
 
 class ProfileUpdateDetails(_StrictContract):

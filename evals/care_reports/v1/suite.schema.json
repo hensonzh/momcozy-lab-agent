@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "ReportEvalCase": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "p0",
+            "p1"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "scenario": {
+          "title": "Scenario",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "candidate": {
+          "additionalProperties": true,
+          "title": "Candidate",
+          "type": "object"
+        },
+        "expected": {
+          "enum": [
+            "accepted",
+            "invalid_input",
+            "invalid_output"
+          ],
+          "title": "Expected",
+          "type": "string"
+        },
+        "quality_rubric": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Quality Rubric",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "priority",
+        "scenario",
+        "input",
+        "candidate",
+        "expected",
+        "quality_rubric"
+      ],
+      "title": "ReportEvalCase",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "care_report_eval.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "suite": {
+      "const": "care_reports",
+      "title": "Suite",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/ReportEvalCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "suite",
+    "cases"
+  ],
+  "title": "ReportEvalSuite",
+  "type": "object"
+}

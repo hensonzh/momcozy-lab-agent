@@ -99,15 +99,8 @@ def profile_tool_registry() -> ToolContractRegistry:
 _NULLABLE_DATE: dict[str, Any] = {
     "anyOf": [{"type": "string", "format": "date"}, {"type": "null"}]
 }
-_NULLABLE_SEX: dict[str, Any] = {
-    "anyOf": [
-        {
-            "type": "string",
-            "enum": ["female", "male", "intersex", "unknown", "undisclosed"],
-        },
-        {"type": "null"},
-    ]
-}
+_BABY_SEX: dict[str, Any] = {"type": "string", "enum": ["female", "male", "unspecified"]}
+_BABY_FEEDING_MODE: dict[str, Any] = {"type": "string", "enum": ["exclusive_breastfeeding", "expressed_milk_feeding", "mixed_feeding", "formula_feeding", "unknown"]}
 
 _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -136,7 +129,6 @@ _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {
                         {"type": "null"},
                     ]
                 },
-                "estimated_due_date": deepcopy(_NULLABLE_DATE),
                 "delivery_count": {
                     "anyOf": [
                         {"type": "integer", "minimum": 1, "maximum": 20},
@@ -195,20 +187,9 @@ _PROFILE_WRITE_INPUT_SCHEMA: dict[str, Any] = {
                         "minLength": 1,
                         "maxLength": 120,
                     },
-                    "sex_at_birth": deepcopy(_NULLABLE_SEX),
+                    "sex": deepcopy(_BABY_SEX),
+                    "feeding_mode": deepcopy(_BABY_FEEDING_MODE),
                     "birth_date": deepcopy(_NULLABLE_DATE),
-                    "birth_weight_kg": {
-                        "anyOf": [
-                            {"type": "number", "minimum": 0.2, "maximum": 10},
-                            {"type": "null"},
-                        ]
-                    },
-                    "gestational_age_at_birth_days": {
-                        "anyOf": [
-                            {"type": "integer", "minimum": 140, "maximum": 315},
-                            {"type": "null"},
-                        ]
-                    },
                 },
             },
         },

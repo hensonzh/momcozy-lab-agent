@@ -229,7 +229,6 @@ def _profile_response(*, infant_scope: str) -> dict[str, Any]:
         "mother": {
             "preferred_name": None,
             "age": None,
-            "estimated_due_date": None,
             "delivery_count": None,
             "current_delivery_method": None,
             "actual_delivery_date": None,

@@ -97,7 +97,6 @@ def test_business_context_is_loaded_once_owner_scoped_and_persisted_as_low_trust
                 "age_months": 0,
                 "birth_order": 1,
                 "infant_id": str(backend.infant_id),
-                "is_preterm": True,
                 "name": "Bao",
             }
         ],
@@ -447,7 +446,6 @@ def _profile_response(
         "mother": {
             "preferred_name": preferred_name,
             "age": None,
-            "estimated_due_date": "2026-08-11",
             "delivery_count": 1,
             "current_delivery_method": "cesarean",
             "actual_delivery_date": "2026-08-11",
@@ -461,17 +459,11 @@ def _profile_response(
                 "name": "Bao",
                 "is_current_delivery": True,
                 "birth_order": 1,
-                "sex_at_birth": "female",
+                "sex": "female",
+                "feeding_mode": "unknown",
                 "birth_date": "2026-08-11",
                 "age_days": 12,
                 "age_months": 0,
-                "birth_weight_kg": 3.1,
-                "gestational_age_at_birth": {
-                    "total_days": 252,
-                    "weeks": 36,
-                    "days": 0,
-                    "is_preterm": True,
-                },
                 "latest_measurement": {
                     "weight_kg": 3.3,
                     "height_cm": 50.0,

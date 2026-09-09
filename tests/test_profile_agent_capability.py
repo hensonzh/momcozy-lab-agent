@@ -102,7 +102,7 @@ def test_profile_update_creates_action_proposal_without_calling_product_backend(
             "infants": [
                 {
                     "infant_id": str(infant_id),
-                    "birth_weight_kg": 3.2,
+                    "feeding_mode": "mixed_feeding",
                 }
             ],
         },
@@ -129,7 +129,7 @@ def test_profile_update_creates_action_proposal_without_calling_product_backend(
         "infants": [
             {
                 "infant_id": str(infant_id),
-                "birth_weight_kg": 3.2,
+                "feeding_mode": "mixed_feeding",
             }
         ],
         "reference_date": "2026-07-26",
@@ -142,7 +142,7 @@ def test_profile_update_creates_action_proposal_without_calling_product_backend(
         "preview_payload": {
             "infants": [
                 {
-                    "fields": ["birth_weight_kg"],
+                    "fields": ["feeding_mode"],
                     "infant_id": str(infant_id),
                 }
             ],
@@ -343,7 +343,6 @@ def _profile_response(*, infant_scope: str) -> dict[str, Any]:
         "mother": {
             "preferred_name": None,
             "age": None,
-            "estimated_due_date": None,
             "delivery_count": None,
             "current_delivery_method": None,
             "actual_delivery_date": None,

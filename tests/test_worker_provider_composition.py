@@ -3,11 +3,11 @@ from app.agent_runtime.providers import (
     OpenAIResponsesProviderConfig,
 )
 from app.core.settings import Settings
-from app.workers.composition import _model_provider_config
+from app.infrastructure.model_provider import model_provider_config
 
 
 def test_worker_maps_openai_settings_only_at_composition_root() -> None:
-    config = _model_provider_config(
+    config = model_provider_config(
         Settings(
             agent_model_provider="openai_responses",
             openai_api_key="test-openai-key",
@@ -28,7 +28,7 @@ def test_worker_maps_openai_settings_only_at_composition_root() -> None:
 
 
 def test_worker_maps_azure_settings_only_at_composition_root() -> None:
-    config = _model_provider_config(
+    config = model_provider_config(
         Settings(
             agent_model_provider="azure_openai_responses",
             azure_openai_endpoint=(

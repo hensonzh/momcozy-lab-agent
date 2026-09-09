@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from uuid import uuid4
 
 from starlette.responses import JSONResponse
@@ -22,11 +22,15 @@ class RequestBodyLimitMiddleware:
         ],
         *,
         max_body_bytes: int,
+        path_limits: Mapping[str, int] | None = None,
     ) -> None:
         if max_body_bytes < 1:
             raise ValueError("max_body_bytes must be positive")
         self.app = app
         self.max_body_bytes = max_body_bytes
+        self.path_limits = dict(path_limits or {})
+        if any(limit < 1 for limit in self.path_limits.values()):
+            raise ValueError("path limits must be positive")
 
     async def __call__(
         self,
@@ -34,9 +38,12 @@ class RequestBodyLimitMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
-        if not _is_limited_request(scope):
+        path_limit = self.path_limits.get(str(scope.get('path', '')).rstrip('/')) if scope['type'] == 'http' and scope.get('method') in WRITE_METHODS else None
+        if path_limit is None and not _is_limited_request(scope):
             await self.app(scope, receive, send)
             return
+
+        limit = path_limit if path_limit is not None else self.max_body_bytes
 
         request_id = _request_id(scope)
         state = scope.setdefault("state", {})
@@ -44,13 +51,14 @@ class RequestBodyLimitMiddleware:
         content_length = _content_length(scope)
         if (
             content_length is not None
-            and content_length > self.max_body_bytes
+            and content_length > limit
         ):
             await self._send_too_large(
                 scope=scope,
                 receive=receive,
                 send=send,
                 request_id=request_id,
+                limit=limit,
             )
             return
 
@@ -67,12 +75,13 @@ class RequestBodyLimitMiddleware:
                 return
             body = bytes(message.get("body", b""))
             size += len(body)
-            if size > self.max_body_bytes:
+            if size > limit:
                 await self._send_too_large(
                     scope=scope,
                     receive=receive,
                     send=send,
                     request_id=request_id,
+                    limit=limit,
                 )
                 return
             if body:
@@ -101,13 +110,14 @@ class RequestBodyLimitMiddleware:
         receive: Receive,
         send: Send,
         request_id: str,
+        limit: int,
     ) -> None:
         envelope = ErrorEnvelope(
             code="request_body_too_large",
             message="Request body is too large.",
             status=413,
             request_id=request_id,
-            details={"max_body_bytes": self.max_body_bytes},
+            details={"max_body_bytes": limit},
         )
         response = JSONResponse(
             status_code=413,
