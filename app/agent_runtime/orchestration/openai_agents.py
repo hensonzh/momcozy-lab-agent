@@ -524,7 +524,7 @@ class ResponsesAgentsExecutionEngine:
                 *(deepcopy(item) for item in resolved),
             ],
         )
-        prefix = input_items[0]
+        prefix = cast(dict[str, Any], input_items[0])
         if response_policy != "non_health" and isinstance(prefix, dict) and isinstance(prefix.get("content"), list):
             prefix_content = list(prefix["content"])
             prefix_content.append({"type": "input_text", "text": policy_instruction})
