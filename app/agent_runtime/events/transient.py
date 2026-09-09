@@ -74,6 +74,23 @@ class RuntimeTransientStream:
         )
         await self.redis.expire(key, TRANSIENT_STREAM_TTL_SECONDS)
 
+    async def publish_message_withdrawn(self, *, run_id: UUID, thread_id: UUID, message_id: UUID, violation_type: str) -> None:
+        fields = {
+            "type": "message.withdrawn",
+            "thread_id": str(thread_id),
+            "run_id": str(run_id),
+            "payload": json.dumps(
+                {"message_id": str(message_id), "violation_type": violation_type, "replacement": True},
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        key = _stream_key(run_id)
+        await self.redis.xadd(key, cast(dict[Any, Any], fields), maxlen=TRANSIENT_STREAM_MAX_LENGTH, approximate=True)
+        await self.redis.expire(key, TRANSIENT_STREAM_TTL_SECONDS)
+
     async def read(
         self,
         *,
@@ -92,10 +109,7 @@ class RuntimeTransientStream:
         events: list[RuntimeTransientEvent] = []
         for _key, entries in response or []:
             for cursor, raw_fields in entries:
-                fields = {
-                    _text(key): _text(value)
-                    for key, value in dict(raw_fields).items()
-                }
+                fields = {_text(key): _text(value) for key, value in dict(raw_fields).items()}
                 events.append(
                     RuntimeTransientEvent(
                         event_id=f"delta:{_text(cursor)}",

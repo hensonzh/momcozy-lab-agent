@@ -290,6 +290,25 @@ class AgentLoop:
                 await self.repository.append_event(
                     run_id=run.id, event_type="message.withdrawn", payload={"violation_type": output_decision.category, "replacement": True}
                 )
+                await self.repository.append_event(
+                    run_id=run.id,
+                    event_type="safety.context_marker",
+                    payload={
+                        "message_status": "withdrawn",
+                        "original_response_valid": False,
+                        "effective_response": "fallback",
+                        "violation_type": output_decision.category,
+                    },
+                )
+                if self.transient_delta_publisher is not None and self._message_id is not None:
+                    publish_withdrawn = getattr(self.transient_delta_publisher, "publish_message_withdrawn", None)
+                    if publish_withdrawn is not None:
+                        try:
+                            await publish_withdrawn(
+                                run_id=run.id, thread_id=run.thread_id, message_id=self._message_id, violation_type=output_decision.category
+                            )
+                        except Exception:
+                            LOGGER.warning("Transient withdrawal publish failed; continuing durable run.", exc_info=True)
                 answer = AgentAnswer(text=output_decision.response, agent=answer.agent)
             elif output_decision.masked_text:
                 answer = AgentAnswer(text=output_decision.masked_text, agent=answer.agent)
@@ -559,6 +578,10 @@ class AgentLoop:
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
+        safety_probe = self.safety_policy.evaluate(json.dumps({"tool": call.name, "arguments": call.arguments}, ensure_ascii=False))
+        if safety_probe.decision in {"block", "escalate"}:
+            await self._record_safety_decision(run=run, decision=safety_probe, event_type="safety.tool")
+            return await self._append_tool_error(run=run, call=call, code="safety_guardrail_blocked")
         principal = self._runtime_principal(run)
         trusted_args: dict[str, Any] = {}
         if self.trusted_arguments_provider is not None:
