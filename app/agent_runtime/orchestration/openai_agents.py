@@ -144,9 +144,7 @@ class _TotalTimeoutModel(Model):
                     prompt=prompt,
                 )
         except TimeoutError as exc:
-            raise _ModelCallTimeoutError(
-                "Agents SDK model call exceeded its total timeout."
-            ) from exc
+            raise _ModelCallTimeoutError("Agents SDK model call exceeded its total timeout.") from exc
 
     async def stream_response(
         self,
@@ -178,9 +176,7 @@ class _TotalTimeoutModel(Model):
                 ):
                     yield event
         except TimeoutError as exc:
-            raise _ModelCallTimeoutError(
-                "Agents SDK streamed model call exceeded its total timeout."
-            ) from exc
+            raise _ModelCallTimeoutError("Agents SDK streamed model call exceeded its total timeout.") from exc
 
 
 @dataclass
@@ -225,23 +221,14 @@ class ResponsesAgentsExecutionEngine:
         self.model_name = model_name
         self.tool_registry = tool_registry
         self.runtime = runtime
-        self.runtime_contract_catalog = (
-            validate_runtime_contract_catalog_snapshot(
-                runtime_contract_catalog
-            )
-        )
+        self.runtime_contract_catalog = validate_runtime_contract_catalog_snapshot(runtime_contract_catalog)
         catalog_tool_items = self.runtime_contract_catalog["tools"]["items"]
         registered_tool_items = sorted(
-            (
-                contract.catalog_item()
-                for contract in tool_registry.list()
-            ),
+            (contract.catalog_item() for contract in tool_registry.list()),
             key=lambda item: str(item["name"]),
         )
         if catalog_tool_items != registered_tool_items:
-            raise ValueError(
-                "runtime contract catalog does not match Tool registry"
-            )
+            raise ValueError("runtime contract catalog does not match Tool registry")
         self.max_turns = max_turns
         self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
@@ -253,26 +240,15 @@ class ResponsesAgentsExecutionEngine:
             model=model_name,
             base_url=base_url,
         )
-        self.provider_profile.require_capabilities(
-            REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
-        )
+        self.provider_profile.require_capabilities(REQUIRED_RUNTIME_PROVIDER_CAPABILITIES)
         if self.provider_profile.model != model_name:
             raise ValueError("provider profile model does not match engine model")
         if self.provider_profile.api != "responses":
-            raise ValueError(
-                "Agents execution requires a Responses API provider"
-            )
+            raise ValueError("Agents execution requires a Responses API provider")
         if self.provider_profile.base_url.rstrip("/") != base_url.rstrip("/"):
-            raise ValueError(
-                "provider profile base URL does not match engine base URL"
-            )
-        self.request_policy = request_policy or ModelRequestPolicy.for_profile(
-            self.provider_profile
-        )
-        self.provider_error_mapper = (
-            provider_error_mapper
-            or OpenAICompatibleErrorMapper(self.provider_profile)
-        )
+            raise ValueError("provider profile base URL does not match engine base URL")
+        self.request_policy = request_policy or ModelRequestPolicy.for_profile(self.provider_profile)
+        self.provider_error_mapper = provider_error_mapper or OpenAICompatibleErrorMapper(self.provider_profile)
 
     async def execute(
         self,
@@ -290,14 +266,10 @@ class ResponsesAgentsExecutionEngine:
             model_name=self.model_name,
             runtime_context=deepcopy(runtime_context or {}),
             observation_context=dict(observation_context or {}),
-            prompt_cache_breakpoints=(
-                self.request_policy.prompt_cache_breakpoints
-            ),
+            prompt_cache_breakpoints=(self.request_policy.prompt_cache_breakpoints),
         )
         hooks = _DurableRunHooks(engine=self, state=state)
-        agent = self._build_agent(
-            authorization_permissions=authorization_permissions
-        )
+        agent = self._build_agent(authorization_permissions=authorization_permissions)
         run_config = RunConfig(
             tracing_disabled=True,
             trace_include_sensitive_data=False,
@@ -339,9 +311,7 @@ class ResponsesAgentsExecutionEngine:
             if not text:
                 raise ApiError(
                     code="model_empty_response",
-                    message=(
-                        "Model returned no answer or function call."
-                    ),
+                    message=("Model returned no answer or function call."),
                     status=502,
                 )
             return AgentExecutionResult(
@@ -352,9 +322,7 @@ class ResponsesAgentsExecutionEngine:
             hooks.emit_pending_model_failures(error_code=exc.code)
             raise
         except _ToolInvocationError as exc:
-            hooks.emit_pending_model_failures(
-                error_code="tool_execution_failed"
-            )
+            hooks.emit_pending_model_failures(error_code="tool_execution_failed")
             raise exc.cause from exc
         except _ModelCallTimeoutError as exc:
             hooks.emit_pending_model_failures(
@@ -368,39 +336,27 @@ class ResponsesAgentsExecutionEngine:
                 details={"retryable": True},
             ) from exc
         except MaxTurnsExceeded as exc:
-            hooks.emit_pending_model_failures(
-                error_code="agent_max_turns_exceeded"
-            )
+            hooks.emit_pending_model_failures(error_code="agent_max_turns_exceeded")
             raise ApiError(
                 code="agent_max_turns_exceeded",
                 message="Agent exceeded its tool-call turn limit.",
                 status=504,
             ) from exc
         except ModelBehaviorError as exc:
-            hooks.emit_pending_model_failures(
-                error_code="model_provider_malformed_tool_call"
-            )
+            hooks.emit_pending_model_failures(error_code="model_provider_malformed_tool_call")
             raise _model_behavior_error(exc) from exc
         except Exception as exc:
             mapped = self.provider_error_mapper.map(exc)
             if mapped is None:
-                hooks.emit_pending_model_failures(
-                    error_code="model_execution_failed"
-                )
+                hooks.emit_pending_model_failures(error_code="model_execution_failed")
                 raise
             hooks.emit_pending_model_failures(
                 error_code=mapped.code,
-                outcome=(
-                    "timeout"
-                    if mapped.code == "model_provider_timeout"
-                    else "error"
-                ),
+                outcome=("timeout" if mapped.code == "model_provider_timeout" else "error"),
             )
             raise mapped from exc
         except BaseException:
-            hooks.emit_pending_model_failures(
-                error_code="model_execution_interrupted"
-            )
+            hooks.emit_pending_model_failures(error_code="model_execution_interrupted")
             raise
 
     def _build_agent(
@@ -439,20 +395,11 @@ class ResponsesAgentsExecutionEngine:
                 verbosity=cast(Any, self.text_verbosity),
                 store=self.store,
                 response_include=(
-                    ["reasoning.encrypted_content"]
-                    if (
-                        not self.store
-                        and self.request_policy.include_encrypted_reasoning
-                    )
-                    else None
+                    ["reasoning.encrypted_content"] if (not self.store and self.request_policy.include_encrypted_reasoning) else None
                 ),
                 prompt_cache_options=cast(
                     Any,
-                    (
-                        dict(self.request_policy.prompt_cache_options)
-                        if self.request_policy.prompt_cache_options
-                        else None
-                    ),
+                    (dict(self.request_policy.prompt_cache_options) if self.request_policy.prompt_cache_options else None),
                 ),
             ),
             tool_use_behavior="run_llm_again",
@@ -464,27 +411,16 @@ class ResponsesAgentsExecutionEngine:
         *,
         authorization_permissions: frozenset[str],
     ) -> list[Tool]:
-        contracts = {
-            contract.name: contract
-            for contract in self.tool_registry.list()
-            if contract.name in self.runtime.tools.tool_names
-        }
+        contracts = {contract.name: contract for contract in self.tool_registry.list() if contract.name in self.runtime.tools.tool_names}
         missing = set(self.runtime.tools.tool_names) - contracts.keys()
         if missing:
-            raise ValueError(
-                f"tool catalog references unknown tools: {sorted(missing)}"
-            )
+            raise ValueError(f"tool catalog references unknown tools: {sorted(missing)}")
 
         authorized_contracts = {
-            name: contract
-            for name, contract in contracts.items()
-            if set(contract.required_permissions)
-            <= authorization_permissions
+            name: contract for name, contract in contracts.items() if set(contract.required_permissions) <= authorization_permissions
         }
 
-        deferred = self.runtime.tools.deferred_tool_names & set(
-            authorized_contracts
-        )
+        deferred = self.runtime.tools.deferred_tool_names & set(authorized_contracts)
         tools: list[Tool] = [
             self._business_tool(
                 agent_name=definition.name,
@@ -492,10 +428,7 @@ class ResponsesAgentsExecutionEngine:
                 defer_loading=False,
             )
             for tool_name in self.runtime.tools.eager_tool_names
-            if (
-                tool_name not in deferred
-                and tool_name in authorized_contracts
-            )
+            if (tool_name not in deferred and tool_name in authorized_contracts)
         ]
         if deferred:
             tools.append(
@@ -538,13 +471,9 @@ class ResponsesAgentsExecutionEngine:
             try:
                 arguments = json.loads(input_json or "{}")
             except json.JSONDecodeError as exc:
-                raise ModelBehaviorError(
-                    f"Invalid JSON input for tool {contract.name}."
-                ) from exc
+                raise ModelBehaviorError(f"Invalid JSON input for tool {contract.name}.") from exc
             if not isinstance(arguments, dict):
-                raise ModelBehaviorError(
-                    f"Tool {contract.name} input must be an object."
-                )
+                raise ModelBehaviorError(f"Tool {contract.name} input must be an object.")
             try:
                 return await context.context.port.invoke_tool(
                     agent_name=agent_name,
@@ -569,40 +498,37 @@ class ResponsesAgentsExecutionEngine:
     async def _model_input_filter(
         data: CallModelData[_ExecutionState],
     ) -> ModelInputData:
-        raw_items = tuple(
-            _json_item(item)
-            for item in data.model_data.input
-        )
+        raw_items = tuple(_json_item(item) for item in data.model_data.input)
         state = data.context
         if state is None:
-            raise RuntimeError(
-                "Agents SDK execution context is unavailable."
-            )
+            raise RuntimeError("Agents SDK execution context is unavailable.")
         resolved = await state.port.resolve_model_input(
             input_items=raw_items,
         )
         if _contains_internal_asset_reference(resolved):
             raise ApiError(
                 code="model_asset_unresolved",
-                message=(
-                    "Internal Agent assets must be resolved before "
-                    "model input."
-                ),
+                message=("Internal Agent assets must be resolved before model input."),
                 status=503,
             )
         instructions = data.model_data.instructions or ""
+        response_policy = str(state.runtime_context.get("response_policy") or "non_health")
+        policy_instruction = _response_policy_instruction(response_policy)
         input_items = cast(
             list[TResponseInputItem],
             [
                 _stable_prefix_item(
                     instructions,
-                    prompt_cache_breakpoints=(
-                        state.prompt_cache_breakpoints
-                    ),
+                    prompt_cache_breakpoints=(state.prompt_cache_breakpoints),
                 ),
                 *(deepcopy(item) for item in resolved),
             ],
         )
+        prefix = input_items[0]
+        if response_policy != "non_health" and isinstance(prefix, dict) and isinstance(prefix.get("content"), list):
+            prefix_content = list(prefix["content"])
+            prefix_content.append({"type": "input_text", "text": policy_instruction})
+            prefix["content"] = prefix_content
         converted_tools = Converter.convert_tools(
             list(data.agent.tools),
             [],
@@ -616,18 +542,24 @@ class ResponsesAgentsExecutionEngine:
         )
         if callable(ensure_fits):
             await ensure_fits(
-                input_items=tuple(
-                    _json_item(item) for item in input_items
-                ),
-                tools=tuple(
-                    deepcopy(cast(dict[str, Any], tool))
-                    for tool in converted_tools
-                ),
+                input_items=tuple(_json_item(item) for item in input_items),
+                tools=tuple(deepcopy(cast(dict[str, Any], tool)) for tool in converted_tools),
             )
         return ModelInputData(
             input=input_items,
             instructions=None,
         )
+
+
+def _response_policy_instruction(policy: str) -> str:
+    directives = {
+        "general_health": "Give general health information, avoid diagnosis, prescriptions, and individualized treatment decisions.",
+        "personalized_health": "Use the user's context carefully; provide general educational guidance, uncertainty, and when to seek professional care.",
+        "general_medical": "Provide educational medical information only; do not diagnose, prescribe, or claim clinical certainty.",
+        "restricted_medical": "This is a personalized medical request. Do not diagnose or prescribe; state uncertainty, ask only necessary clarifying questions, and direct the user to a licensed clinician for individualized care.",
+        "non_health": "Answer normally within the assistant's instructions.",
+    }
+    return f"Safety response policy: {policy}. {directives.get(policy, directives['non_health'])}"
 
 
 class _DurableRunHooks(RunHooks[_ExecutionState]):
@@ -639,9 +571,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
     ) -> None:
         self.engine = engine
         self.state = state
-        self._model_calls: list[
-            tuple[str, float]
-        ] = []
+        self._model_calls: list[tuple[str, float]] = []
 
     async def on_llm_start(
         self,
@@ -650,35 +580,25 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         system_prompt: str | None,
         input_items: list[TResponseInputItem],
     ) -> None:
-        self._model_calls.append(
-            (agent.name, monotonic())
-        )
+        self._model_calls.append((agent.name, monotonic()))
         manifest = _execution_manifest(
             agent_name=agent.name,
             instructions=self.state.runtime.agent.instructions,
-            input_items=tuple(
-                _json_item(item) for item in input_items
-            ),
+            input_items=tuple(_json_item(item) for item in input_items),
             tools=tuple(agent.tools),
             model_name=self.engine.model_name,
             max_output_tokens=self.engine.max_output_tokens,
             reasoning_effort=self.engine.reasoning_effort,
             text_verbosity=self.engine.text_verbosity,
-            parallel_tool_calls=(
-                agent.model_settings.parallel_tool_calls is True
-            ),
+            parallel_tool_calls=(agent.model_settings.parallel_tool_calls is True),
             store=self.engine.store,
             provider_profile=self.engine.provider_profile,
             request_policy=self.engine.request_policy,
             timeout_seconds=self.engine.timeout_seconds,
             runtime_context=self.state.runtime_context,
-            runtime_contract_catalog=(
-                self.engine.runtime_contract_catalog
-            ),
+            runtime_contract_catalog=(self.engine.runtime_contract_catalog),
         )
-        await self.state.port.record_execution_manifest(
-            manifest=manifest
-        )
+        await self.state.port.record_execution_manifest(manifest=manifest)
 
     async def on_llm_end(
         self,
@@ -686,21 +606,10 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         agent: Agent[_ExecutionState],
         response: ModelResponse,
     ) -> None:
-        calls = tuple(
-            item
-            for item in response.output
-            if isinstance(item, ResponseFunctionToolCall)
-        )
+        calls = tuple(item for item in response.output if isinstance(item, ResponseFunctionToolCall))
         self._validate_calls(agent=agent, calls=calls)
         has_calls = bool(calls)
-        output_items = tuple(
-            _json_item(item)
-            for item in response.output
-            if (
-                getattr(item, "type", "") != "message"
-                or has_calls
-            )
-        )
+        output_items = tuple(_json_item(item) for item in response.output if (getattr(item, "type", "") != "message" or has_calls))
         await self.state.port.persist_model_output(
             agent_name=agent.name,
             response_id=response.response_id or "",
@@ -719,14 +628,8 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
     ) -> None:
         if not calls:
             return
-        available = {
-            tool.name
-            for tool in agent.tools
-            if isinstance(tool, FunctionTool)
-        }
-        unknown = [
-            call.name for call in calls if call.name not in available
-        ]
+        available = {tool.name for tool in agent.tools if isinstance(tool, FunctionTool)}
+        unknown = [call.name for call in calls if call.name not in available]
         if unknown:
             raise ApiError(
                 code="tool_not_available",
@@ -737,6 +640,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
                     "tool_name": unknown[0],
                 },
             )
+
     def emit_pending_model_failures(
         self,
         *,
@@ -744,9 +648,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         outcome: str = "error",
     ) -> None:
         while self._model_calls:
-            agent_name, started_at = (
-                self._model_calls.pop(0)
-            )
+            agent_name, started_at = self._model_calls.pop(0)
             self._emit_model_metric_at(
                 agent_name=agent_name,
                 started_at=started_at,
@@ -762,19 +664,12 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         error_code: str = "",
     ) -> None:
         match_index = next(
-            (
-                index
-                for index, (candidate_agent, _)
-                in enumerate(self._model_calls)
-                if candidate_agent == agent_name
-            ),
+            (index for index, (candidate_agent, _) in enumerate(self._model_calls) if candidate_agent == agent_name),
             None,
         )
         if match_index is None:
             return
-        _agent, started_at = self._model_calls.pop(
-            match_index
-        )
+        _agent, started_at = self._model_calls.pop(match_index)
         self._emit_model_metric_at(
             agent_name=agent_name,
             started_at=started_at,
@@ -804,11 +699,7 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
             started_at=started_at,
             dimensions=dimensions,
             error_code=error_code,
-            level=(
-                logging.INFO
-                if outcome == "success"
-                else logging.WARNING
-            ),
+            level=(logging.INFO if outcome == "success" else logging.WARNING),
         )
 
 
@@ -822,9 +713,7 @@ def _stable_prefix_item(
         "text": instructions,
     }
     if prompt_cache_breakpoints:
-        content["prompt_cache_breakpoint"] = dict(
-            PROMPT_CACHE_BREAKPOINT
-        )
+        content["prompt_cache_breakpoint"] = dict(PROMPT_CACHE_BREAKPOINT)
     return {
         "type": "message",
         "role": "developer",
@@ -853,18 +742,10 @@ def _execution_manifest(
     tool_items = [
         {
             "name": tool.name,
-            "description_sha256": _sha256_text(
-                getattr(tool, "description", "") or ""
-            ),
-            "input_schema": deepcopy(
-                getattr(tool, "params_json_schema", {})
-            ),
-            "input_schema_sha256": _sha256_json(
-                getattr(tool, "params_json_schema", {})
-            ),
-            "defer_loading": bool(
-                getattr(tool, "defer_loading", False)
-            ),
+            "description_sha256": _sha256_text(getattr(tool, "description", "") or ""),
+            "input_schema": deepcopy(getattr(tool, "params_json_schema", {})),
+            "input_schema_sha256": _sha256_json(getattr(tool, "params_json_schema", {})),
+            "defer_loading": bool(getattr(tool, "defer_loading", False)),
             "namespace": getattr(tool, "_tool_namespace", None),
             "namespace_description_sha256": (
                 _sha256_text(
@@ -882,9 +763,7 @@ def _execution_manifest(
         for tool in tools
         if isinstance(tool, FunctionTool)
     ]
-    has_tool_search = any(
-        isinstance(tool, ToolSearchTool) for tool in tools
-    )
+    has_tool_search = any(isinstance(tool, ToolSearchTool) for tool in tools)
     request_projection = {
         "instructions_sha256": _sha256_text(instructions),
         "input": input_items,
@@ -897,15 +776,11 @@ def _execution_manifest(
         "parallel_tool_calls": parallel_tool_calls,
         "store": store,
         "provider": provider_profile.provider_id,
-        "include_encrypted_reasoning": (
-            request_policy.include_encrypted_reasoning
-        ),
+        "include_encrypted_reasoning": (request_policy.include_encrypted_reasoning),
         "prompt_cache_options": request_policy.prompt_cache_options,
     }
     manifest: dict[str, Any] = {
-        "schema_version": (
-            MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
-        ),
+        "schema_version": (MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION),
         "agent_name": agent_name,
         "prompt": {
             "id": agent_name,
@@ -914,16 +789,12 @@ def _execution_manifest(
         },
         "runtime_metadata": runtime_metadata_snapshot(),
         "contract_catalog": {
-            "schema_version": runtime_contract_catalog[
-                "schema_version"
-            ],
+            "schema_version": runtime_contract_catalog["schema_version"],
             "sha256": runtime_contract_catalog["catalog_sha256"],
         },
         "tools": {
             "contract_schema_version": TOOL_CONTRACT_SCHEMA_VERSION,
-            "catalog_schema_version": runtime_contract_catalog["tools"][
-                "schema_version"
-            ],
+            "catalog_schema_version": runtime_contract_catalog["tools"]["schema_version"],
             "catalog_sha256": runtime_contract_catalog["tools"]["sha256"],
             "items": tool_items,
             "tool_search": has_tool_search,
@@ -931,12 +802,8 @@ def _execution_manifest(
         },
         "actions": {
             "policy_schema_version": ACTION_POLICY_SCHEMA_VERSION,
-            "catalog_schema_version": runtime_contract_catalog["actions"][
-                "schema_version"
-            ],
-            "catalog_sha256": runtime_contract_catalog["actions"][
-                "sha256"
-            ],
+            "catalog_schema_version": runtime_contract_catalog["actions"]["schema_version"],
+            "catalog_sha256": runtime_contract_catalog["actions"]["sha256"],
         },
         "model": {
             **provider_profile.manifest_metadata(),
@@ -951,20 +818,11 @@ def _execution_manifest(
             "max_function_tool_concurrency": 1,
             "store": store,
             "truncation": "disabled",
-            "include": (
-                ["reasoning.encrypted_content"]
-                if (
-                    not store
-                    and request_policy.include_encrypted_reasoning
-                )
-                else None
-            ),
+            "include": (["reasoning.encrypted_content"] if (not store and request_policy.include_encrypted_reasoning) else None),
             "prompt_cache": (
                 {
                     **dict(request_policy.prompt_cache_options or {}),
-                    "breakpoint": (
-                        "stable_tools_and_developer_instructions"
-                    ),
+                    "breakpoint": ("stable_tools_and_developer_instructions"),
                 }
                 if request_policy.prompt_cache_breakpoints
                 else None
@@ -976,14 +834,10 @@ def _execution_manifest(
             "schema_version": MODEL_CONTEXT_SCHEMA_VERSION,
             "resolved": _context_projection(input_items),
         },
-        "request_payload_sha256": _sha256_json(
-            request_projection
-        ),
+        "request_payload_sha256": _sha256_json(request_projection),
     }
     if runtime_context:
-        manifest["context"]["runtime"] = deepcopy(
-            runtime_context
-        )
+        manifest["context"]["runtime"] = deepcopy(runtime_context)
     manifest["manifest_sha256"] = _sha256_json(manifest)
     return manifest
 
@@ -997,9 +851,7 @@ def _context_projection(
             "type": str(item.get("type") or ""),
             "role": str(item.get("role") or ""),
             "sha256": _sha256_json(item),
-            "utf8_bytes": len(
-                _canonical_json(item).encode("utf-8")
-            ),
+            "utf8_bytes": len(_canonical_json(item).encode("utf-8")),
         }
         for index, item in enumerate(items)
     ]
@@ -1041,11 +893,7 @@ def _contains_internal_asset_reference(
 ) -> bool:
     def contains(value: Any) -> bool:
         if isinstance(value, dict):
-            if (
-                value.get("type")
-                in {"input_image", "input_file"}
-                and "asset_id" in value
-            ):
+            if value.get("type") in {"input_image", "input_file"} and "asset_id" in value:
                 return True
             return any(contains(item) for item in value.values())
         if isinstance(value, list | tuple):
@@ -1072,32 +920,22 @@ def _validate_stateless_function_context(
             _invalid_function_context("missing_call_id")
         if item_type == "function_call":
             if call_id in calls:
-                _invalid_function_context(
-                    "duplicate_function_call"
-                )
+                _invalid_function_context("duplicate_function_call")
             calls.add(call_id)
             continue
         if call_id not in calls:
-            _invalid_function_context(
-                "output_without_function_call"
-            )
+            _invalid_function_context("output_without_function_call")
         if call_id in outputs:
-            _invalid_function_context(
-                "duplicate_function_call_output"
-            )
+            _invalid_function_context("duplicate_function_call_output")
         outputs.add(call_id)
     if calls != outputs:
-        _invalid_function_context(
-            "function_call_without_output"
-        )
+        _invalid_function_context("function_call_without_output")
 
 
 def _invalid_function_context(reason: str) -> None:
     raise ApiError(
         code="model_provider_invalid_context",
-        message=(
-            "Stateless model input contains an unpaired function call."
-        ),
+        message=("Stateless model input contains an unpaired function call."),
         status=500,
         details={"reason": reason},
     )
@@ -1105,11 +943,7 @@ def _invalid_function_context(reason: str) -> None:
 
 def _model_behavior_error(exc: ModelBehaviorError) -> ApiError:
     message = str(exc).lower()
-    if "tool" in message and (
-        "not found" in message
-        or "not available" in message
-        or "disabled" in message
-    ):
+    if "tool" in message and ("not found" in message or "not available" in message or "disabled" in message):
         return ApiError(
             code="tool_not_available",
             message="Requested tool is not in the runtime catalog.",
@@ -1134,9 +968,7 @@ def _sha256_text(value: str) -> str:
 
 
 def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        _canonical_json(value).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def _canonical_json(value: Any) -> str:

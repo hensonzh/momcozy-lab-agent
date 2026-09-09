@@ -23,6 +23,7 @@ from app.agent_runtime.ledger.repository import (
 from app.agent_runtime.safety import (
     RuntimeSafetyDecision,
     RuntimeSafetyPolicy,
+    sanitize_model_input,
 )
 from app.agent_runtime.runtime_metadata import TEXT_STREAM_SCHEMA_VERSION
 from app.agent_runtime.tools import (
@@ -142,6 +143,7 @@ class AgentLoop:
         self._lease_guard: Callable[[], Awaitable[None]] | None = None
         self._masked_user_text: str | None = None
         self._response_policy: str = "non_health"
+        self._stream_replacement = False
 
     async def process(
         self,
@@ -231,6 +233,7 @@ class AgentLoop:
         )
         self._stream_segment_count = 0
         self._stream_content = bytearray()
+        self._stream_replacement = False
         try:
             await self._start(run)
             recovered = await self._recover_completed_run(run)
@@ -286,9 +289,12 @@ class AgentLoop:
             await self._ensure_active(run)
             output_decision = self.safety_policy.evaluate_output_rules(answer.text)
             if output_decision.decision == "block":
+                self._stream_replacement = True
                 await self._record_safety_decision(run=run, decision=output_decision, event_type="safety.output")
                 await self.repository.append_event(
-                    run_id=run.id, event_type="message.withdrawn", payload={"violation_type": output_decision.category, "replacement": True}
+                    run_id=run.id,
+                    event_type="message.withdrawn",
+                    payload={"message_id": str(self._message_id), "violation_type": output_decision.category, "replacement": True},
                 )
                 await self.repository.append_event(
                     run_id=run.id,
@@ -311,6 +317,7 @@ class AgentLoop:
                             LOGGER.warning("Transient withdrawal publish failed; continuing durable run.", exc_info=True)
                 answer = AgentAnswer(text=output_decision.response, agent=answer.agent)
             elif output_decision.masked_text:
+                self._stream_replacement = True
                 answer = AgentAnswer(text=output_decision.masked_text, agent=answer.agent)
             return await self._persist_final_and_complete(
                 run=run,
@@ -481,11 +488,7 @@ class AgentLoop:
             agent_name=agent_name,
             initial_input_items=initial_input_items,
         )
-        if self._masked_user_text is not None:
-            for item in reversed(model_input):
-                if item.get("role") == "user":
-                    item["content"] = self._masked_user_text
-                    break
+        model_input = list(sanitize_model_input(model_input))
         await self._ensure_active(run)
         pending = _pending_calls(
             context_records,
@@ -508,6 +511,7 @@ class AgentLoop:
                 agent_name=agent_name,
                 initial_input_items=initial_input_items,
             )
+            model_input = list(sanitize_model_input(model_input))
         result = await self.execution_engine.execute(
             input_items=tuple(dict(item) for item in model_input),
             port=_LoopExecutionPort(
@@ -743,6 +747,7 @@ class AgentLoop:
                     "message_stream_id": str(message.id),
                     "role": "assistant",
                     "text": answer.text,
+                    "replacement": self._stream_replacement,
                     "responding_agent": answer.agent,
                     "stream_schema_version": TEXT_STREAM_SCHEMA_VERSION,
                     "segment_count": self._stream_segment_count,
@@ -1003,14 +1008,15 @@ class _LoopExecutionPort(AgentExecutionPort):
         coordinator = self.loop.context_coordinator
         resolver = getattr(coordinator, "resolve_model_input", None) if coordinator is not None else None
         if not callable(resolver):
-            return tuple(dict(item) for item in input_items)
-        return cast(
+            return sanitize_model_input(list(input_items))
+        resolved = cast(
             tuple[dict[str, Any], ...],
             await resolver(
                 run=self.run,
                 input_items=input_items,
             ),
         )
+        return sanitize_model_input(list(resolved))
 
     async def ensure_model_request_fits(
         self,

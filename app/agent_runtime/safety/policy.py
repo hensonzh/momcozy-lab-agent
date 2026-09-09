@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 import unicodedata
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from app.agent_runtime.runtime_metadata import RUNTIME_SAFETY_POLICY_VERSION
 
@@ -112,6 +112,15 @@ _OUTPUT_BLOCK_RULES = ((r"(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|b
 
 
 def _input_block(text: str) -> tuple[SafetyCategory, SafetySeverity, str] | None:
+    # Crisis response takes priority over lower severity matches in the same message.
+    if _infant_harm_risk(text):
+        return "infant_harm_imminent", "critical", "infant_harm_imminent.v1"
+    if _self_harm_risk(text):
+        return "self_harm_imminent", "critical", "self_harm_imminent.v1"
+    if _medical_emergency(text):
+        return "medical_emergency", "critical", "medical_emergency.v1"
+    if _urgent_fetal_movement(text):
+        return "prenatal_urgent", "high", "reduced_fetal_movement.v1"
     if _contains_any(
         text,
         (
@@ -129,29 +138,66 @@ def _input_block(text: str) -> tuple[SafetyCategory, SafetySeverity, str] | None
         return "unauthorized_data", "high", "unauthorized_data.v1"
     if _contains_any(text, ("不要调用工具但告诉我成功", "伪造工具结果", "直接执行数据库", "fake tool result")):
         return "tool_manipulation", "high", "tool_manipulation.v1"
-    if _contains_affirmed(text, ("自杀", "伤害自己", "kill myself", "hurt myself")) and _contains_any(
-        text, ("已经想好", "计划", "今晚", "马上", "现在", "准备", "控制不住", "plan", "tonight", "right now")
-    ):
-        return "self_harm_imminent", "critical", "self_harm_imminent.v1"
-    if _contains_affirmed(text, ("伤害宝宝", "伤害他", "伤害她", "hurt the baby", "harm the baby")) and _contains_any(
-        text, ("控制不住", "下一秒", "马上", "现在", "可能会", "怕会", "right now", "about to")
-    ):
-        return "infant_harm_imminent", "critical", "infant_harm_imminent.v1"
-    if _urgent_fetal_movement(text):
-        return "prenatal_urgent", "high", "reduced_fetal_movement.v1"
-    if _contains_affirmed(
-        text, ("严重呼吸困难", "无法呼吸", "大量出血", "昏厥", "uncontrolled bleeding", "cannot breathe", "unresponsive")
-    ) or (
-        _contains_any(text, ("宝宝", "婴儿", "baby", "infant"))
-        and _contains_affirmed(text, ("嘴唇发蓝", "口唇发蓝", "blue lips"))
-        and (_contains_affirmed(text, ("呼吸困难", "不能呼吸", "difficulty breathing")) or ("呼吸" in text and "困难" in text))
-    ):
-        return "medical_emergency", "critical", "medical_emergency.v1"
     if _contains_any(text, ("儿童色情", "儿童性虐待", "child sexual abuse", "child pornography")):
         return "child_sexual_content", "critical", "child_sexual_content.v1"
     if _contains_any(text, ("怎么给宝宝下毒", "如何投毒", "怎么伤害宝宝", "how to poison", "how to hurt the baby")):
         return "harmful_instruction", "critical", "harmful_instruction.v1"
     return None
+
+
+def _medical_emergency(text: str) -> bool:
+    infant = _contains_any(text, ("宝宝", "婴儿", "新生儿", "孩子", "baby", "infant", "newborn"))
+    cyanosis = _contains_affirmed(text, ("嘴唇发蓝", "口唇发蓝", "脸色发青", "lips are blue", "blue lips", "turning blue"))
+    breathing = _contains_affirmed(
+        text,
+        ("呼吸困难", "喘不上气", "无法呼吸", "不能呼吸", "difficulty breathing", "trouble breathing", "can't breathe", "cannot breathe"),
+    ) or (_contains_affirmed(text, ("呼吸",)) and _contains_affirmed(text, ("困难",)))
+    immediately_dangerous = _contains_affirmed(
+        text,
+        (
+            "严重呼吸困难",
+            "无法呼吸",
+            "大量出血",
+            "昏厥",
+            "cannot breathe",
+            "大出血",
+            "出血止不住",
+            "止不住的出血",
+            "失去意识",
+            "昏迷",
+            "叫不醒",
+            "uncontrolled bleeding",
+            "unconscious",
+            "unresponsive",
+        ),
+    )
+    return (infant and cyanosis and breathing) or immediately_dangerous
+
+
+def _self_harm_risk(text: str) -> bool:
+    first_person = _contains_any(text, ("我", "自己", "i ", "i'm", "myself"))
+    harm = _contains_affirmed(
+        text,
+        ("伤害自己", "自杀", "结束自己的生命", "不想活了", "kill myself", "hurt myself", "end my life"),
+    )
+    imminent = _contains_any(
+        text,
+        ("已经想好", "计划", "今晚", "马上", "现在就", "现在", "准备", "控制不住", "plan", "tonight", "right now", "about to"),
+    )
+    return first_person and harm and imminent
+
+
+def _infant_harm_risk(text: str) -> bool:
+    infant = _contains_any(text, ("宝宝", "婴儿", "孩子", "新生儿", "baby", "infant", "child", "newborn"))
+    harm = _contains_affirmed(
+        text,
+        ("伤害宝宝", "伤害婴儿", "伤害孩子", "伤害他", "伤害她", "hurt the baby", "harm the baby", "hurt my child"),
+    )
+    imminent = _contains_any(
+        text,
+        ("控制不住", "下一秒", "马上", "现在", "可能会", "怕会", "lose control", "right now", "might hurt", "about to"),
+    )
+    return infant and harm and imminent
 
 
 def _urgent_fetal_movement(text: str) -> bool:
@@ -190,6 +236,34 @@ def mask_sensitive(text: str, *, output: bool = False) -> str:
             if output or kind == "secret":
                 text = re.sub(pattern, "[sensitive information removed]", text, flags=re.I)
     return text
+
+
+def sanitize_model_input(items: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+    """Mask textual leaves at the model boundary while retaining multimodal blocks."""
+    return tuple(_sanitize_item(item) for item in items)
+
+
+def _sanitize_item(item: dict[str, Any]) -> dict[str, Any]:
+    result = dict(item)
+    if "content" in result:
+        result["content"] = _sanitize_content(result["content"])
+    if result.get("type") == "function_call_output" and isinstance(result.get("output"), str):
+        result["output"] = mask_sensitive(str(result["output"]))
+    return result
+
+
+def _sanitize_content(content: Any) -> Any:
+    if isinstance(content, str):
+        return mask_sensitive(content)
+    if isinstance(content, list):
+        return [_sanitize_content(part) for part in content]
+    if isinstance(content, dict):
+        result = dict(content)
+        if isinstance(result.get("text"), str):
+            result["text"] = mask_sensitive(result["text"])
+        # Preserve image/file/audio blocks and their opaque identifiers verbatim.
+        return result
+    return content
 
 
 def _input_fallback(category: SafetyCategory, zh: bool) -> str:
@@ -243,4 +317,5 @@ __all__ = [
     "ResponsePolicy",
     "classify_response_policy",
     "mask_sensitive",
+    "sanitize_model_input",
 ]

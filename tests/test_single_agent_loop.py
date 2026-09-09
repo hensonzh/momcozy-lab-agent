@@ -43,6 +43,81 @@ from app.bootstrap import (
 from app.core.errors import ApiError
 
 
+
+@pytest.mark.parametrize("content", [
+    "请联系 13812345678 或 test@example.com",
+    [
+        {"type": "input_text", "text": "请看附件，联系 13812345678"},
+        {"type": "input_image", "image_url": "https://example.com/image.png"},
+        {"type": "input_file", "file_id": "file_fixture"},
+    ],
+])
+def test_history_is_sanitized_without_losing_attachments(content: Any) -> None:
+    repository = MemoryLedger()
+    repository.context[0].item["content"] = content
+    repository.context.append(SimpleNamespace(
+        run_id=repository.run.id, item_key="message:current", sequence=2,
+        item={"role": "user", "content": "继续"},
+    ))
+    provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("好的")]})
+    run = asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
+    assert run.status == "completed"
+    sent = provider.requests[0].input_items
+    assert "13812345678" not in json.dumps(sent)
+    assert "test@example.com" not in json.dumps(sent)
+    assert "138****5678" in json.dumps(sent)
+    history = next(item for item in sent if item.get("role") == "user")
+    if isinstance(content, list):
+        assert history["content"][1:] == content[1:]
+    assert repository.context[0].item["content"] == content
+
+
+def test_current_multimodal_mask_preserves_attachments() -> None:
+    repository = MemoryLedger()
+    attachment = {"type": "input_image", "image_url": "https://example.com/image.png"}
+    repository.context[0].item["content"] = [
+        {"type": "input_text", "text": "请看图片并联系 13812345678"}, attachment,
+    ]
+    provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("好的")]})
+    asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
+    sent = next(item for item in provider.requests[0].input_items if item.get("role") == "user")
+    assert sent["content"] == [
+        {"type": "input_text", "text": "请看图片并联系 138****5678"}, attachment,
+    ]
+
+
+def test_restricted_policy_reaches_actual_model_instructions_on_each_turn() -> None:
+    repository = MemoryLedger()
+    repository.context[0].item["content"] = "我乳腺炎该用什么药？"
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(call_id="policy-call", name="profile_read", arguments={})),
+        ScriptedTurn.final("请联系医生评估。"),
+    ]})
+    executor = RecordingToolExecutor(repository)
+    asyncio.run(_loop(repository=repository, provider=provider, tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
+    assert len(provider.requests) >= 1
+    for request in provider.requests:
+        instructions = " ".join(str(item.get("content")) for item in request.input_items if item.get("role") == "developer")
+        assert "restricted_medical" in instructions
+        assert "Do not diagnose" in instructions
+        assert "prescribe" in instructions
+
+
+@pytest.mark.parametrize("text", ["联系 13812345678", "Your api_key=sk_test_secret should be used"])
+def test_guarded_final_explicitly_replaces_stream(text: str) -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final(text, deltas=(text,))]})
+    asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
+    completed = next(event for event in repository.events if event.event_type == "message.completed")
+    if "138" in text:
+        assert completed.payload["text"] == "联系 138****5678"
+    else:
+        withdrawn = next(event for event in repository.events if event.event_type == "message.withdrawn")
+        assert withdrawn.payload["violation_type"] == "secret"
+        assert completed.payload["text"] != text
+    assert completed.payload["content_sha256"] == hashlib.sha256(completed.payload["text"].encode()).hexdigest()
+
+
 def test_general_question_is_answered_by_the_single_agent() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
@@ -431,10 +506,10 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
         )
     ]
     assert executor.as_of_dates == [date(2026, 7, 27)]
-    assert provider.requests[1].input_items[0]["role"] == "user"
-    assert '"locale":"zh-CN"' in provider.requests[1].input_items[0][
-        "content"
-    ]
+    first_user = next(
+        item for item in provider.requests[1].input_items if item.get("role") == "user"
+    )
+    assert '"locale":"zh-CN"' in first_user["content"]
     assert repository.context_payloads[2] == {
         "type": "function_call",
         "call_id": "profile-call",
@@ -451,6 +526,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
 
 def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
+    repository.context[0].item["content"] = "联系 13812345678"
     first_provider = ScriptedAgentModel(
         {
             "cozymate": [
@@ -491,6 +567,8 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
 
     asyncio.run(second_loop.process(repository.run.id))
 
+    assert "13812345678" not in json.dumps(second_provider.requests[0].input_items)
+    assert "138****5678" in json.dumps(second_provider.requests[0].input_items)
     assert second_executor.calls == [("profile_read", "recover-call", {})]
     _assert_function_context_is_paired(
         second_provider.requests[0].input_items
