@@ -47,7 +47,7 @@ def test_local_environment_declares_runtime_public_key_contract() -> None:
     env = LOCAL_ENV.read_text()
 
     for expected in (
-        "AUTH_JWKS_URL=http://host.docker.internal:8000/.well-known/jwks.json",
+        "AUTH_JWKS_URL=http://host.docker.internal:8769/.well-known/jwks.json",
         "AUTH_JWT_ISSUER=momcozy-local",
         "AUTH_JWT_AUDIENCE=momcozy-agent-runtime",
         "AUTH_JWKS_TIMEOUT_SECONDS=2",
