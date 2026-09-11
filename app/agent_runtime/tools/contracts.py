@@ -19,9 +19,7 @@ from app.agent_runtime.runtime_metadata import (
 class ToolContract(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: ToolContractSchemaVersion = (
-        TOOL_CONTRACT_SCHEMA_VERSION
-    )
+    schema_version: ToolContractSchemaVersion = TOOL_CONTRACT_SCHEMA_VERSION
     name: str = Field(
         min_length=1,
         max_length=120,
@@ -67,13 +65,8 @@ class ToolContract(BaseModel):
         cls,
         action_types: tuple[str, ...],
     ) -> tuple[str, ...]:
-        if any(
-            not action_type or len(action_type) > 120
-            for action_type in action_types
-        ):
-            raise ValueError(
-                "Tool action types must contain between 1 and 120 characters."
-            )
+        if any(not action_type or len(action_type) > 120 for action_type in action_types):
+            raise ValueError("Tool action types must contain between 1 and 120 characters.")
         if len(set(action_types)) != len(action_types):
             raise ValueError("Tool action types must be unique.")
         return action_types
@@ -88,12 +81,7 @@ class ToolContract(BaseModel):
         cls,
         values: tuple[str, ...],
     ) -> tuple[str, ...]:
-        if any(
-            not value
-            or len(value) > 128
-            or value.strip() != value
-            for value in values
-        ):
+        if any(not value or len(value) > 128 or value.strip() != value for value in values):
             raise ValueError("Contract names must be non-empty and normalized.")
         if len(set(values)) != len(values):
             raise ValueError("Contract names must be unique.")
@@ -113,10 +101,7 @@ class ToolContract(BaseModel):
             is None
             for permission in permissions
         ):
-            raise ValueError(
-                "Tool permission names must use canonical domain:operation "
-                "form."
-            )
+            raise ValueError("Tool permission names must use canonical domain:operation form.")
         return permissions
 
     @model_validator(mode="after")
@@ -126,17 +111,7 @@ class ToolContract(BaseModel):
             "action_proposal": "idempotent_write",
             "runtime_internal": "none",
         }[self.operation]
-        action_binding_is_valid = (
-            bool(self.action_types)
-            if self.operation == "action_proposal"
-            else not self.action_types
-        )
-        if (
-            self.retry_policy != expected_retry_policy
-            or not action_binding_is_valid
-        ):
-            raise ValueError(
-                "Tool operation contract disagrees with retry policy or "
-                "Action bindings."
-            )
+        action_binding_is_valid = bool(self.action_types) if self.operation == "action_proposal" else not self.action_types
+        if self.retry_policy != expected_retry_policy or not action_binding_is_valid:
+            raise ValueError("Tool operation contract disagrees with retry policy or Action bindings.")
         return self

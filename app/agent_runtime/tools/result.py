@@ -55,9 +55,7 @@ class ToolResult:
     ) -> ToolResult:
         return cls(
             canonical_output=deepcopy(value),
-            model_output=deepcopy(
-                value if model_output is None else model_output
-            ),
+            model_output=deepcopy(value if model_output is None else model_output),
             supplemental_content=supplemental_content,
             deferred_events=tuple(deepcopy(deferred_events)),
         )
@@ -73,18 +71,10 @@ class ToolResult:
         else:
             output = [
                 {"type": "input_text", "text": primary},
-                *(
-                    _serialize_media_block(block)
-                    for block in self.supplemental_content
-                ),
+                *(_serialize_media_block(block) for block in self.supplemental_content),
             ]
-        if (
-            max_bytes is not None
-            and _function_output_bytes(output) > max_bytes
-        ):
-            raise ValueError(
-                "Tool model output exceeds its declared byte limit."
-            )
+        if max_bytes is not None and _function_output_bytes(output) > max_bytes:
+            raise ValueError("Tool model output exceeds its declared byte limit.")
         return output
 
     def _serialized_model_output(self) -> str:

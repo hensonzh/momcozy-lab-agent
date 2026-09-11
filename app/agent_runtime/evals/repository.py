@@ -44,9 +44,7 @@ class RuntimeEvalRepository:
     async def get_case(self, *, case_id: UUID) -> AgentEvalCase | None:
         return cast(
             AgentEvalCase | None,
-            await self.session.scalar(
-                select(AgentEvalCase).where(AgentEvalCase.id == case_id)
-            ),
+            await self.session.scalar(select(AgentEvalCase).where(AgentEvalCase.id == case_id)),
         )
 
     async def list_cases(

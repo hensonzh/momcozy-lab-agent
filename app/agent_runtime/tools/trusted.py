@@ -12,9 +12,7 @@ from app.infrastructure.product_backend import (
 
 
 VERIFIED_FORM_PREFIX = "runtime_verified_form_submission\n"
-MARKDOWN_IMAGE_URL_PATTERN = re.compile(
-    r"!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))"
-)
+MARKDOWN_IMAGE_URL_PATTERN = re.compile(r"!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))")
 
 
 class _WorkflowRepository(Protocol):
@@ -23,6 +21,7 @@ class _WorkflowRepository(Protocol):
         *,
         run_id: Any,
     ) -> Any | None: ...
+
 
 class TrustedToolArgumentsProvider:
     """Build Runtime-owned tool inputs from durable, verified context."""
@@ -45,33 +44,14 @@ class TrustedToolArgumentsProvider:
         context_records: Sequence[Any],
         as_of_date: Any,
     ) -> dict[str, Any]:
-        user_message = (
-            await self.repository.get_latest_user_message_for_run(
-                run_id=run.id
-            )
-        )
-        message_content = (
-            dict(user_message.content)
-            if user_message is not None
-            and isinstance(user_message.content, dict)
-            else {}
-        )
+        user_message = await self.repository.get_latest_user_message_for_run(run_id=run.id)
+        message_content = dict(user_message.content) if user_message is not None and isinstance(user_message.content, dict) else {}
         user_text = str(message_content.get("text") or "").strip()
         raw_client_context = message_content.get("client_context")
-        client_context = (
-            dict(raw_client_context)
-            if isinstance(raw_client_context, dict)
-            else {}
-        )
-        timezone_name = str(
-            client_context.get("timezone") or "UTC"
-        )
+        client_context = dict(raw_client_context) if isinstance(raw_client_context, dict) else {}
+        timezone_name = str(client_context.get("timezone") or "UTC")
         locale = str(client_context.get("locale") or "")
-        local_date = (
-            as_of_date.isoformat()
-            if as_of_date is not None
-            else str(client_context.get("as_of_date") or "")
-        )
+        local_date = as_of_date.isoformat() if as_of_date is not None else str(client_context.get("as_of_date") or "")
         common = {
             "trusted_current_user_text": user_text,
             "runtime_timezone": timezone_name,
@@ -110,8 +90,7 @@ class TrustedToolArgumentsProvider:
                         "birth_order": infant.birth_order,
                     }
                     for infant in profile.infants
-                    if infant.is_current_delivery
-                    and infant.birth_order is not None
+                    if infant.is_current_delivery and infant.birth_order is not None
                 ]
             return trusted
         if tool_name == "schedule_timeline_mutate":
@@ -137,12 +116,9 @@ class TrustedToolArgumentsProvider:
                 "locale": locale,
             }
         if tool_name == "conversation_history_image_read":
-            return {
-                "visible_image_urls": _visible_image_urls(
-                    context_records
-                )
-            }
+            return {"visible_image_urls": _visible_image_urls(context_records)}
         return {}
+
 
 def _previous_assistant_text(
     records: Sequence[Any],
@@ -153,10 +129,7 @@ def _previous_assistant_text(
     for record in reversed(records):
         item = getattr(record, "item", {})
         role = item.get("role")
-        if (
-            getattr(record, "run_id", None) == run_id
-            and role == "user"
-        ):
+        if getattr(record, "run_id", None) == run_id and role == "user":
             current_user_seen = True
             continue
         if current_user_seen and role == "assistant":
@@ -192,29 +165,14 @@ def _visible_image_urls(
         if item.get("role") == "assistant":
             content = item.get("content")
             if isinstance(content, str):
-                for match in MARKDOWN_IMAGE_URL_PATTERN.finditer(
-                    content
-                ):
-                    markdown_url = str(
-                        match.group(1) or match.group(2) or ""
-                    ).strip()
-                    if (
-                        markdown_url.startswith("https://")
-                        and markdown_url not in urls
-                    ):
+                for match in MARKDOWN_IMAGE_URL_PATTERN.finditer(content):
+                    markdown_url = str(match.group(1) or match.group(2) or "").strip()
+                    if markdown_url.startswith("https://") and markdown_url not in urls:
                         urls.append(markdown_url)
         output = item.get("output")
         blocks = output if isinstance(output, list) else []
         for block in blocks:
-            block_url = (
-                block.get("image_url")
-                if isinstance(block, dict)
-                else None
-            )
-            if (
-                isinstance(block_url, str)
-                and block_url.startswith("https://")
-                and block_url not in urls
-            ):
+            block_url = block.get("image_url") if isinstance(block, dict) else None
+            if isinstance(block_url, str) and block_url.startswith("https://") and block_url not in urls:
                 urls.append(block_url)
     return urls

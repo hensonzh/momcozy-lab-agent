@@ -99,16 +99,8 @@ class OpenAICompatibleErrorMapper:
         if isinstance(exc, APIStatusError):
             provider_status = int(exc.status_code)
             return self._error(
-                code=(
-                    "model_provider_unavailable"
-                    if provider_status >= 500
-                    else "model_provider_error"
-                ),
-                message=(
-                    "Model provider is unavailable."
-                    if provider_status >= 500
-                    else "Model provider rejected the request."
-                ),
+                code=("model_provider_unavailable" if provider_status >= 500 else "model_provider_error"),
+                message=("Model provider is unavailable." if provider_status >= 500 else "Model provider rejected the request."),
                 status=503 if provider_status >= 500 else 502,
                 retryable=provider_status >= 500,
                 exc=exc,
@@ -145,11 +137,7 @@ class OpenAICompatibleErrorMapper:
         retry_after = _response_header(exc, "retry-after")
         if retry_after:
             details["retry_after"] = retry_after
-        headers = (
-            {"Retry-After": retry_after}
-            if retry_after
-            else None
-        )
+        headers = {"Retry-After": retry_after} if retry_after else None
         return ApiError(
             code=code,
             message=message,
@@ -178,10 +166,7 @@ def is_context_window_error(exc: Exception) -> bool:
             ):
                 return True
     message = str(exc).lower()
-    return (
-        "maximum context length" in message
-        or "context window" in message
-    )
+    return "maximum context length" in message or "context window" in message
 
 
 def _provider_error_code(exc: Exception) -> str:

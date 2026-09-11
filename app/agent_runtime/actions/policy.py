@@ -22,23 +22,17 @@ DEFAULT_RETRYABLE_ACTION_ERROR_CODES = frozenset(
 
 @dataclass(frozen=True, kw_only=True)
 class ActionPolicyRule:
-    schema_version: ActionPolicySchemaVersion = (
-        ACTION_POLICY_SCHEMA_VERSION
-    )
+    schema_version: ActionPolicySchemaVersion = ACTION_POLICY_SCHEMA_VERSION
     action_type: str
     target_type: str
     side_effect_level: str
     required_permissions: frozenset[str]
     requires_confirmation: bool = False
     allows_payload_edit: bool = False
-    blocking_policy: Literal["must_wait", "wait_for_confirmation"] = (
-        "must_wait"
-    )
+    blocking_policy: Literal["must_wait", "wait_for_confirmation"] = "must_wait"
     idempotency_required: bool = True
     audit_required: bool = True
-    retryable_error_codes: frozenset[str] = (
-        DEFAULT_RETRYABLE_ACTION_ERROR_CODES
-    )
+    retryable_error_codes: frozenset[str] = DEFAULT_RETRYABLE_ACTION_ERROR_CODES
     confirmation_exemption: str = ""
 
     def catalog_item(self) -> dict[str, Any]:
@@ -70,15 +64,9 @@ class ActionPolicy:
     def _validate_rules(self) -> None:
         for action_type, rule in self.rules.items():
             if rule.schema_version != ACTION_POLICY_SCHEMA_VERSION:
-                raise ValueError(
-                    "action policy schema version is invalid: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy schema version is invalid: {action_type}")
             if rule.side_effect_level not in {"low", "medium", "high"}:
-                raise ValueError(
-                    "action policy side-effect level is invalid: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy side-effect level is invalid: {action_type}")
             if any(
                 re.fullmatch(
                     r"[a-z][a-z0-9_]*:[a-z][a-z0-9_]*",
@@ -87,52 +75,24 @@ class ActionPolicy:
                 is None
                 for permission in rule.required_permissions
             ):
-                raise ValueError(
-                    "action policy permission is invalid: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy permission is invalid: {action_type}")
             if rule.blocking_policy not in {
                 "must_wait",
                 "wait_for_confirmation",
             }:
-                raise ValueError(
-                    "action policy blocking policy is invalid: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy blocking policy is invalid: {action_type}")
             if action_type != rule.action_type:
-                raise ValueError(
-                    "action policy key must match rule action_type"
-                )
+                raise ValueError("action policy key must match rule action_type")
             if not rule.required_permissions:
-                raise ValueError(
-                    f"action policy requires permissions: {action_type}"
-                )
-            if rule.requires_confirmation != (
-                rule.blocking_policy == "wait_for_confirmation"
-            ):
-                raise ValueError(
-                    "action confirmation and blocking policy disagree: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy requires permissions: {action_type}")
+            if rule.requires_confirmation != (rule.blocking_policy == "wait_for_confirmation"):
+                raise ValueError(f"action confirmation and blocking policy disagree: {action_type}")
             if rule.allows_payload_edit and not rule.requires_confirmation:
-                raise ValueError(
-                    "action policy payload edit requires confirmation: "
-                    f"{action_type}"
-                )
-            if (
-                rule.side_effect_level in {"medium", "high"}
-                and not rule.requires_confirmation
-                and not rule.confirmation_exemption.strip()
-            ):
-                raise ValueError(
-                    "non-confirmed medium/high action requires an exemption: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"action policy payload edit requires confirmation: {action_type}")
+            if rule.side_effect_level in {"medium", "high"} and not rule.requires_confirmation and not rule.confirmation_exemption.strip():
+                raise ValueError(f"non-confirmed medium/high action requires an exemption: {action_type}")
             if not rule.idempotency_required or not rule.audit_required:
-                raise ValueError(
-                    "runtime actions require idempotency and audit: "
-                    f"{action_type}"
-                )
+                raise ValueError(f"runtime actions require idempotency and audit: {action_type}")
 
     def validate(
         self,
@@ -169,9 +129,7 @@ def action_presentation(
 ) -> dict[str, bool | str]:
     return {
         "requires_confirmation": rule.requires_confirmation,
-        "confirmation_policy": (
-            "always" if rule.requires_confirmation else "explicit_intent"
-        ),
+        "confirmation_policy": ("always" if rule.requires_confirmation else "explicit_intent"),
         "blocking_policy": rule.blocking_policy,
         "user_visible": rule.requires_confirmation,
     }

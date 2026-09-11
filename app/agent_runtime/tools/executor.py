@@ -26,9 +26,7 @@ from .result import FunctionCallOutput, ToolResult
 from .validation import validate_tool_input, validate_tool_output
 
 
-FORBIDDEN_ACTOR_ARGUMENTS = frozenset(
-    {"actor_user_id", "owner_user_id", "user_id"}
-)
+FORBIDDEN_ACTOR_ARGUMENTS = frozenset({"actor_user_id", "owner_user_id", "user_id"})
 LOGGER = logging.getLogger("agent_runtime.tool")
 
 
@@ -83,11 +81,7 @@ class ToolExecutor:
                 LOGGER,
                 metric_name="agent_runtime_tool",
                 operation="tool.execute",
-                outcome=(
-                    "timeout"
-                    if exc.code == "tool_timeout"
-                    else "error"
-                ),
+                outcome=("timeout" if exc.code == "tool_timeout" else "error"),
                 started_at=started_at,
                 dimensions={
                     "tool_name": tool_name,
@@ -163,9 +157,7 @@ class ToolExecutor:
             args,
             allowed_fields=contract.safe_arg_fields,
         )
-        missing_permissions = sorted(
-            set(contract.required_permissions) - actor.permissions
-        )
+        missing_permissions = sorted(set(contract.required_permissions) - actor.permissions)
         if missing_permissions:
             tool_call = await self.repository.start_tool_call(
                 run_id=run.id,
@@ -261,13 +253,9 @@ class ToolExecutor:
             if not isinstance(result, ToolResult):
                 raise TypeError("Tool handlers must return ToolResult.")
             if not isinstance(result.canonical_output, dict):
-                raise TypeError(
-                    "Tool handlers must return an object canonical output."
-                )
+                raise TypeError("Tool handlers must return an object canonical output.")
             if not isinstance(result.model_output, dict):
-                raise TypeError(
-                    "Tool handlers must return an object model output."
-                )
+                raise TypeError("Tool handlers must return an object model output.")
             canonical_output = dict(result.canonical_output)
             validate_tool_output(
                 schema=contract.output_schema,
@@ -385,11 +373,7 @@ class ToolExecutor:
             },
         )
         for deferred_event in result.deferred_events:
-            event_type = str(
-                deferred_event.get("event_type")
-                or deferred_event.get("type")
-                or ""
-            ).strip()
+            event_type = str(deferred_event.get("event_type") or deferred_event.get("type") or "").strip()
             payload = deferred_event.get("payload")
             if event_type and isinstance(payload, dict):
                 await self.repository.append_event(
@@ -524,9 +508,7 @@ def _is_safe_scalar(value: Any) -> bool:
 
 def _run_authorization(run: Any) -> RuntimePrincipal:
     try:
-        return RuntimePrincipal.from_authorization_context(
-            run.authorization_context
-        )
+        return RuntimePrincipal.from_authorization_context(run.authorization_context)
     except (AttributeError, TypeError, ValueError) as exc:
         raise ApiError(
             code="runtime_authorization_context_invalid",

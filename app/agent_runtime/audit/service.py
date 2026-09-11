@@ -84,8 +84,7 @@ class AuditService:
     ) -> AuditLog:
         return await self.repository.record_audit(
             actor_user_id=actor_user_id,
-            actor_type=actor_type
-            or ("user" if actor_user_id is not None else "system"),
+            actor_type=actor_type or ("user" if actor_user_id is not None else "system"),
             actor_service=actor_service.strip(),
             action=action,
             resource_type=resource_type,
@@ -149,17 +148,13 @@ class IdempotencyService:
         if _is_expired(existing.expires_at):
             raise ApiError(
                 code="idempotency_key_expired",
-                message=(
-                    "Idempotency key has expired; retry with a new key."
-                ),
+                message=("Idempotency key has expired; retry with a new key."),
                 status=409,
             )
         if existing.request_hash != request_hash:
             raise ApiError(
                 code="idempotency_conflict",
-                message=(
-                    "Idempotency key was reused with a different request."
-                ),
+                message=("Idempotency key was reused with a different request."),
                 status=409,
             )
         return IdempotencyDecision(status="replay", record=existing)

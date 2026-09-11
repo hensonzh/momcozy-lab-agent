@@ -6,7 +6,7 @@ from typing import Any, TypeAlias, TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from app.core.errors import DependencyError
+from app.core.errors import ApiError, DependencyError
 
 from .contracts import (
     AgentFileResolveRequest,
@@ -52,6 +52,26 @@ class ProductBackendClient:
     ) -> None:
         self.http_client = http_client
         self.service_key = service_key
+
+    async def require_active_account(self, *, access_token: str, user_id: str) -> None:
+        # No positive cache: logout/reset/deletion must affect the next request.
+        try:
+            response = await self.http_client.get(
+                "/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"}, timeout=5.0,
+            )
+        except httpx.HTTPError:
+            raise ApiError(code="authentication_unavailable", message="Account verification is temporarily unavailable.", status=503) from None
+        if response.status_code in (401, 403):
+            raise ApiError(code="authentication_required", message="Session is no longer active.", status=401)
+        if response.status_code != 200:
+            raise ApiError(code="authentication_unavailable", message="Account verification is temporarily unavailable.", status=503)
+        try:
+            profile = response.json()
+            valid = profile["id"] == user_id and profile["account_status"] == "active"
+        except (ValueError, KeyError, TypeError):
+            valid = False
+        if not valid:
+            raise ApiError(code="authentication_required", message="Session is no longer active.", status=401)
 
     async def read_profile(
         self,

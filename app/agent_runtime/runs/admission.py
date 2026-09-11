@@ -11,9 +11,7 @@ from app.core.errors import ApiError
 
 
 LOGGER = logging.getLogger("agent_runtime.admission")
-TERMINAL_RUN_STATUSES = frozenset(
-    {"completed", "failed", "cancelled", "expired"}
-)
+TERMINAL_RUN_STATUSES = frozenset({"completed", "failed", "cancelled", "expired"})
 _ADMISSION_ALLOWED = 1
 _ADMISSION_RATE_LIMITED = 2
 _ADMISSION_ACTIVE_LIMITED = 3
@@ -105,12 +103,15 @@ class RedisRunAdmission:
         active_ttl_seconds: int,
         clock_milliseconds: Callable[[], int] | None = None,
     ) -> None:
-        if min(
-            rate_limit,
-            rate_window_seconds,
-            active_limit,
-            active_ttl_seconds,
-        ) < 1:
+        if (
+            min(
+                rate_limit,
+                rate_window_seconds,
+                active_limit,
+                active_ttl_seconds,
+            )
+            < 1
+        ):
             raise ValueError("Run admission limits must be positive")
         self.redis = redis_client
         self.rate_limit = rate_limit

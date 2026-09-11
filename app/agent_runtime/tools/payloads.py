@@ -50,9 +50,7 @@ async def persistable_tool_output(
                 "fatal": True,
             },
         )
-    key = (
-        f"runs/{run_id}/tool-outputs/{tool_call_id}.json"
-    )
+    key = f"runs/{run_id}/tool-outputs/{tool_call_id}.json"
     stored = await object_store.put_bytes(
         key=key,
         body=body,

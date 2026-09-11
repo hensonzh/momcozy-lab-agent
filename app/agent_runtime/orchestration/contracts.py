@@ -98,83 +98,47 @@ class ToolCatalog:
         eager = set(self.eager_tool_names)
         if len(eager) != len(self.eager_tool_names):
             raise ValueError("eager tool catalog contains duplicates")
-        invalid_eager = {
-            name
-            for name in eager
-            if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
-        }
+        invalid_eager = {name for name in eager if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)}
         if invalid_eager:
-            raise ValueError(
-                f"invalid eager tool names: {sorted(invalid_eager)}"
-            )
+            raise ValueError(f"invalid eager tool names: {sorted(invalid_eager)}")
 
         namespace_names: set[str] = set()
         namespaced_tools: set[str] = set()
         for namespace in self.tool_namespaces:
             if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", namespace.name):
-                raise ValueError(
-                    f"invalid tool namespace name: {namespace.name}"
-                )
+                raise ValueError(f"invalid tool namespace name: {namespace.name}")
             if namespace.name in namespace_names:
-                raise ValueError(
-                    f"duplicate tool namespace: {namespace.name}"
-                )
+                raise ValueError(f"duplicate tool namespace: {namespace.name}")
             if not namespace.description.strip():
-                raise ValueError(
-                    f"tool namespace description is empty: {namespace.name}"
-                )
+                raise ValueError(f"tool namespace description is empty: {namespace.name}")
             if not namespace.tool_names:
-                raise ValueError(
-                    f"tool namespace is empty: {namespace.name}"
-                )
+                raise ValueError(f"tool namespace is empty: {namespace.name}")
             local_names = set(namespace.tool_names)
             if len(local_names) != len(namespace.tool_names):
-                raise ValueError(
-                    f"tool namespace contains duplicates: {namespace.name}"
-                )
-            invalid_tools = {
-                name
-                for name in local_names
-                if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
-            }
+                raise ValueError(f"tool namespace contains duplicates: {namespace.name}")
+            invalid_tools = {name for name in local_names if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)}
             if invalid_tools:
-                raise ValueError(
-                    "tool namespace contains invalid names: "
-                    f"{sorted(invalid_tools)}"
-                )
+                raise ValueError(f"tool namespace contains invalid names: {sorted(invalid_tools)}")
             overlap = namespaced_tools & local_names
             if overlap:
-                raise ValueError(
-                    "tools cannot belong to multiple namespaces: "
-                    f"{sorted(overlap)}"
-                )
+                raise ValueError(f"tools cannot belong to multiple namespaces: {sorted(overlap)}")
             namespace_names.add(namespace.name)
             namespaced_tools.update(local_names)
         overlap = eager & namespaced_tools
         if overlap:
-            raise ValueError(
-                "tools cannot be both eager and namespaced: "
-                f"{sorted(overlap)}"
-            )
+            raise ValueError(f"tools cannot be both eager and namespaced: {sorted(overlap)}")
 
     @property
     def tool_names(self) -> tuple[str, ...]:
         return (
             *self.eager_tool_names,
-            *(
-                tool_name
-                for namespace in self.tool_namespaces
-                for tool_name in namespace.tool_names
-            ),
+            *(tool_name for namespace in self.tool_namespaces for tool_name in namespace.tool_names),
         )
 
     @property
     def deferred_tool_names(self) -> frozenset[str]:
-        return frozenset(
-            tool_name
-            for namespace in self.tool_namespaces
-            for tool_name in namespace.tool_names
-        )
+        return frozenset(tool_name for namespace in self.tool_namespaces for tool_name in namespace.tool_names)
+
 
 @dataclass(frozen=True)
 class RuntimeDefinition:

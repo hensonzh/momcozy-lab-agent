@@ -16,9 +16,7 @@ from app.infrastructure.product_backend import (
 from app.agent_runtime.context.compaction import MATERIALIZER_VERSION
 
 
-MODEL_IMAGE_TYPES = frozenset(
-    {"image/gif", "image/jpeg", "image/png", "image/webp"}
-)
+MODEL_IMAGE_TYPES = frozenset({"image/gif", "image/jpeg", "image/png", "image/webp"})
 MAX_ATTACHMENTS = 20
 MAX_FORM_FIELDS = 50
 MAX_FORM_VALUE_BYTES = 32 * 1024
@@ -27,18 +25,10 @@ MAX_FORM_CHOICE_LENGTH = 500
 MAX_FORM_MULTI_VALUES = 50
 FORM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,119}$")
 INTEGER_PATTERN = re.compile(r"^-?(?:0|[1-9][0-9]*)$")
-NUMBER_PATTERN = re.compile(
-    r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"
-)
-TEXT_FIELD_TYPES = frozenset(
-    {"text", "textarea", "long_text", "date", "email", "phone", "url"}
-)
-SINGLE_CHOICE_FIELD_TYPES = frozenset(
-    {"select", "radio", "single_select"}
-)
-MULTI_CHOICE_FIELD_TYPES = frozenset(
-    {"multi_select", "checkboxes", "checkbox_group"}
-)
+NUMBER_PATTERN = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+TEXT_FIELD_TYPES = frozenset({"text", "textarea", "long_text", "date", "email", "phone", "url"})
+SINGLE_CHOICE_FIELD_TYPES = frozenset({"select", "radio", "single_select"})
+MULTI_CHOICE_FIELD_TYPES = frozenset({"multi_select", "checkboxes", "checkbox_group"})
 BOOLEAN_FIELD_TYPES = frozenset({"boolean", "checkbox", "toggle"})
 
 
@@ -134,11 +124,7 @@ class AgentAttachmentService:
                 block_type = str(block.get("type") or "")
                 if block_type == "input_image" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
-                    materialized = {
-                        key: value
-                        for key, value in block.items()
-                        if key != "asset_id"
-                    }
+                    materialized = {key: value for key, value in block.items() if key != "asset_id"}
                     materialized["image_url"] = await self.resolve_image_url(
                         thread_id=thread_id,
                         actor_user_id=actor_user_id,
@@ -148,11 +134,7 @@ class AgentAttachmentService:
                     content[index] = materialized
                 elif block_type == "input_file" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
-                    materialized = {
-                        key: value
-                        for key, value in block.items()
-                        if key != "asset_id"
-                    }
+                    materialized = {key: value for key, value in block.items() if key != "asset_id"}
                     materialized["file_url"] = await self.resolve_file_url(
                         thread_id=thread_id,
                         actor_user_id=actor_user_id,
@@ -290,31 +272,21 @@ class AgentAttachmentService:
             field="artifact_id",
         )
         form_id = attachment.get("form_id")
-        if not isinstance(form_id, str) or not FORM_ID_PATTERN.fullmatch(
-            form_id
-        ):
+        if not isinstance(form_id, str) or not FORM_ID_PATTERN.fullmatch(form_id):
             raise _invalid_form_submission("Form identifier is invalid.")
 
-        artifact = (
-            await self.repository.claim_active_form_artifact_for_submission(
-                artifact_id=artifact_id,
-                thread_id=thread_id,
-                owner_user_id=actor_user_id,
-            )
+        artifact = await self.repository.claim_active_form_artifact_for_submission(
+            artifact_id=artifact_id,
+            thread_id=thread_id,
+            owner_user_id=actor_user_id,
         )
         if artifact is None or artifact.status not in {"created", "active"}:
-            raise _invalid_form_submission(
-                "Form is not active in this Agent thread."
-            )
+            raise _invalid_form_submission("Form is not active in this Agent thread.")
         if artifact.artifact_type != form_id:
-            raise _invalid_form_submission(
-                "Form does not match its Runtime artifact."
-            )
+            raise _invalid_form_submission("Form does not match its Runtime artifact.")
         form = artifact.payload.get("form")
         if not isinstance(form, dict) or form.get("id") != form_id:
-            raise _invalid_form_submission(
-                "Form does not match its Runtime artifact."
-            )
+            raise _invalid_form_submission("Form does not match its Runtime artifact.")
 
         normalized_values = _validate_form_values(
             form=form,
@@ -346,9 +318,7 @@ def _form_uuid(value: Any, *, field: str) -> UUID:
     try:
         return UUID(str(value or ""))
     except ValueError as exc:
-        raise _invalid_form_submission(
-            f"Form submission {field} is invalid."
-        ) from exc
+        raise _invalid_form_submission(f"Form submission {field} is invalid.") from exc
 
 
 def _require_exact_keys(
@@ -376,49 +346,30 @@ def _validate_form_values(
     _validate_json_size(values)
     fields = form.get("fields")
     if not isinstance(fields, list) or not 1 <= len(fields) <= MAX_FORM_FIELDS:
-        raise _invalid_form_submission(
-            "Runtime form definition is invalid."
-        )
+        raise _invalid_form_submission("Runtime form definition is invalid.")
 
     fields_by_id: dict[str, dict[str, Any]] = {}
     for raw_field in fields:
         if not isinstance(raw_field, dict):
-            raise _invalid_form_submission(
-                "Runtime form definition is invalid."
-            )
+            raise _invalid_form_submission("Runtime form definition is invalid.")
         field_id = raw_field.get("id")
-        if (
-            not isinstance(field_id, str)
-            or not FORM_ID_PATTERN.fullmatch(field_id)
-            or field_id in fields_by_id
-        ):
-            raise _invalid_form_submission(
-                "Runtime form definition is invalid."
-            )
+        if not isinstance(field_id, str) or not FORM_ID_PATTERN.fullmatch(field_id) or field_id in fields_by_id:
+            raise _invalid_form_submission("Runtime form definition is invalid.")
         fields_by_id[field_id] = raw_field
 
-    if any(
-        not isinstance(field_id, str) or field_id not in fields_by_id
-        for field_id in values
-    ):
-        raise _invalid_form_submission(
-            "Form contains an unknown field."
-        )
+    if any(not isinstance(field_id, str) or field_id not in fields_by_id for field_id in values):
+        raise _invalid_form_submission("Form contains an unknown field.")
 
     normalized: dict[str, Any] = {}
     for field_id, field in fields_by_id.items():
         if field_id not in values:
             if field.get("required") is True:
-                raise _invalid_form_submission(
-                    f"Required form field {field_id} is missing."
-                )
+                raise _invalid_form_submission(f"Required form field {field_id} is missing.")
             continue
         raw_value = values[field_id]
         if not _has_form_value(raw_value):
             if field.get("required") is True:
-                raise _invalid_form_submission(
-                    f"Required form field {field_id} is missing."
-                )
+                raise _invalid_form_submission(f"Required form field {field_id} is missing.")
             continue
         normalized[field_id] = _validate_form_field_value(
             field=field,
@@ -435,9 +386,7 @@ def _validate_form_field_value(
 ) -> Any:
     field_type = field.get("type")
     if not isinstance(field_type, str):
-        raise _invalid_form_submission(
-            "Runtime form field type is invalid."
-        )
+        raise _invalid_form_submission("Runtime form field type is invalid.")
     if field_type in TEXT_FIELD_TYPES:
         return _validate_form_string(value)
     if field_type in SINGLE_CHOICE_FIELD_TYPES:
@@ -445,26 +394,17 @@ def _validate_form_field_value(
         _validate_allowed_choice(field=field, choice=choice)
         return choice
     if field_type in MULTI_CHOICE_FIELD_TYPES:
-        if (
-            not isinstance(value, list)
-            or len(value) > MAX_FORM_MULTI_VALUES
-        ):
-            raise _invalid_form_submission(
-                "Form multi-choice value is invalid."
-            )
+        if not isinstance(value, list) or len(value) > MAX_FORM_MULTI_VALUES:
+            raise _invalid_form_submission("Form multi-choice value is invalid.")
         choices = [_validate_form_choice(item) for item in value]
         if len(set(choices)) != len(choices):
-            raise _invalid_form_submission(
-                "Form multi-choice value is invalid."
-            )
+            raise _invalid_form_submission("Form multi-choice value is invalid.")
         for choice in choices:
             _validate_allowed_choice(field=field, choice=choice)
         return choices
     if field_type in BOOLEAN_FIELD_TYPES:
         if not isinstance(value, bool):
-            raise _invalid_form_submission(
-                "Form boolean value is invalid."
-            )
+            raise _invalid_form_submission("Form boolean value is invalid.")
         return value
     if field_type == "integer":
         integer_value = _validate_integer(value)
@@ -474,26 +414,17 @@ def _validate_form_field_value(
         numeric_value = _validate_number(value)
         _validate_number_bounds(field=field, value=float(numeric_value))
         return numeric_value
-    raise _invalid_form_submission(
-        "Runtime form field type is not supported."
-    )
+    raise _invalid_form_submission("Runtime form field type is not supported.")
 
 
 def _validate_form_string(value: Any) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) > MAX_FORM_STRING_LENGTH
-    ):
+    if not isinstance(value, str) or len(value) > MAX_FORM_STRING_LENGTH:
         raise _invalid_form_submission("Form text value is invalid.")
     return value
 
 
 def _validate_form_choice(value: Any) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > MAX_FORM_CHOICE_LENGTH
-    ):
+    if not isinstance(value, str) or not value or len(value) > MAX_FORM_CHOICE_LENGTH:
         raise _invalid_form_submission("Form choice value is invalid.")
     return value
 
@@ -511,22 +442,14 @@ def _validate_allowed_choice(
 
 def _form_option_values(raw_options: Any) -> set[str]:
     if not isinstance(raw_options, list) or len(raw_options) > 100:
-        raise _invalid_form_submission(
-            "Runtime form options are invalid."
-        )
+        raise _invalid_form_submission("Runtime form options are invalid.")
     values: set[str] = set()
     for raw_option in raw_options:
         option: Any = raw_option
         if isinstance(raw_option, dict):
             option = raw_option.get("value")
-        if (
-            not isinstance(option, str)
-            or not option
-            or len(option) > MAX_FORM_CHOICE_LENGTH
-        ):
-            raise _invalid_form_submission(
-                "Runtime form options are invalid."
-            )
+        if not isinstance(option, str) or not option or len(option) > MAX_FORM_CHOICE_LENGTH:
+            raise _invalid_form_submission("Runtime form options are invalid.")
         values.add(option)
     return values
 
@@ -536,11 +459,7 @@ def _validate_integer(value: Any) -> int:
         raise _invalid_form_submission("Form integer value is invalid.")
     if isinstance(value, int):
         return value
-    if (
-        isinstance(value, str)
-        and len(value) <= 32
-        and INTEGER_PATTERN.fullmatch(value)
-    ):
+    if isinstance(value, str) and len(value) <= 32 and INTEGER_PATTERN.fullmatch(value):
         return int(value)
     raise _invalid_form_submission("Form integer value is invalid.")
 
@@ -552,11 +471,7 @@ def _validate_number(value: Any) -> int | float:
         return value
     if isinstance(value, float) and math.isfinite(value):
         return value
-    if (
-        isinstance(value, str)
-        and len(value) <= 64
-        and NUMBER_PATTERN.fullmatch(value)
-    ):
+    if isinstance(value, str) and len(value) <= 64 and NUMBER_PATTERN.fullmatch(value):
         number = float(value) if "." in value else int(value)
         if math.isfinite(float(number)):
             return number
@@ -571,26 +486,16 @@ def _validate_number_bounds(
     if "minimum" in field:
         minimum = _validate_form_bound(field["minimum"])
         if value < minimum:
-            raise _invalid_form_submission(
-                "Form number is outside the allowed range."
-            )
+            raise _invalid_form_submission("Form number is outside the allowed range.")
     if "maximum" in field:
         maximum = _validate_form_bound(field["maximum"])
         if value > maximum:
-            raise _invalid_form_submission(
-                "Form number is outside the allowed range."
-            )
+            raise _invalid_form_submission("Form number is outside the allowed range.")
 
 
 def _validate_form_bound(value: Any) -> float:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(float(value))
-    ):
-        raise _invalid_form_submission(
-            "Runtime form bounds are invalid."
-        )
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        raise _invalid_form_submission("Runtime form bounds are invalid.")
     return float(value)
 
 

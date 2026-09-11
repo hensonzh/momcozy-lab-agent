@@ -103,9 +103,7 @@ class AzureOpenAIResponsesProviderConfig:
             raise ValueError("provider timeout must be positive")
 
 
-ModelProviderRuntimeConfig: TypeAlias = (
-    OpenAIResponsesProviderConfig | AzureOpenAIResponsesProviderConfig
-)
+ModelProviderRuntimeConfig: TypeAlias = OpenAIResponsesProviderConfig | AzureOpenAIResponsesProviderConfig
 
 
 @dataclass
@@ -161,9 +159,7 @@ def _openai_runtime(
         model=config.model,
         base_url=config.base_url,
     )
-    profile.require_capabilities(
-        REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
-    )
+    profile.require_capabilities(REQUIRED_RUNTIME_PROVIDER_CAPABILITIES)
     error_mapper = OpenAICompatibleErrorMapper(profile)
     kwargs: dict[str, Any] = {
         "api_key": config.api_key,
@@ -202,9 +198,7 @@ def _azure_runtime(
         deployment_type=config.deployment_type,
         auth_mode=config.auth_mode,
     )
-    profile.require_capabilities(
-        REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
-    )
+    profile.require_capabilities(REQUIRED_RUNTIME_PROVIDER_CAPABILITIES)
     error_mapper = OpenAICompatibleErrorMapper(profile)
     credential: Any | None = None
     api_key: Any = config.api_key
@@ -225,12 +219,8 @@ def _azure_runtime(
         profile=profile,
         token_counter=EstimatedContextTokenCounter(
             model=profile.model,
-            counter=(
-                "azure_openai.responses.estimated_input_tokens"
-            ),
-            safety_factor=(
-                config.token_estimator_safety_factor
-            ),
+            counter=("azure_openai.responses.estimated_input_tokens"),
+            safety_factor=(config.token_estimator_safety_factor),
         ),
         config=config,
         error_mapper=error_mapper,
@@ -247,9 +237,7 @@ def _bundle(
     error_mapper: ModelProviderErrorMapper,
     credential: Any | None = None,
 ) -> ProviderRuntimeBundle:
-    profile.require_capabilities(
-        REQUIRED_RUNTIME_PROVIDER_CAPABILITIES
-    )
+    profile.require_capabilities(REQUIRED_RUNTIME_PROVIDER_CAPABILITIES)
     request_policy = ModelRequestPolicy.for_profile(profile)
     return ProviderRuntimeBundle(
         client=client,
@@ -295,9 +283,7 @@ def _default_azure_credential() -> Any:
     try:
         from azure.identity import DefaultAzureCredential
     except ImportError as exc:  # pragma: no cover - packaging contract
-        raise RuntimeError(
-            "azure-identity is required for Azure OpenAI Entra auth."
-        ) from exc
+        raise RuntimeError("azure-identity is required for Azure OpenAI Entra auth.") from exc
     return DefaultAzureCredential()
 
 

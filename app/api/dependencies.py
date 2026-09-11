@@ -44,7 +44,12 @@ async def authenticate_runtime_principal(
     authenticator: RuntimeTokenAuthenticator = (
         request.app.state.runtime_authenticator
     )
-    return await authenticator.authenticate(credentials.credentials)
+    principal = await authenticator.authenticate(credentials.credentials)
+    client = getattr(request.app.state, "product_backend_client", None)
+    if client is None:
+        raise ApiError(code="authentication_unavailable", message="Account verification is temporarily unavailable.", status=503)
+    await client.require_active_account(access_token=credentials.credentials, user_id=str(principal.user_id))
+    return principal
 
 
 async def require_runtime_principal(
@@ -98,10 +103,7 @@ async def require_runtime_admin(
             status=401,
             headers={"WWW-Authenticate": "Bearer"},
         )
-    authenticator: RuntimeTokenAuthenticator = (
-        request.app.state.runtime_authenticator
-    )
-    principal = await authenticator.authenticate(credentials.credentials)
+    principal = await authenticate_runtime_principal(request, credentials)
     if (
         "admin" not in principal.roles
         and "agent:admin" not in principal.permissions

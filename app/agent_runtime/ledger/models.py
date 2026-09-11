@@ -322,9 +322,7 @@ class AgentContextCompactionJob(Base):
             "thread_id",
             "idempotency_key",
             unique=True,
-            postgresql_where=text(
-                "status IN ('queued', 'retry_wait', 'running', 'completed')"
-            ),
+            postgresql_where=text("status IN ('queued', 'retry_wait', 'running', 'completed')"),
         ),
         Index(
             "ix_agent_context_compaction_jobs_runnable",
@@ -333,9 +331,7 @@ class AgentContextCompactionJob(Base):
             "locked_until",
             "created_at",
             "id",
-            postgresql_where=text(
-                "status IN ('queued', 'retry_wait', 'running')"
-            ),
+            postgresql_where=text("status IN ('queued', 'retry_wait', 'running')"),
         ),
         Index(
             "ix_agent_context_compaction_jobs_thread_status",
@@ -643,9 +639,7 @@ class AgentAction(Base):
             "ix_agent_actions_confirmation_expiry",
             "expires_at",
             "id",
-            postgresql_where=text(
-                "status = 'confirmation_required'"
-            ),
+            postgresql_where=text("status = 'confirmation_required'"),
         ),
     )
 

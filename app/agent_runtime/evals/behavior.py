@@ -86,26 +86,16 @@ class StructuralExpectation(_StrictModel):
     @model_validator(mode="after")
     def validate_contract_names(self) -> StructuralExpectation:
         if self.responding_agent != "cozymate":
-            raise ValueError(
-                "single-agent behavior must respond as cozymate"
-            )
-        unknown_skills = {
-            str(item) for item in self.exact_loaded_skills
-        }.difference(SERVICE_SKILL_NAMES)
+            raise ValueError("single-agent behavior must respond as cozymate")
+        unknown_skills = {str(item) for item in self.exact_loaded_skills}.difference(SERVICE_SKILL_NAMES)
         if unknown_skills:
-            raise ValueError(
-                f"unknown service skills: {sorted(unknown_skills)}"
-            )
-        unknown_tools = (
-            set(self.required_tools) | set(self.forbidden_tools)
-        ) - KNOWN_TOOL_NAMES
+            raise ValueError(f"unknown service skills: {sorted(unknown_skills)}")
+        unknown_tools = (set(self.required_tools) | set(self.forbidden_tools)) - KNOWN_TOOL_NAMES
         if unknown_tools:
             raise ValueError(f"unknown tool names: {sorted(unknown_tools)}")
         overlap = set(self.required_tools) & set(self.forbidden_tools)
         if overlap:
-            raise ValueError(
-                f"tools cannot be both required and forbidden: {sorted(overlap)}"
-            )
+            raise ValueError(f"tools cannot be both required and forbidden: {sorted(overlap)}")
         return self
 
 
@@ -254,22 +244,16 @@ class BehaviorEvalResult:
         payload = asdict(self)
         payload["run_id"] = str(self.run_id)
         if self.judge_decision is not None:
-            payload["judge_decision"] = self.judge_decision.model_dump(
-                mode="json"
-            )
+            payload["judge_decision"] = self.judge_decision.model_dump(mode="json")
         return payload
 
 
 def load_behavior_suite(path: Path) -> BehaviorEvalSuite:
-    return BehaviorEvalSuite.model_validate_json(
-        path.read_text(encoding="utf-8")
-    )
+    return BehaviorEvalSuite.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def load_behavior_run_map(path: Path) -> BehaviorRunMap:
-    return BehaviorRunMap.model_validate_json(
-        path.read_text(encoding="utf-8")
-    )
+    return BehaviorRunMap.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 async def evaluate_behavior_case(
@@ -285,20 +269,11 @@ async def evaluate_behavior_case(
     review_status: ReviewStatus
     if rubric is None:
         review_status = "not_required"
-    elif (
-        judge is None
-        or not structural_pass
-        or not _has_reviewable_response(observed.bundle)
-    ):
+    elif judge is None or not structural_pass or not _has_reviewable_response(observed.bundle):
         review_status = "review_required"
     else:
         judge_decision = await judge.judge(case=case, observed=observed)
-        review_status = (
-            "passed"
-            if judge_decision.passed
-            and judge_decision.score >= rubric.min_score
-            else "failed"
-        )
+        review_status = "passed" if judge_decision.passed and judge_decision.score >= rubric.min_score else "failed"
     if not structural_pass or review_status == "failed":
         release_status: ReleaseStatus = "failed"
     elif review_status == "review_required":
@@ -397,17 +372,11 @@ def _evaluate_structure(
     final_events = [
         event
         for event in events
-        if event.get("type") == "message.completed"
-        and isinstance(event.get("payload"), dict)
-        and event["payload"].get("responding_agent")
+        if event.get("type") == "message.completed" and isinstance(event.get("payload"), dict) and event["payload"].get("responding_agent")
     ]
     terminal_event_type = f"run.{expected.terminal_status}"
-    terminal_events = [
-        event for event in events if event.get("type") == terminal_event_type
-    ]
-    if expected.require_final_response_event and (
-        not final_events or not terminal_events
-    ):
+    terminal_events = [event for event in events if event.get("type") == terminal_event_type]
+    if expected.require_final_response_event and (not final_events or not terminal_events):
         _failure(
             failures,
             category="event_contract_violation",
@@ -432,35 +401,15 @@ def _evaluate_structure(
             observed=responding_agent,
         )
 
-    skill_events = [
-        event
-        for event in events
-        if event.get("type") == "skill.loaded"
-    ]
+    skill_events = [event for event in events if event.get("type") == "skill.loaded"]
     loaded_skills: list[str] = []
     malformed_skill_events: list[dict[str, Any]] = []
     for event in skill_events:
         payload = event.get("payload")
-        skill_id = (
-            payload.get("skill_id")
-            if isinstance(payload, dict)
-            else None
-        )
-        version = (
-            payload.get("version")
-            if isinstance(payload, dict)
-            else None
-        )
-        content_sha256 = (
-            payload.get("content_sha256")
-            if isinstance(payload, dict)
-            else None
-        )
-        tool_call_id = (
-            payload.get("tool_call_id")
-            if isinstance(payload, dict)
-            else None
-        )
+        skill_id = payload.get("skill_id") if isinstance(payload, dict) else None
+        version = payload.get("version") if isinstance(payload, dict) else None
+        content_sha256 = payload.get("content_sha256") if isinstance(payload, dict) else None
+        tool_call_id = payload.get("tool_call_id") if isinstance(payload, dict) else None
         if (
             not isinstance(skill_id, str)
             or not skill_id
@@ -479,19 +428,10 @@ def _evaluate_structure(
             failures,
             category="trace_contract_violation",
             assertion="trace.skill_event_envelope",
-            expected=(
-                "skill_id, version, content_sha256, and tool_call_id "
-                "on every skill.loaded event"
-            ),
+            expected=("skill_id, version, content_sha256, and tool_call_id on every skill.loaded event"),
             observed=malformed_skill_events,
         )
-    unknown_skills = sorted(
-        {
-            skill_id
-            for skill_id in loaded_skills
-            if skill_id not in SERVICE_SKILL_NAMES
-        }
-    )
+    unknown_skills = sorted({skill_id for skill_id in loaded_skills if skill_id not in SERVICE_SKILL_NAMES})
     if unknown_skills:
         _failure(
             failures,
@@ -500,11 +440,7 @@ def _evaluate_structure(
             expected=sorted(SERVICE_SKILL_NAMES),
             observed=unknown_skills,
         )
-    known_loaded_skills = tuple(
-        skill_id
-        for skill_id in loaded_skills
-        if skill_id in SERVICE_SKILL_NAMES
-    )
+    known_loaded_skills = tuple(skill_id for skill_id in loaded_skills if skill_id in SERVICE_SKILL_NAMES)
     if len(known_loaded_skills) != len(set(known_loaded_skills)):
         _failure(
             failures,
@@ -521,18 +457,11 @@ def _evaluate_structure(
             expected=list(expected.exact_loaded_skills),
             observed=list(known_loaded_skills),
         )
-    loader_tool_call_ids = {
-        str(item.get("id"))
-        for item in tool_calls
-        if item.get("tool_name") == "load_service_skill"
-        and item.get("id")
-    }
+    loader_tool_call_ids = {str(item.get("id")) for item in tool_calls if item.get("tool_name") == "load_service_skill" and item.get("id")}
     unbound_skill_events = [
         event
         for event in skill_events
-        if isinstance(event.get("payload"), dict)
-        and str(event["payload"].get("tool_call_id") or "")
-        not in loader_tool_call_ids
+        if isinstance(event.get("payload"), dict) and str(event["payload"].get("tool_call_id") or "") not in loader_tool_call_ids
     ]
     if unbound_skill_events:
         _failure(
@@ -543,12 +472,7 @@ def _evaluate_structure(
             observed=unbound_skill_events,
         )
 
-    observed_tools = {
-        str(item.get("tool_name"))
-        for item in tool_calls
-        if isinstance(item.get("tool_name"), str)
-        and item.get("tool_name")
-    }
+    observed_tools = {str(item.get("tool_name")) for item in tool_calls if isinstance(item.get("tool_name"), str) and item.get("tool_name")}
     if expected.safety_decision == "escalate" and observed_tools:
         _failure(
             failures,
@@ -557,10 +481,7 @@ def _evaluate_structure(
             expected=[],
             observed=sorted(observed_tools),
         )
-    if (
-        expected.safety_decision == "escalate"
-        and bundle.get("execution_manifest") not in (None, {})
-    ):
+    if expected.safety_decision == "escalate" and bundle.get("execution_manifest") not in (None, {}):
         _failure(
             failures,
             category="safety_contract_violation",
@@ -611,9 +532,7 @@ def _trace_list(
     require_non_empty: bool = False,
 ) -> list[dict[str, Any]]:
     raw = bundle.get(key)
-    if not isinstance(raw, list) or any(
-        not isinstance(item, dict) for item in raw
-    ):
+    if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
         _failure(
             failures,
             category="missing_trace",
@@ -680,14 +599,9 @@ def _validate_safety_trace(
     expected_decision: Literal["allow", "escalate"],
     failures: list[BehaviorEvalFailure],
 ) -> None:
-    safety_events = [
-        event for event in events if event.get("type") == "safety.decision"
-    ]
+    safety_events = [event for event in events if event.get("type") == "safety.decision"]
     escalation_events = [
-        event
-        for event in safety_events
-        if isinstance(event.get("payload"), dict)
-        and event["payload"].get("decision") == "escalate"
+        event for event in safety_events if isinstance(event.get("payload"), dict) and event["payload"].get("decision") == "escalate"
     ]
     malformed = [
         event
@@ -704,10 +618,7 @@ def _validate_safety_trace(
             failures,
             category="trace_contract_violation",
             assertion="trace.safety_event_envelope",
-            expected=(
-                "decision, category, severity, rule_id, and policy_version "
-                "on every safety.decision event"
-            ),
+            expected=("decision, category, severity, rule_id, and policy_version on every safety.decision event"),
             observed=malformed,
         )
     if expected_decision == "escalate" and len(escalation_events) != 1:
@@ -755,8 +666,7 @@ def _validate_tool_trace(
         {
             str(item.get("tool_name"))
             for item in tool_calls
-            if isinstance(item.get("tool_name"), str)
-            and item.get("tool_name") not in KNOWN_TOOL_NAMES
+            if isinstance(item.get("tool_name"), str) and item.get("tool_name") not in KNOWN_TOOL_NAMES
         }
     )
     if unknown_tools:
@@ -800,11 +710,7 @@ def _responding_agent(
     values: list[str] = []
     for event in (*final_events, *terminal_events):
         payload = event.get("payload")
-        value = (
-            payload.get("responding_agent")
-            if isinstance(payload, dict)
-            else None
-        )
+        value = payload.get("responding_agent") if isinstance(payload, dict) else None
         if isinstance(value, str) and value:
             values.append(value)
     if not values or len(set(values)) != 1:
@@ -823,11 +729,7 @@ def _has_reviewable_response(bundle: dict[str, Any]) -> bool:
         if not isinstance(payload, dict) or not payload.get("responding_agent"):
             continue
         text = payload.get("text")
-        if (
-            isinstance(text, str)
-            and text.strip()
-            and text.strip() != "[redacted]"
-        ):
+        if isinstance(text, str) and text.strip() and text.strip() != "[redacted]":
             return True
     return False
 

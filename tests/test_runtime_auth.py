@@ -1,4 +1,5 @@
 from __future__ import annotations
+from unittest.mock import AsyncMock
 
 import asyncio
 import base64
@@ -299,6 +300,7 @@ def test_bearer_dependency_returns_principal_and_never_accepts_body_identity() -
         permissions=frozenset(),
     )
     app = _app_with_protected_endpoint()
+    app.state.product_backend_client = AsyncMock()
     app.state.runtime_authenticator = FakeAuthenticator(expected)
 
     response = TestClient(app).post(
@@ -324,6 +326,7 @@ def test_agent_run_dependency_requires_explicit_permission() -> None:
     app = _app_with_protected_endpoint(
         dependency=require_agent_run_principal
     )
+    app.state.product_backend_client = AsyncMock()
     app.state.runtime_authenticator = FakeAuthenticator(principal)
 
     response = TestClient(app).post(

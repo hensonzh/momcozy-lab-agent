@@ -127,11 +127,7 @@ class OpenAIContextTokenCounter:
         except ApiError:
             raise
         except Exception as exc:
-            mapped = (
-                self.error_mapper.map(exc)
-                if self.error_mapper is not None
-                else None
-            )
+            mapped = self.error_mapper.map(exc) if self.error_mapper is not None else None
             if mapped is not None:
                 raise mapped from exc
             raise ApiError(
@@ -141,11 +137,7 @@ class OpenAIContextTokenCounter:
                 details={"retryable": True},
             ) from exc
         raw_token_count = getattr(response, "input_tokens", None)
-        if (
-            not isinstance(raw_token_count, int)
-            or isinstance(raw_token_count, bool)
-            or raw_token_count < 0
-        ):
+        if not isinstance(raw_token_count, int) or isinstance(raw_token_count, bool) or raw_token_count < 0:
             raise ApiError(
                 code="context_token_counter_invalid",
                 message="Context token counter returned an invalid result.",
@@ -232,10 +224,7 @@ def _multimodal_token_reserve(items: tuple[dict[str, Any], ...]) -> int:
                 visit(child)
 
     visit(items)
-    return (
-        images * ESTIMATED_IMAGE_RESERVE_TOKENS
-        + files * ESTIMATED_FILE_RESERVE_TOKENS
-    )
+    return images * ESTIMATED_IMAGE_RESERVE_TOKENS + files * ESTIMATED_FILE_RESERVE_TOKENS
 
 
 class ResponsesContextCompactor:
@@ -274,9 +263,7 @@ class ResponsesContextCompactor:
         if max_output_tokens < 1:
             raise ValueError("max_output_tokens must be positive")
         if len(input_items) != len(source_refs):
-            raise ValueError(
-                "source_refs must match input_items"
-            )
+            raise ValueError("source_refs must match input_items")
         client = self.client or _openai_client(
             api_key=self.api_key,
             base_url=self.base_url,
@@ -326,11 +313,7 @@ class ResponsesContextCompactor:
         except ApiError:
             raise
         except Exception as exc:
-            mapped = (
-                self.error_mapper.map(exc)
-                if self.error_mapper is not None
-                else None
-            )
+            mapped = self.error_mapper.map(exc) if self.error_mapper is not None else None
             if mapped is not None:
                 raise mapped from exc
             raise ApiError(
@@ -339,9 +322,7 @@ class ResponsesContextCompactor:
                 status=502,
                 details={"retryable": True},
             ) from exc
-        raw_checkpoint = str(
-            getattr(response, "output_text", "") or ""
-        ).strip()
+        raw_checkpoint = str(getattr(response, "output_text", "") or "").strip()
         if not raw_checkpoint:
             raise ApiError(
                 code="context_compaction_empty",
@@ -411,11 +392,7 @@ def _untrusted_compaction_input(
         if isinstance(content, list):
             text_content: list[Any] = []
             for block in content:
-                if (
-                    isinstance(block, dict)
-                    and block.get("type")
-                    in {"input_image", "input_file"}
-                ):
+                if isinstance(block, dict) and block.get("type") in {"input_image", "input_file"}:
                     media.append(deepcopy(block))
                 else:
                     text_content.append(deepcopy(block))

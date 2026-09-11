@@ -72,7 +72,4 @@ def _validate(
 
 def _path(exc: SchemaError | ValidationError) -> str:
     parts = [str(part) for part in exc.absolute_path]
-    return "$" + "".join(
-        f"[{part}]" if part.isdigit() else f".{part}"
-        for part in parts
-    )
+    return "$" + "".join(f"[{part}]" if part.isdigit() else f".{part}" for part in parts)

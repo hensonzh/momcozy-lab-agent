@@ -13,9 +13,7 @@ from app.core.errors import ApiError
 from .repository import RuntimeEvalRepository
 
 
-EVAL_CASE_STATUSES = frozenset(
-    {"draft", "active", "quarantined", "retired"}
-)
+EVAL_CASE_STATUSES = frozenset({"draft", "active", "quarantined", "retired"})
 
 
 @dataclass(frozen=True)
@@ -69,9 +67,7 @@ class RuntimeEvalService:
             suite=normalized_suite,
             name=normalized_name,
             domain=domain.strip()[:120],
-            input_payload={
-                "replay_bundle": _sanitize_bundle_for_case(bundle)
-            },
+            input_payload={"replay_bundle": _sanitize_bundle_for_case(bundle)},
             expected_behavior=expected_behavior,
             expected_tool_calls=[
                 {
@@ -86,9 +82,7 @@ class RuntimeEvalService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
-                actor_type=(
-                    "service" if admin_actor_service else None
-                ),
+                actor_type=("service" if admin_actor_service else None),
                 actor_service=admin_actor_service,
                 action="agent.eval_case.create",
                 resource_type="agent_eval_case",
@@ -106,10 +100,7 @@ class RuntimeEvalService:
         limit: int,
     ) -> list[AgentEvalCase]:
         normalized_status = status.strip() if status else None
-        if (
-            normalized_status is not None
-            and normalized_status not in EVAL_CASE_STATUSES
-        ):
+        if normalized_status is not None and normalized_status not in EVAL_CASE_STATUSES:
             raise ApiError(
                 code="validation_failed",
                 message="Eval case status is invalid.",
@@ -158,9 +149,7 @@ class RuntimeEvalService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
-                actor_type=(
-                    "service" if admin_actor_service else None
-                ),
+                actor_type=("service" if admin_actor_service else None),
                 actor_service=admin_actor_service,
                 action="agent.eval_case.evaluate",
                 resource_type="agent_eval_case",
@@ -180,10 +169,7 @@ def _expected_behavior(bundle: dict[str, Any]) -> dict[str, Any]:
     run_payload = run if isinstance(run, dict) else {}
     return {
         "final_run_status": str(run_payload.get("status") or ""),
-        "event_types": [
-            str(item.get("type") or "")
-            for item in _dict_list(bundle.get("events"))
-        ],
+        "event_types": [str(item.get("type") or "") for item in _dict_list(bundle.get("events"))],
         "actions": [
             {
                 "action_type": str(item.get("action_type") or ""),
@@ -197,25 +183,13 @@ def _expected_behavior(bundle: dict[str, Any]) -> dict[str, Any]:
 def _sanitize_bundle_for_case(
     bundle: dict[str, Any],
 ) -> dict[str, Any]:
-    sanitized = copy.deepcopy({
-        key: value
-        for key, value in bundle.items()
-        if key not in {"exported_at"}
-    })
+    sanitized = copy.deepcopy({key: value for key, value in bundle.items() if key not in {"exported_at"}})
     thread = sanitized.get("thread")
     if isinstance(thread, dict):
-        sanitized["thread"] = {
-            key: value
-            for key, value in thread.items()
-            if key != "owner_user_id"
-        }
+        sanitized["thread"] = {key: value for key, value in thread.items() if key != "owner_user_id"}
     run = sanitized.get("run")
     if isinstance(run, dict):
-        sanitized["run"] = {
-            key: value
-            for key, value in run.items()
-            if key not in {"actor_user_id", "request_id", "trace_id"}
-        }
+        sanitized["run"] = {key: value for key, value in run.items() if key not in {"actor_user_id", "request_id", "trace_id"}}
     for item in _dict_list(sanitized.get("events")):
         item["payload"] = {"redacted": True}
     for item in _dict_list(sanitized.get("tool_calls")):

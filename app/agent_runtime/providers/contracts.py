@@ -41,19 +41,11 @@ class ModelRequestPolicy:
         cls,
         profile: ModelProviderProfile,
     ) -> ModelRequestPolicy:
-        prompt_cache_breakpoints = profile.supports(
-            "prompt_cache_breakpoints"
-        )
+        prompt_cache_breakpoints = profile.supports("prompt_cache_breakpoints")
         return cls(
-            include_encrypted_reasoning=profile.supports(
-                "encrypted_reasoning"
-            ),
+            include_encrypted_reasoning=profile.supports("encrypted_reasoning"),
             prompt_cache_breakpoints=prompt_cache_breakpoints,
-            prompt_cache_options=(
-                dict(PROMPT_CACHE_OPTIONS)
-                if prompt_cache_breakpoints
-                else None
-            ),
+            prompt_cache_options=(dict(PROMPT_CACHE_OPTIONS) if prompt_cache_breakpoints else None),
         )
 
 
@@ -110,10 +102,7 @@ class ModelProviderProfile:
     ) -> None:
         missing = required - self.capabilities
         if missing:
-            raise ValueError(
-                "model provider lacks Runtime capabilities: "
-                f"{sorted(missing)}"
-            )
+            raise ValueError(f"model provider lacks Runtime capabilities: {sorted(missing)}")
 
     def manifest_metadata(self) -> dict[str, Any]:
         return {
@@ -181,10 +170,7 @@ def azure_openai_responses_profile(
         capabilities.add("encrypted_reasoning")
     if _gpt_model_at_least(model_family, major=5, minor=4):
         capabilities.add("tool_search")
-    if (
-        _gpt_model_at_least(model_family, major=5, minor=6)
-        and "provisioned" not in deployment_type
-    ):
+    if _gpt_model_at_least(model_family, major=5, minor=6) and "provisioned" not in deployment_type:
         capabilities.add("prompt_cache_breakpoints")
     return ModelProviderProfile(
         provider_id="azure_openai_responses",

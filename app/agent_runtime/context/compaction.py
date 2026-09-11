@@ -67,17 +67,9 @@ class CanonicalContextPlan:
             "recent_completed_run_limit": RECENT_COMPLETED_RUN_LIMIT,
             "thread_id": str(self.thread_id),
             "actor_user_id": str(self.actor_user_id),
-            "cutoff_run_id": (
-                str(self.cutoff_run_id)
-                if self.cutoff_run_id is not None
-                else None
-            ),
+            "cutoff_run_id": (str(self.cutoff_run_id) if self.cutoff_run_id is not None else None),
             "cutoff_sequence": self.cutoff_sequence,
-            "base_checkpoint_id": (
-                str(self.base_checkpoint_id)
-                if self.base_checkpoint_id is not None
-                else None
-            ),
+            "base_checkpoint_id": (str(self.base_checkpoint_id) if self.base_checkpoint_id is not None else None),
             "entries": [
                 {
                     "source_ref": entry.source_ref,
@@ -108,9 +100,7 @@ class CanonicalContextPlan:
         resolver: Any,
         request_id: str,
     ) -> MaterializedProviderInput:
-        version = str(
-            getattr(resolver, "version", MATERIALIZER_VERSION)
-        )
+        version = str(getattr(resolver, "version", MATERIALIZER_VERSION))
         if version != MATERIALIZER_VERSION:
             raise ApiError(
                 code="context_materializer_incompatible",
@@ -294,16 +284,9 @@ class ContextCompactionService:
         if summary_max_tokens < 1:
             raise ValueError("summary_max_tokens must be positive")
         if summary_max_tokens >= threshold_tokens:
-            raise ValueError(
-                "summary_max_tokens must be below threshold_tokens"
-            )
-        if (
-            response_reserve_tokens < 1
-            or response_reserve_tokens >= threshold_tokens
-        ):
-            raise ValueError(
-                "response_reserve_tokens must be positive and below threshold_tokens"
-            )
+            raise ValueError("summary_max_tokens must be below threshold_tokens")
+        if response_reserve_tokens < 1 or response_reserve_tokens >= threshold_tokens:
+            raise ValueError("response_reserve_tokens must be positive and below threshold_tokens")
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
         identity = deepcopy(dict(provider_identity))
@@ -323,17 +306,12 @@ class ContextCompactionService:
         }
         missing_identity_fields = required_identity_fields - identity.keys()
         if missing_identity_fields:
-            raise ValueError(
-                "provider identity is incomplete: "
-                f"{sorted(missing_identity_fields)}"
-            )
+            raise ValueError(f"provider identity is incomplete: {sorted(missing_identity_fields)}")
         if identity["model"] != model:
             raise ValueError("provider identity model does not match context model")
         if identity["contract_version"] != MODEL_PROVIDER_CONTRACT_VERSION:
             raise ValueError("provider identity contract version is incompatible")
-        if not isinstance(identity["provider"], str) or not identity[
-            "provider"
-        ].strip():
+        if not isinstance(identity["provider"], str) or not identity["provider"].strip():
             raise ValueError("provider identity is invalid")
         try:
             _canonical_json(identity)
@@ -353,24 +331,16 @@ class ContextCompactionService:
 
     async def prepare_run(self, *, run: Any) -> None:
         state = dict(getattr(run, "context_state", None) or {})
-        if (
-            state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION
-            and state.get("waiting_for_context") is True
-        ):
+        if state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION and state.get("waiting_for_context") is True:
             await self._resume_waiting_run(run=run, state=state)
             return
         if _context_state_is_current(state):
             return
         started_at = monotonic()
-        head = await self.repository.get_or_create_context_head(
-            thread_id=run.thread_id
-        )
+        head = await self.repository.get_or_create_context_head(thread_id=run.thread_id)
         self._raise_for_blocked_head(head)
         pending_job = await self._pending_job(head)
-        if (
-            pending_job is not None
-            and pending_job.trigger_run_id != run.id
-        ):
+        if pending_job is not None and pending_job.trigger_run_id != run.id:
             raise ApiError(
                 code="context_compaction_pending",
                 message="Prior context compaction is still running.",
@@ -463,11 +433,7 @@ class ContextCompactionService:
             run=run,
             state=state,
         )
-        after_sequence = (
-            int(checkpoint.source_cutoff_sequence)
-            if checkpoint is not None
-            else 0
-        )
+        after_sequence = int(checkpoint.source_cutoff_sequence) if checkpoint is not None else 0
         records = await self.repository.list_context_items_for_projection(
             thread_id=run.thread_id,
             current_run_id=run.id,
@@ -475,9 +441,7 @@ class ContextCompactionService:
         )
         if checkpoint is None:
             return list(records)
-        item = checkpoint_provider_item(
-            _checkpoint_document(checkpoint)
-        )
+        item = checkpoint_provider_item(_checkpoint_document(checkpoint))
         return [
             SimpleNamespace(
                 id=checkpoint.id,
@@ -520,9 +484,7 @@ class ContextCompactionService:
             input_items=input_items,
             tools=tools,
         )
-        total_reserved_tokens = (
-            int(count.input_tokens) + self.response_reserve_tokens
-        )
+        total_reserved_tokens = int(count.input_tokens) + self.response_reserve_tokens
         within_budget = total_reserved_tokens <= self.threshold_tokens
         emit_operation_metric(
             LOGGER,
@@ -537,9 +499,7 @@ class ContextCompactionService:
                 "thread_id": str(run.thread_id),
                 "count": int(count.input_tokens),
             },
-            error_code=(
-                "" if within_budget else "model_context_budget_exceeded"
-            ),
+            error_code=("" if within_budget else "model_context_budget_exceeded"),
             level=logging.INFO if within_budget else logging.WARNING,
         )
         if not within_budget:
@@ -573,9 +533,7 @@ class ContextCompactionService:
             self._raise_recent_context_exceeds_limit(
                 history_window=history_window,
             )
-        head = await self.repository.get_or_create_context_head(
-            thread_id=run.thread_id
-        )
+        head = await self.repository.get_or_create_context_head(thread_id=run.thread_id)
         self._raise_for_blocked_head(head)
         job = await self._job_for_state(state)
         if job is None:
@@ -583,9 +541,7 @@ class ContextCompactionService:
                 run=run,
                 state=state,
             )
-            raw_compaction_cutoff = history_window.get(
-                "compaction_cutoff"
-            )
+            raw_compaction_cutoff = history_window.get("compaction_cutoff")
             if not isinstance(raw_compaction_cutoff, dict):
                 self._raise_recent_context_exceeds_limit(
                     history_window=history_window,
@@ -690,37 +646,24 @@ class ContextCompactionService:
                 source_refs=plan.source_refs,
                 max_output_tokens=job.summary_max_tokens,
             )
-            checkpoint_document = validate_checkpoint_document(
-                result.checkpoint
-            )
+            checkpoint_document = validate_checkpoint_document(result.checkpoint)
             _validate_checkpoint_source_refs(
                 checkpoint_document,
                 allowed_refs=frozenset(plan.source_refs),
             )
-            completed = (
-                await self.repository.complete_context_compaction_job(
-                    job=job,
-                    checkpoint=checkpoint_document,
-                    summary_sha256=_sha256_json(
-                        checkpoint_document
-                    ),
-                    summary_output_tokens=result.output_tokens,
-                    provider_response_id=result.response_id,
-                )
+            completed = await self.repository.complete_context_compaction_job(
+                job=job,
+                checkpoint=checkpoint_document,
+                summary_sha256=_sha256_json(checkpoint_document),
+                summary_output_tokens=result.output_tokens,
+                provider_response_id=result.response_id,
             )
         except Exception as exc:
-            error_code = (
-                exc.code
-                if isinstance(exc, ApiError)
-                else "context_compaction_failed"
-            )
+            error_code = exc.code if isinstance(exc, ApiError) else "context_compaction_failed"
             await self.repository.fail_context_compaction_job(
                 job=job,
                 error_code=error_code,
-                retryable=(
-                    not isinstance(exc, ApiError)
-                    or exc.details.get("retryable", True) is True
-                ),
+                retryable=(not isinstance(exc, ApiError) or exc.details.get("retryable", True) is True),
             )
             emit_operation_metric(
                 LOGGER,
@@ -780,11 +723,7 @@ class ContextCompactionService:
         cutoff: Any | None,
         checkpoint: Any | None,
     ) -> CanonicalContextPlan:
-        after_sequence = (
-            int(checkpoint.source_cutoff_sequence)
-            if checkpoint is not None
-            else 0
-        )
+        after_sequence = int(checkpoint.source_cutoff_sequence) if checkpoint is not None else 0
         records = (
             await self.repository.list_completed_context_items(
                 thread_id=thread_id,
@@ -798,22 +737,14 @@ class ContextCompactionService:
         if checkpoint is not None:
             entries.append(
                 ContextSourceEntry(
-                    source_ref=(
-                        f"context_checkpoint:{checkpoint.id}:"
-                        f"generation:{checkpoint.generation}"
-                    ),
-                    item=checkpoint_provider_item(
-                        _checkpoint_document(checkpoint)
-                    ),
+                    source_ref=(f"context_checkpoint:{checkpoint.id}:generation:{checkpoint.generation}"),
+                    item=checkpoint_provider_item(_checkpoint_document(checkpoint)),
                     trust="derived_untrusted_history",
                 )
             )
         entries.extend(
             ContextSourceEntry(
-                source_ref=(
-                    f"context_item:{record.id}:"
-                    f"sequence:{record.sequence}"
-                ),
+                source_ref=(f"context_item:{record.id}:sequence:{record.sequence}"),
                 item=deepcopy(record.item),
             )
             for record in records
@@ -821,15 +752,9 @@ class ContextCompactionService:
         return CanonicalContextPlan(
             thread_id=thread_id,
             actor_user_id=actor_user_id,
-            cutoff_run_id=(
-                cutoff.run_id if cutoff is not None else None
-            ),
-            cutoff_sequence=(
-                int(cutoff.sequence) if cutoff is not None else 0
-            ),
-            base_checkpoint_id=(
-                checkpoint.id if checkpoint is not None else None
-            ),
+            cutoff_run_id=(cutoff.run_id if cutoff is not None else None),
+            cutoff_sequence=(int(cutoff.sequence) if cutoff is not None else 0),
+            base_checkpoint_id=(checkpoint.id if checkpoint is not None else None),
             entries=tuple(entries),
         )
 
@@ -859,9 +784,7 @@ class ContextCompactionService:
                 },
                 "prompt_version": prompt_version,
                 "materializer_version": MATERIALIZER_VERSION,
-                "context_schema_version": (
-                    CONTEXT_CHECKPOINT_SCHEMA_VERSION
-                ),
+                "context_schema_version": (CONTEXT_CHECKPOINT_SCHEMA_VERSION),
                 "summary_policy_version": SUMMARY_POLICY_VERSION,
                 "summary_max_tokens": self.summary_max_tokens,
             }
@@ -870,9 +793,7 @@ class ContextCompactionService:
             thread_id=run.thread_id,
             trigger_run_id=run.id,
             actor_user_id=run.actor_user_id,
-            base_checkpoint_id=(
-                checkpoint.id if checkpoint is not None else None
-            ),
+            base_checkpoint_id=(checkpoint.id if checkpoint is not None else None),
             source_cutoff_run_id=cutoff.run_id,
             source_cutoff_sequence=int(cutoff.sequence),
             source_sha256=plan.source_sha256,
@@ -886,9 +807,7 @@ class ContextCompactionService:
             summary_max_tokens=self.summary_max_tokens,
             prompt_version=prompt_version,
             materializer_version=MATERIALIZER_VERSION,
-            context_schema_version=(
-                CONTEXT_CHECKPOINT_SCHEMA_VERSION
-            ),
+            context_schema_version=(CONTEXT_CHECKPOINT_SCHEMA_VERSION),
             summary_policy_version=SUMMARY_POLICY_VERSION,
             max_attempts=self.max_attempts,
         )
@@ -933,9 +852,7 @@ class ContextCompactionService:
         checkpoint = await self.repository.get_context_checkpoint(
             checkpoint_id=job.checkpoint_id,
         )
-        required_generation = int(
-            state.get("required_generation", job.generation)
-        )
+        required_generation = int(state.get("required_generation", job.generation))
         if (
             checkpoint is None
             or checkpoint.thread_id != run.thread_id
@@ -976,21 +893,15 @@ class ContextCompactionService:
         checkpoint = await self.repository.get_context_checkpoint(
             checkpoint_id=checkpoint_id,
         )
-        if (
-            checkpoint is not None
-            and str(getattr(checkpoint, "summary_policy_version", ""))
-            != SUMMARY_POLICY_VERSION
-        ):
+        if checkpoint is not None and str(getattr(checkpoint, "summary_policy_version", "")) != SUMMARY_POLICY_VERSION:
             return None
         if (
             checkpoint is None
             or checkpoint.thread_id != thread_id
             or latest_cutoff is None
-            or int(checkpoint.source_cutoff_sequence)
-            > int(latest_cutoff.sequence)
+            or int(checkpoint.source_cutoff_sequence) > int(latest_cutoff.sequence)
             or compaction_cutoff is None
-            or int(checkpoint.source_cutoff_sequence)
-            > int(compaction_cutoff.sequence)
+            or int(checkpoint.source_cutoff_sequence) > int(compaction_cutoff.sequence)
         ):
             raise ApiError(
                 code="context_checkpoint_invalid",
@@ -1008,11 +919,7 @@ class ContextCompactionService:
     ) -> bool:
         if cutoff is None:
             return False
-        return (
-            checkpoint is None
-            or int(checkpoint.source_cutoff_sequence)
-            < int(cutoff.sequence)
-        )
+        return checkpoint is None or int(checkpoint.source_cutoff_sequence) < int(cutoff.sequence)
 
     @staticmethod
     def _raise_recent_context_exceeds_limit(
@@ -1022,21 +929,12 @@ class ContextCompactionService:
         retained_run_ids = history_window.get("retained_run_ids", [])
         raise ApiError(
             code="recent_context_exceeds_limit",
-            message=(
-                "The current request and protected recent Runs exceed "
-                "the configured model context budget."
-            ),
+            message=("The current request and protected recent Runs exceed the configured model context budget."),
             status=400,
             details={
                 "retryable": False,
-                "recent_completed_run_limit": (
-                    RECENT_COMPLETED_RUN_LIMIT
-                ),
-                "retained_run_count": (
-                    len(retained_run_ids)
-                    if isinstance(retained_run_ids, list)
-                    else 0
-                ),
+                "recent_completed_run_limit": (RECENT_COMPLETED_RUN_LIMIT),
+                "retained_run_count": (len(retained_run_ids) if isinstance(retained_run_ids, list) else 0),
             },
         )
 
@@ -1055,14 +953,9 @@ class ContextCompactionService:
         if (
             checkpoint is None
             or checkpoint.thread_id != run.thread_id
-            or checkpoint.summary_sha256
-            != raw.get("summary_sha256")
-            or int(checkpoint.generation)
-            != int(raw.get("generation", -1))
-            or str(
-                getattr(checkpoint, "summary_policy_version", "")
-            )
-            != SUMMARY_POLICY_VERSION
+            or checkpoint.summary_sha256 != raw.get("summary_sha256")
+            or int(checkpoint.generation) != int(raw.get("generation", -1))
+            or str(getattr(checkpoint, "summary_policy_version", "")) != SUMMARY_POLICY_VERSION
         ):
             raise ApiError(
                 code="context_checkpoint_invalid",
@@ -1076,9 +969,7 @@ class ContextCompactionService:
         job_id = getattr(head, "pending_job_id", None)
         if job_id is None:
             return None
-        return await self.repository.get_context_compaction_job(
-            job_id=job_id
-        )
+        return await self.repository.get_context_compaction_job(job_id=job_id)
 
     async def _job_for_state(
         self,
@@ -1087,9 +978,7 @@ class ContextCompactionService:
         job_id = state.get("compaction_job_id")
         if not job_id:
             return None
-        return await self.repository.get_context_compaction_job(
-            job_id=UUID(str(job_id))
-        )
+        return await self.repository.get_context_compaction_job(job_id=UUID(str(job_id)))
 
     def _assert_worker_compatible(self, job: Any) -> None:
         expected = {
@@ -1099,27 +988,17 @@ class ContextCompactionService:
             "token_counter_version": str(self.token_counter.version),
             "prompt_version": str(self.compactor.prompt_version),
             "materializer_version": MATERIALIZER_VERSION,
-            "context_schema_version": (
-                CONTEXT_CHECKPOINT_SCHEMA_VERSION
-            ),
+            "context_schema_version": (CONTEXT_CHECKPOINT_SCHEMA_VERSION),
             "summary_policy_version": SUMMARY_POLICY_VERSION,
         }
         observed = {
-            "provider_identity": deepcopy(
-                getattr(job, "provider_identity", {})
-            ),
-            **{
-                field: str(getattr(job, field, ""))
-                for field in expected
-                if field != "provider_identity"
-            },
+            "provider_identity": deepcopy(getattr(job, "provider_identity", {})),
+            **{field: str(getattr(job, field, "")) for field in expected if field != "provider_identity"},
         }
         if observed != expected:
             raise ApiError(
                 code="context_worker_incompatible",
-                message=(
-                    "Context worker cannot process this pinned job version."
-                ),
+                message=("Context worker cannot process this pinned job version."),
                 status=503,
                 details={
                     "retryable": False,
@@ -1137,9 +1016,7 @@ class ContextCompactionService:
                 status=503,
                 details={
                     "retryable": False,
-                    "recovery_id": str(
-                        getattr(head, "pending_job_id", "") or ""
-                    ),
+                    "recovery_id": str(getattr(head, "pending_job_id", "") or ""),
                 },
             )
 
@@ -1168,23 +1045,11 @@ class ContextCompactionService:
             "schema_version": CONTEXT_STATE_SCHEMA_VERSION,
             "history_window": {
                 "policy_version": CONTEXT_HISTORY_POLICY_VERSION,
-                "recent_completed_run_limit": (
-                    RECENT_COMPLETED_RUN_LIMIT
-                ),
-                "latest_completed_cutoff": _cutoff_state(
-                    window.latest_cutoff
-                ),
-                "compaction_cutoff": _cutoff_state(
-                    window.compaction_cutoff
-                ),
-                "retained_run_ids": [
-                    str(run_id) for run_id in window.retained_run_ids
-                ],
-                "retained_start_sequence": (
-                    int(window.retained_start_sequence)
-                    if window.retained_start_sequence is not None
-                    else None
-                ),
+                "recent_completed_run_limit": (RECENT_COMPLETED_RUN_LIMIT),
+                "latest_completed_cutoff": _cutoff_state(window.latest_cutoff),
+                "compaction_cutoff": _cutoff_state(window.compaction_cutoff),
+                "retained_run_ids": [str(run_id) for run_id in window.retained_run_ids],
+                "retained_start_sequence": (int(window.retained_start_sequence) if window.retained_start_sequence is not None else None),
             },
             "history_input_tokens": int(count.input_tokens),
             "token_counter": {
@@ -1194,13 +1059,9 @@ class ContextCompactionService:
             },
             "checkpoint": _checkpoint_state(checkpoint),
             "ready_generation": int(head.generation),
-            "pending_generation": (
-                int(job.generation) if job is not None else None
-            ),
+            "pending_generation": (int(job.generation) if job is not None else None),
             "required_generation": None,
-            "compaction_job_id": (
-                str(job.id) if job is not None else None
-            ),
+            "compaction_job_id": (str(job.id) if job is not None else None),
             "waiting_for_context": False,
             "hard_limit_retry_count": 0,
             "emergency_compaction": False,
@@ -1223,10 +1084,8 @@ def _context_state_is_current(state: dict[str, Any]) -> bool:
     return (
         state.get("schema_version") == CONTEXT_STATE_SCHEMA_VERSION
         and isinstance(history_window, dict)
-        and history_window.get("policy_version")
-        == CONTEXT_HISTORY_POLICY_VERSION
-        and history_window.get("recent_completed_run_limit")
-        == RECENT_COMPLETED_RUN_LIMIT
+        and history_window.get("policy_version") == CONTEXT_HISTORY_POLICY_VERSION
+        and history_window.get("recent_completed_run_limit") == RECENT_COMPLETED_RUN_LIMIT
     )
 
 
@@ -1269,14 +1128,9 @@ def validate_checkpoint_document(
     )
     if (
         not isinstance(checkpoint, dict)
-        or checkpoint.get("schema_version")
-        != CONTEXT_CHECKPOINT_SCHEMA_VERSION
-        or set(checkpoint)
-        != {"schema_version", *required_lists}
-        or any(
-            not isinstance(checkpoint.get(field), list)
-            for field in required_lists
-        )
+        or checkpoint.get("schema_version") != CONTEXT_CHECKPOINT_SCHEMA_VERSION
+        or set(checkpoint) != {"schema_version", *required_lists}
+        or any(not isinstance(checkpoint.get(field), list) for field in required_lists)
     ):
         raise ApiError(
             code="context_checkpoint_invalid",
@@ -1314,10 +1168,7 @@ def _validate_checkpoint_entries(
             and bool(entry["fact"].strip())
             and isinstance(entry.get("source_ref"), str)
             and bool(entry["source_ref"].strip())
-            and (
-                entry.get("as_of") is None
-                or isinstance(entry.get("as_of"), str)
-            )
+            and (entry.get("as_of") is None or isinstance(entry.get("as_of"), str))
         )
     if not valid:
         raise ApiError(
@@ -1341,10 +1192,7 @@ def _valid_ref_entry(
         and bool(entry[text_key].strip())
         and isinstance(entry.get(refs_key), list)
         and bool(entry[refs_key])
-        and all(
-            isinstance(ref, str) and bool(ref.strip())
-            for ref in entry[refs_key]
-        )
+        and all(isinstance(ref, str) and bool(ref.strip()) for ref in entry[refs_key])
     )
 
 
@@ -1363,10 +1211,7 @@ def _validate_checkpoint_source_refs(
     ):
         for entry in checkpoint[field]:
             observed.update(str(ref) for ref in entry["source_refs"])
-    observed.update(
-        str(entry["source_ref"])
-        for entry in checkpoint["verified_tool_facts"]
-    )
+    observed.update(str(entry["source_ref"]) for entry in checkpoint["verified_tool_facts"])
     if not observed.issubset(allowed_refs):
         raise ApiError(
             code="context_checkpoint_source_ref_invalid",
@@ -1390,9 +1235,7 @@ def _checkpoint_state(checkpoint: Any | None) -> dict[str, Any] | None:
         "id": str(checkpoint.id),
         "schema_version": str(checkpoint.schema_version),
         "generation": int(checkpoint.generation),
-        "source_cutoff_sequence": int(
-            checkpoint.source_cutoff_sequence
-        ),
+        "source_cutoff_sequence": int(checkpoint.source_cutoff_sequence),
         "source_sha256": str(checkpoint.source_sha256),
         "summary_sha256": str(checkpoint.summary_sha256),
     }

@@ -36,9 +36,7 @@ class ScriptedToolCall:
     arguments: dict[str, Any]
     namespace: str = ""
     provider_item_id: str = ""
-    status: (
-        Literal["in_progress", "completed", "incomplete"] | Literal[""]
-    ) = ""
+    status: Literal["in_progress", "completed", "incomplete"] | Literal[""] = ""
 
 
 @dataclass(frozen=True)
@@ -160,9 +158,7 @@ class ScriptedAgentModel(Model):
             scripted = self._turns.pop(0)
         if isinstance(scripted, BaseException):
             raise scripted
-        response_id = scripted.response_id or (
-            f"scripted-{agent_name}-{len(self.requests)}"
-        )
+        response_id = scripted.response_id or (f"scripted-{agent_name}-{len(self.requests)}")
         return scripted, ModelResponse(
             output=_output_items(scripted, response_id=response_id),
             usage=Usage(),
@@ -237,9 +233,7 @@ class ScriptedAgentModel(Model):
             model="scripted",
             object="response",
             output=model_response.output,
-            parallel_tool_calls=bool(
-                model_settings.parallel_tool_calls
-            ),
+            parallel_tool_calls=bool(model_settings.parallel_tool_calls),
             tool_choice="auto",
             tools=[],
             status="completed",
@@ -280,12 +274,7 @@ def _is_stable_prompt_prefix(item: dict[str, Any]) -> bool:
     if not isinstance(content, list) or len(content) != 1:
         return False
     block = content[0]
-    return (
-        isinstance(block, dict)
-        and block.get("type") == "input_text"
-        and block.get("prompt_cache_breakpoint")
-        == {"mode": "explicit"}
-    )
+    return isinstance(block, dict) and block.get("type") == "input_text" and block.get("prompt_cache_breakpoint") == {"mode": "explicit"}
 
 
 def _output_items(

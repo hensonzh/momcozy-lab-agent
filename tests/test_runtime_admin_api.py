@@ -1,4 +1,5 @@
 from __future__ import annotations
+from unittest.mock import AsyncMock
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -35,6 +36,7 @@ def test_admin_replay_and_eval_endpoints_require_admin_permission() -> None:
     app.dependency_overrides[get_context_recovery_service] = (
         lambda: recovery_service
     )
+    app.state.product_backend_client = AsyncMock()
     app.state.runtime_authenticator = StaticRuntimeAuthenticator(user)
     client = TestClient(app)
 

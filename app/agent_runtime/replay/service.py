@@ -96,9 +96,7 @@ class RuntimeReplayService:
         ) = (
             await self.repository.list_messages_through_run(run=run),
             await self.repository.list_context_through_run(run=run),
-            await self.repository.get_context_checkpoint_for_run(
-                run=run
-            ),
+            await self.repository.get_context_checkpoint_for_run(run=run),
             await self.repository.get_context_head_for_run(run=run),
             await self.repository.list_events(run_id=run.id),
             await self.repository.list_tool_calls(run_id=run.id),
@@ -111,17 +109,13 @@ class RuntimeReplayService:
         if self.audit_service is not None:
             await self.audit_service.record(
                 actor_user_id=admin_actor_user_id,
-                actor_type=(
-                    "service" if admin_actor_service else None
-                ),
+                actor_type=("service" if admin_actor_service else None),
                 actor_service=admin_actor_service,
                 action="agent.run.replay.export",
                 resource_type="agent_run",
                 resource_id=str(run.id),
                 request_id=request_id,
-                details={
-                    "include_message_content": include_message_content
-                },
+                details={"include_message_content": include_message_content},
             )
         return {
             "schema_version": REPLAY_SCHEMA_VERSION,
@@ -141,22 +135,10 @@ class RuntimeReplayService:
             ),
             "context_head": _context_head(context_head),
             "execution_manifest": deepcopy(run.execution_manifest),
-            "messages": [
-                _message(item, include_content=include_message_content)
-                for item in messages
-            ],
-            "context_items": [
-                _context(item, include_content=include_message_content)
-                for item in context_items
-            ],
-            "events": [
-                _event(item, include_content=include_message_content)
-                for item in events
-            ],
-            "tool_calls": [
-                _tool_call(item, include_content=include_message_content)
-                for item in tool_calls
-            ],
+            "messages": [_message(item, include_content=include_message_content) for item in messages],
+            "context_items": [_context(item, include_content=include_message_content) for item in context_items],
+            "events": [_event(item, include_content=include_message_content) for item in events],
+            "tool_calls": [_tool_call(item, include_content=include_message_content) for item in tool_calls],
             "tool_outputs": [
                 _tool_output(
                     item,
@@ -164,14 +146,8 @@ class RuntimeReplayService:
                 )
                 for item in tool_outputs
             ],
-            "actions": [
-                _action(item, include_content=include_message_content)
-                for item in actions
-            ],
-            "artifacts": [
-                _artifact(item, include_content=include_message_content)
-                for item in artifacts
-            ],
+            "actions": [_action(item, include_content=include_message_content) for item in actions],
+            "artifacts": [_artifact(item, include_content=include_message_content) for item in artifacts],
             "workflow_states": [
                 _workflow_state(
                     item,
@@ -217,11 +193,7 @@ def _message(
         "message_type": message.message_type,
         "status": message.status,
         "sequence": message.sequence,
-        "content": (
-            redact_value(message.content)
-            if include_content
-            else {"redacted": True}
-        ),
+        "content": (redact_value(message.content) if include_content else {"redacted": True}),
     }
 
 
@@ -236,11 +208,7 @@ def _context(
         "item_key": item.item_key,
         "item_type": item.item_type,
         "sequence": item.sequence,
-        "item": (
-            redact_value(item.item)
-            if include_content
-            else {"redacted": True}
-        ),
+        "item": (redact_value(item.item) if include_content else {"redacted": True}),
     }
 
 
@@ -254,34 +222,22 @@ def _context_checkpoint(
     return {
         "id": str(checkpoint.id),
         "schema_version": checkpoint.schema_version,
-        "source_cutoff_run_id": str(
-            checkpoint.source_cutoff_run_id
-        ),
-        "source_cutoff_sequence": (
-            checkpoint.source_cutoff_sequence
-        ),
+        "source_cutoff_run_id": str(checkpoint.source_cutoff_run_id),
+        "source_cutoff_sequence": (checkpoint.source_cutoff_sequence),
         "generation": checkpoint.generation,
         "source_sha256": checkpoint.source_sha256,
         "summary_sha256": checkpoint.summary_sha256,
         "provider_identity": deepcopy(checkpoint.provider_identity),
         "model": checkpoint.model,
         "token_counter": checkpoint.token_counter,
-        "token_counter_version": (
-            checkpoint.token_counter_version
-        ),
+        "token_counter_version": (checkpoint.token_counter_version),
         "source_input_tokens": checkpoint.source_input_tokens,
-        "summary_output_tokens": (
-            checkpoint.summary_output_tokens
-        ),
+        "summary_output_tokens": (checkpoint.summary_output_tokens),
         "prompt_version": checkpoint.prompt_version,
         "materializer_version": checkpoint.materializer_version,
         "context_schema_version": checkpoint.context_schema_version,
         "summary_policy_version": checkpoint.summary_policy_version,
-        "checkpoint": (
-            redact_value(checkpoint.checkpoint)
-            if include_content
-            else {"redacted": True}
-        ),
+        "checkpoint": (redact_value(checkpoint.checkpoint) if include_content else {"redacted": True}),
     }
 
 
@@ -294,16 +250,8 @@ def _context_head(
         "thread_id": str(head.thread_id),
         "status": head.status,
         "generation": head.generation,
-        "ready_checkpoint_id": (
-            str(head.ready_checkpoint_id)
-            if head.ready_checkpoint_id
-            else None
-        ),
-        "pending_job_id": (
-            str(head.pending_job_id)
-            if head.pending_job_id
-            else None
-        ),
+        "ready_checkpoint_id": (str(head.ready_checkpoint_id) if head.ready_checkpoint_id else None),
+        "pending_job_id": (str(head.pending_job_id) if head.pending_job_id else None),
         "error_code": head.error_code,
     }
 
@@ -317,11 +265,7 @@ def _event(
         "event_id": str(event.event_id),
         "sequence": event.sequence,
         "type": event.event_type,
-        "payload": (
-            redact_value(event.payload)
-            if include_content
-            else _event_metadata(event)
-        ),
+        "payload": (redact_value(event.payload) if include_content else _event_metadata(event)),
     }
 
 
@@ -335,11 +279,7 @@ def _tool_call(
         "tool_name": item.tool_name,
         "call_id": item.call_id,
         "status": item.status,
-        "safe_args": (
-            redact_value(item.safe_args)
-            if include_content
-            else {"redacted": True}
-        ),
+        "safe_args": (redact_value(item.safe_args) if include_content else {"redacted": True}),
         "error_code": item.error_code,
     }
 
@@ -352,11 +292,7 @@ def _tool_output(
     return {
         "id": str(item.id),
         "tool_call_id": str(item.tool_call_id),
-        "output": (
-            redact_value(item.output)
-            if include_content
-            else {"redacted": True}
-        ),
+        "output": (redact_value(item.output) if include_content else {"redacted": True}),
         "has_externalized_output": bool(item.output_ref),
     }
 
@@ -371,18 +307,10 @@ def _action(
         "action_type": item.action_type,
         "target_type": item.target_type,
         "target_id": item.target_id,
-        "result_payload": (
-            redact_value(item.result_payload)
-            if include_content
-            else {"redacted": True}
-        ),
+        "result_payload": (redact_value(item.result_payload) if include_content else {"redacted": True}),
         "status": item.status,
         "side_effect_level": item.side_effect_level,
-        "preview_payload": (
-            redact_value(item.preview_payload)
-            if include_content
-            else {"redacted": True}
-        ),
+        "preview_payload": (redact_value(item.preview_payload) if include_content else {"redacted": True}),
         "error_code": item.error_code,
     }
 
@@ -422,11 +350,7 @@ def _event_metadata(event: AgentEvent) -> dict[str, Any]:
         "workflow_state_id",
         "workflow_type",
     }
-    metadata = {
-        key: redact_value(value)
-        for key, value in payload.items()
-        if key in allowed_keys
-    }
+    metadata = {key: redact_value(value) for key, value in payload.items() if key in allowed_keys}
     if metadata:
         metadata["content_redacted"] = True
     else:
@@ -444,11 +368,7 @@ def _artifact(
         "artifact_type": item.artifact_type,
         "schema_version": item.schema_version,
         "status": item.status,
-        "payload": (
-            redact_value(item.payload)
-            if include_content
-            else {"redacted": True}
-        ),
+        "payload": (redact_value(item.payload) if include_content else {"redacted": True}),
         "has_raw_payload": bool(item.raw_payload_ref),
     }
 
@@ -465,11 +385,7 @@ def _workflow_state(
         "schema_version": item.schema_version,
         "active_step": item.active_step,
         "revision": item.revision,
-        "state": (
-            redact_value(item.state)
-            if include_content
-            else {"redacted": True}
-        ),
+        "state": (redact_value(item.state) if include_content else {"redacted": True}),
     }
 
 
@@ -485,29 +401,16 @@ def _workflow_event(
         "event_type": item.event_type,
         "from_revision": item.from_revision,
         "to_revision": item.to_revision,
-        "payload": (
-            redact_value(item.payload)
-            if include_content
-            else {"redacted": True}
-        ),
+        "payload": (redact_value(item.payload) if include_content else {"redacted": True}),
     }
 
 
 def redact_value(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            str(key): (
-                "[redacted]"
-                if str(key).lower() in SENSITIVE_KEYS
-                else redact_value(item)
-            )
-            for key, item in value.items()
-        }
+        return {str(key): ("[redacted]" if str(key).lower() in SENSITIVE_KEYS else redact_value(item)) for key, item in value.items()}
     if isinstance(value, list | tuple):
         return [redact_value(item) for item in value]
-    if isinstance(value, str) and (
-        EMAIL_PATTERN.search(value) or PHONE_PATTERN.search(value)
-    ):
+    if isinstance(value, str) and (EMAIL_PATTERN.search(value) or PHONE_PATTERN.search(value)):
         return "[redacted]"
     return value
 

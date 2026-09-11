@@ -75,19 +75,11 @@ class AgentClientContext(_StrictClientContextModel):
     @model_validator(mode="before")
     @classmethod
     def validate_bounds(cls, value: Any) -> Any:
-        raw = (
-            value.model_dump(mode="json", by_alias=True)
-            if isinstance(value, BaseModel)
-            else value
-        )
+        raw = value.model_dump(mode="json", by_alias=True) if isinstance(value, BaseModel) else value
         if not isinstance(raw, Mapping):
             raise ValueError("client_context must be an object")
         validate_bounded_json(raw, limits=cls._limits)
-        return {
-            key: item
-            for key, item in raw.items()
-            if key not in RETIRED_CLIENT_CONTEXT_FIELDS
-        }
+        return {key: item for key, item in raw.items() if key not in RETIRED_CLIENT_CONTEXT_FIELDS}
 
     @field_validator("timezone")
     @classmethod
@@ -135,10 +127,7 @@ class NormalizedClientContext:
         }
 
     def item_key(self, *, run_id: UUID) -> str:
-        return (
-            f"run:{run_id}:client-context:"
-            f"{self.as_of_date.isoformat()}"
-        )
+        return f"run:{run_id}:client-context:{self.as_of_date.isoformat()}"
 
 
 def normalize_client_context(

@@ -17,9 +17,7 @@ from .executor import ActionExecutor
 from .policy import ActionPolicyRule, action_presentation
 
 
-ACTION_CONFIRMATION_TTL = timedelta(
-    seconds=ACTION_CONFIRMATION_TTL_SECONDS
-)
+ACTION_CONFIRMATION_TTL = timedelta(seconds=ACTION_CONFIRMATION_TTL_SECONDS)
 
 
 class RunNotifier(Protocol):
@@ -85,9 +83,7 @@ class ConfirmationExpiryService:
                     "action_id": str(expired.id),
                 },
             )
-            admission_releases.append(
-                (run.actor_user_id, run.id)
-            )
+            admission_releases.append((run.actor_user_id, run.id))
         await self.repository.commit()
         admission = self.run_admission
         if admission is not None:
@@ -169,26 +165,14 @@ class RuntimeActionService:
                 action_type=proposal.action_type,
                 target_type=proposal.target_type,
                 target_id=proposal.target_id,
-                status=(
-                    "confirmation_required"
-                    if rule.requires_confirmation
-                    else "confirmed"
-                ),
+                status=("confirmation_required" if rule.requires_confirmation else "confirmed"),
                 side_effect_level=proposal.side_effect_level,
                 preview_payload=dict(proposal.preview_payload),
                 apply_payload=dict(proposal.apply_payload),
                 idempotency_key=proposal.idempotency_key,
-                expires_at=(
-                    _utcnow() + ACTION_CONFIRMATION_TTL
-                    if rule.requires_confirmation
-                    else None
-                ),
+                expires_at=(_utcnow() + ACTION_CONFIRMATION_TTL if rule.requires_confirmation else None),
             )
-            event_type = (
-                "action.confirmation_required"
-                if rule.requires_confirmation
-                else "action.proposed"
-            )
+            event_type = "action.confirmation_required" if rule.requires_confirmation else "action.proposed"
             await self.repository.append_event(
                 run_id=run.id,
                 event_type=event_type,
@@ -201,16 +185,10 @@ class RuntimeActionService:
         elif not _proposal_matches(action=action, proposal=proposal):
             raise ApiError(
                 code="agent_action_idempotency_conflict",
-                message=(
-                    "Agent action idempotency key was already used "
-                    "with a different payload."
-                ),
+                message=("Agent action idempotency key was already used with a different payload."),
                 status=409,
             )
-        elif (
-            action.status == "failed"
-            and action.error_code in rule.retryable_error_codes
-        ):
+        elif action.status == "failed" and action.error_code in rule.retryable_error_codes:
             action = await self.repository.mark_action_confirmed(
                 action=action,
                 confirmed_at=_utcnow(),
@@ -377,12 +355,8 @@ class RuntimeActionService:
                                     "action_id": str(resolved.id),
                                     "action_type": resolved.action_type,
                                     "status": resolved.status,
-                                    "error_code": (
-                                        resolved.error_code or None
-                                    ),
-                                    "result": dict(
-                                        resolved.result_payload
-                                    ),
+                                    "error_code": (resolved.error_code or None),
+                                    "result": dict(resolved.result_payload),
                                 }
                             },
                             ensure_ascii=False,
@@ -405,9 +379,7 @@ class RuntimeActionService:
             )
             notifier = self.run_notifier
             if notifier is not None:
-                self.repository.add_after_commit_callback(
-                    lambda: notifier.notify_queued(run_id=run.id)
-                )
+                self.repository.add_after_commit_callback(lambda: notifier.notify_queued(run_id=run.id))
         return resolved
 
     async def reject_action(
@@ -545,9 +517,7 @@ def _proposed(
 
 def _run_authorization(run: AgentRun) -> RuntimePrincipal:
     try:
-        return RuntimePrincipal.from_authorization_context(
-            run.authorization_context
-        )
+        return RuntimePrincipal.from_authorization_context(run.authorization_context)
     except (TypeError, ValueError) as exc:
         raise ApiError(
             code="runtime_authorization_context_invalid",

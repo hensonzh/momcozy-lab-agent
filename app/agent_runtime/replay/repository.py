@@ -30,17 +30,13 @@ class RuntimeReplayRepository:
     async def get_run(self, *, run_id: UUID) -> AgentRun | None:
         return cast(
             AgentRun | None,
-            await self.session.scalar(
-                select(AgentRun).where(AgentRun.id == run_id)
-            ),
+            await self.session.scalar(select(AgentRun).where(AgentRun.id == run_id)),
         )
 
     async def get_thread(self, *, thread_id: UUID) -> AgentThread | None:
         return cast(
             AgentThread | None,
-            await self.session.scalar(
-                select(AgentThread).where(AgentThread.id == thread_id)
-            ),
+            await self.session.scalar(select(AgentThread).where(AgentThread.id == thread_id)),
         )
 
     async def list_messages_through_run(
@@ -48,19 +44,11 @@ class RuntimeReplayRepository:
         *,
         run: AgentRun,
     ) -> list[AgentMessage]:
-        cutoff = await self.session.scalar(
-            select(func.max(AgentMessage.sequence)).where(
-                AgentMessage.run_id == run.id
-            )
-        )
-        statement = select(AgentMessage).where(
-            AgentMessage.thread_id == run.thread_id
-        )
+        cutoff = await self.session.scalar(select(func.max(AgentMessage.sequence)).where(AgentMessage.run_id == run.id))
+        statement = select(AgentMessage).where(AgentMessage.thread_id == run.thread_id)
         if cutoff is not None:
             statement = statement.where(AgentMessage.sequence <= int(cutoff))
-        result = await self.session.scalars(
-            statement.order_by(AgentMessage.sequence)
-        )
+        result = await self.session.scalars(statement.order_by(AgentMessage.sequence))
         return list(result.all())
 
     async def list_context_through_run(
@@ -68,29 +56,15 @@ class RuntimeReplayRepository:
         *,
         run: AgentRun,
     ) -> list[AgentContextItem]:
-        cutoff = await self.session.scalar(
-            select(func.max(AgentContextItem.sequence)).where(
-                AgentContextItem.run_id == run.id
-            )
-        )
-        statement = select(AgentContextItem).where(
-            AgentContextItem.thread_id == run.thread_id
-        )
+        cutoff = await self.session.scalar(select(func.max(AgentContextItem.sequence)).where(AgentContextItem.run_id == run.id))
+        statement = select(AgentContextItem).where(AgentContextItem.thread_id == run.thread_id)
         if cutoff is not None:
-            statement = statement.where(
-                AgentContextItem.sequence <= int(cutoff)
-            )
-        result = await self.session.scalars(
-            statement.order_by(AgentContextItem.sequence)
-        )
+            statement = statement.where(AgentContextItem.sequence <= int(cutoff))
+        result = await self.session.scalars(statement.order_by(AgentContextItem.sequence))
         return list(result.all())
 
     async def list_events(self, *, run_id: UUID) -> list[AgentEvent]:
-        result = await self.session.scalars(
-            select(AgentEvent)
-            .where(AgentEvent.run_id == run_id)
-            .order_by(AgentEvent.sequence)
-        )
+        result = await self.session.scalars(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.sequence))
         return list(result.all())
 
     async def get_context_checkpoint_for_run(
@@ -126,11 +100,7 @@ class RuntimeReplayRepository:
     ) -> AgentThreadContextHead | None:
         return cast(
             AgentThreadContextHead | None,
-            await self.session.scalar(
-                select(AgentThreadContextHead).where(
-                    AgentThreadContextHead.thread_id == run.thread_id
-                )
-            ),
+            await self.session.scalar(select(AgentThreadContextHead).where(AgentThreadContextHead.thread_id == run.thread_id)),
         )
 
     async def list_tool_calls(
@@ -139,9 +109,7 @@ class RuntimeReplayRepository:
         run_id: UUID,
     ) -> list[AgentToolCall]:
         result = await self.session.scalars(
-            select(AgentToolCall)
-            .where(AgentToolCall.run_id == run_id)
-            .order_by(AgentToolCall.created_at, AgentToolCall.id)
+            select(AgentToolCall).where(AgentToolCall.run_id == run_id).order_by(AgentToolCall.created_at, AgentToolCall.id)
         )
         return list(result.all())
 
@@ -163,9 +131,7 @@ class RuntimeReplayRepository:
 
     async def list_actions(self, *, run_id: UUID) -> list[AgentAction]:
         result = await self.session.scalars(
-            select(AgentAction)
-            .where(AgentAction.run_id == run_id)
-            .order_by(AgentAction.created_at, AgentAction.id)
+            select(AgentAction).where(AgentAction.run_id == run_id).order_by(AgentAction.created_at, AgentAction.id)
         )
         return list(result.all())
 
@@ -175,9 +141,7 @@ class RuntimeReplayRepository:
         run_id: UUID,
     ) -> list[AgentArtifact]:
         result = await self.session.scalars(
-            select(AgentArtifact)
-            .where(AgentArtifact.run_id == run_id)
-            .order_by(AgentArtifact.created_at, AgentArtifact.id)
+            select(AgentArtifact).where(AgentArtifact.run_id == run_id).order_by(AgentArtifact.created_at, AgentArtifact.id)
         )
         return list(result.all())
 
@@ -207,5 +171,6 @@ class RuntimeReplayRepository:
             )
         )
         return list(result.all())
+
 
 __all__ = ["RuntimeReplayRepository"]

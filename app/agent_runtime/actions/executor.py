@@ -41,9 +41,7 @@ class ActionExecutor:
         if action.status in {"applied", "failed"}:
             return ActionExecutionOutcome(
                 action=action,
-                apply_result=_result_from_payload(
-                    action.result_payload
-                ),
+                apply_result=_result_from_payload(action.result_payload),
                 replayed=True,
             )
         if action.status not in {"confirmed", "applying"}:
@@ -103,11 +101,7 @@ class ActionExecutor:
             },
         )
         for application_event in result.application_events:
-            event_type = str(
-                application_event.get("type")
-                or application_event.get("event_type")
-                or ""
-            ).strip()
+            event_type = str(application_event.get("type") or application_event.get("event_type") or "").strip()
             if not event_type:
                 continue
             payload = application_event.get("payload")

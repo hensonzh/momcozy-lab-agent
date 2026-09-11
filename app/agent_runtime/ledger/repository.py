@@ -219,8 +219,7 @@ class RuntimeLedgerRepository:
     ) -> dict[str, Any]:
         manifest_hash = str(manifest.get("manifest_sha256") or "")
         if (
-            manifest.get("schema_version")
-            != MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
+            manifest.get("schema_version") != MODEL_EXECUTION_MANIFEST_SCHEMA_VERSION
             or len(manifest_hash) != 64
             or manifest_hash != _execution_manifest_sha256(manifest)
         ):
@@ -235,28 +234,20 @@ class RuntimeLedgerRepository:
                 "invocations": [],
             }
         if (
-            envelope.get("schema_version")
-            != RUN_EXECUTION_MANIFEST_SCHEMA_VERSION
+            envelope.get("schema_version") != RUN_EXECUTION_MANIFEST_SCHEMA_VERSION
             or envelope.get("runtime_pattern") != run.runtime_pattern
             or envelope.get("runtime_version") != run.runtime_version
         ):
-            raise ValueError(
-                "run execution manifest does not match the run contract"
-            )
+            raise ValueError("run execution manifest does not match the run contract")
         invocations = envelope.get("invocations")
         if not isinstance(invocations, list):
             raise ValueError("run execution manifest is invalid")
         for existing in invocations:
-            if (
-                isinstance(existing, dict)
-                and existing.get("manifest_sha256") == manifest_hash
-            ):
+            if isinstance(existing, dict) and existing.get("manifest_sha256") == manifest_hash:
                 comparable = dict(existing)
                 comparable.pop("sequence", None)
                 if comparable != manifest:
-                    raise ValueError(
-                        "model execution manifest hash collision"
-                    )
+                    raise ValueError("model execution manifest hash collision")
                 return deepcopy(existing)
 
         stored = {
@@ -331,20 +322,14 @@ class RuntimeLedgerRepository:
             select(AgentThreadContextHead.thread_id)
             .join(
                 AgentContextCompactionJob,
-                AgentContextCompactionJob.id
-                == AgentThreadContextHead.pending_job_id,
+                AgentContextCompactionJob.id == AgentThreadContextHead.pending_job_id,
             )
             .where(
-                AgentThreadContextHead.thread_id
-                == AgentRun.thread_id,
+                AgentThreadContextHead.thread_id == AgentRun.thread_id,
                 AgentThreadContextHead.status == "compacting",
                 or_(
-                    AgentContextCompactionJob.trigger_run_id
-                    != AgentRun.id,
-                    AgentRun.context_state[
-                        "waiting_for_context"
-                    ].as_boolean()
-                    .is_(True),
+                    AgentContextCompactionJob.trigger_run_id != AgentRun.id,
+                    AgentRun.context_state["waiting_for_context"].as_boolean().is_(True),
                 ),
             )
         )
@@ -861,15 +846,9 @@ class RuntimeLedgerRepository:
         recent_completed_run_limit: int,
     ) -> CompletedContextWindow:
         if recent_completed_run_limit < 1:
-            raise ValueError(
-                "recent_completed_run_limit must be positive"
-            )
-        first_sequence = func.min(AgentContextItem.sequence).label(
-            "first_sequence"
-        )
-        last_sequence = func.max(AgentContextItem.sequence).label(
-            "last_sequence"
-        )
+            raise ValueError("recent_completed_run_limit must be positive")
+        first_sequence = func.min(AgentContextItem.sequence).label("first_sequence")
+        last_sequence = func.max(AgentContextItem.sequence).label("last_sequence")
         statement = (
             select(
                 AgentContextItem.run_id,
@@ -898,11 +877,7 @@ class RuntimeLedgerRepository:
         latest = rows[0]
         retained_rows = rows[:recent_completed_run_limit]
         retained_chronological = tuple(reversed(retained_rows))
-        compactable = (
-            rows[recent_completed_run_limit]
-            if len(rows) > recent_completed_run_limit
-            else None
-        )
+        compactable = rows[recent_completed_run_limit] if len(rows) > recent_completed_run_limit else None
         return CompletedContextWindow(
             latest_cutoff=CompletedContextCutoff(
                 run_id=latest.run_id,
@@ -916,12 +891,8 @@ class RuntimeLedgerRepository:
                 if compactable is not None
                 else None
             ),
-            retained_run_ids=tuple(
-                row.run_id for row in retained_chronological
-            ),
-            retained_start_sequence=int(
-                retained_chronological[0].first_sequence
-            ),
+            retained_run_ids=tuple(row.run_id for row in retained_chronological),
+            retained_start_sequence=int(retained_chronological[0].first_sequence),
         )
 
     async def get_or_create_context_head(
@@ -932,9 +903,7 @@ class RuntimeLedgerRepository:
         await self.session.execute(
             pg_insert(AgentThreadContextHead)
             .values(thread_id=thread_id)
-            .on_conflict_do_nothing(
-                index_elements=[AgentThreadContextHead.thread_id]
-            )
+            .on_conflict_do_nothing(index_elements=[AgentThreadContextHead.thread_id])
         )
         head = await self.get_context_head(thread_id=thread_id)
         assert head is not None
@@ -947,11 +916,7 @@ class RuntimeLedgerRepository:
     ) -> AgentThreadContextHead | None:
         return cast(
             AgentThreadContextHead | None,
-            await self.session.scalar(
-                select(AgentThreadContextHead).where(
-                    AgentThreadContextHead.thread_id == thread_id
-                )
-            ),
+            await self.session.scalar(select(AgentThreadContextHead).where(AgentThreadContextHead.thread_id == thread_id)),
         )
 
     async def _lock_context_head(
@@ -963,9 +928,7 @@ class RuntimeLedgerRepository:
             AgentThreadContextHead | None,
             await self.session.scalar(
                 select(AgentThreadContextHead)
-                .where(
-                    AgentThreadContextHead.thread_id == thread_id
-                )
+                .where(AgentThreadContextHead.thread_id == thread_id)
                 .with_for_update()
                 .execution_options(populate_existing=True)
             ),
@@ -981,8 +944,7 @@ class RuntimeLedgerRepository:
             select(AgentContextCheckpoint)
             .where(
                 AgentContextCheckpoint.thread_id == thread_id,
-                AgentContextCheckpoint.source_cutoff_sequence
-                <= through_sequence,
+                AgentContextCheckpoint.source_cutoff_sequence <= through_sequence,
             )
             .order_by(
                 AgentContextCheckpoint.source_cutoff_sequence.desc(),
@@ -1003,11 +965,7 @@ class RuntimeLedgerRepository:
     ) -> AgentContextCheckpoint | None:
         return cast(
             AgentContextCheckpoint | None,
-            await self.session.scalar(
-                select(AgentContextCheckpoint).where(
-                    AgentContextCheckpoint.id == checkpoint_id
-                )
-            ),
+            await self.session.scalar(select(AgentContextCheckpoint).where(AgentContextCheckpoint.id == checkpoint_id)),
         )
 
     async def list_completed_context_items(
@@ -1025,9 +983,7 @@ class RuntimeLedgerRepository:
                 AgentContextItem.sequence > after_sequence,
                 AgentContextItem.sequence <= through_sequence,
                 AgentRun.status == "completed",
-                AgentContextItem.item_key.not_like(
-                    f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"
-                ),
+                AgentContextItem.item_key.not_like(f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"),
             )
             .order_by(AgentContextItem.sequence)
         )
@@ -1055,9 +1011,7 @@ class RuntimeLedgerRepository:
                     AgentContextItem.run_id == current_run_id,
                     and_(
                         completed_run,
-                        AgentContextItem.item_key.not_like(
-                            f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"
-                        ),
+                        AgentContextItem.item_key.not_like(f"{BUSINESS_CONTEXT_ITEM_KEY_PREFIX}%"),
                     ),
                 ),
             )
@@ -1100,31 +1054,19 @@ class RuntimeLedgerRepository:
         max_attempts: int = 3,
         supersedes_job_id: UUID | None = None,
     ) -> AgentContextCompactionJob:
-        head = await self.get_or_create_context_head(
-            thread_id=thread_id
-        )
+        head = await self.get_or_create_context_head(thread_id=thread_id)
         await self.session.refresh(head, with_for_update=True)
-        if (
-            head.status == "compacting"
-            and head.pending_job_id is not None
-        ):
-            existing = await self.get_context_compaction_job(
-                job_id=head.pending_job_id
-            )
+        if head.status == "compacting" and head.pending_job_id is not None:
+            existing = await self.get_context_compaction_job(job_id=head.pending_job_id)
             if (
                 existing is not None
                 and existing.idempotency_key == idempotency_key
-                and existing.status
-                in {"queued", "retry_wait", "running", "completed"}
+                and existing.status in {"queued", "retry_wait", "running", "completed"}
             ):
                 return existing
-            raise RunLeaseLostError(
-                f"context head already has pending generation: {thread_id}"
-            )
+            raise RunLeaseLostError(f"context head already has pending generation: {thread_id}")
         if generation != head.generation + 1:
-            raise RunLeaseLostError(
-                f"context generation changed: {thread_id}"
-            )
+            raise RunLeaseLostError(f"context generation changed: {thread_id}")
         values = {
             "id": uuid4(),
             "thread_id": thread_id,
@@ -1166,9 +1108,7 @@ class RuntimeLedgerRepository:
         return cast(
             AgentContextCompactionJob | None,
             await self.session.scalar(
-                select(AgentContextCompactionJob)
-                .where(AgentContextCompactionJob.id == job_id)
-                .execution_options(populate_existing=True)
+                select(AgentContextCompactionJob).where(AgentContextCompactionJob.id == job_id).execution_options(populate_existing=True)
             ),
         )
 
@@ -1179,38 +1119,20 @@ class RuntimeLedgerRepository:
     ) -> AgentContextCompactionJob:
         job = cast(
             AgentContextCompactionJob | None,
-            await self.session.scalar(
-                select(AgentContextCompactionJob)
-                .where(AgentContextCompactionJob.id == job_id)
-                .with_for_update()
-            ),
+            await self.session.scalar(select(AgentContextCompactionJob).where(AgentContextCompactionJob.id == job_id).with_for_update()),
         )
         if job is None:
-            raise LedgerResourceNotFoundError(
-                "context compaction job not found"
-            )
+            raise LedgerResourceNotFoundError("context compaction job not found")
         if job.status != "dead_lettered":
-            raise ValueError(
-                "only a dead-lettered context job can be superseded"
-            )
+            raise ValueError("only a dead-lettered context job can be superseded")
         head = cast(
             AgentThreadContextHead | None,
             await self.session.scalar(
-                select(AgentThreadContextHead)
-                .where(
-                    AgentThreadContextHead.thread_id == job.thread_id
-                )
-                .with_for_update()
+                select(AgentThreadContextHead).where(AgentThreadContextHead.thread_id == job.thread_id).with_for_update()
             ),
         )
-        if (
-            head is None
-            or head.status != "blocked"
-            or head.pending_job_id != job.id
-        ):
-            raise RunLeaseLostError(
-                f"context recovery target changed: {job.thread_id}"
-            )
+        if head is None or head.status != "blocked" or head.pending_job_id != job.id:
+            raise RunLeaseLostError(f"context recovery target changed: {job.thread_id}")
         replacement_id = uuid4()
         replacement = AgentContextCompactionJob(
             id=replacement_id,
@@ -1222,9 +1144,7 @@ class RuntimeLedgerRepository:
             source_cutoff_sequence=job.source_cutoff_sequence,
             source_sha256=job.source_sha256,
             generation=job.generation,
-            idempotency_key=hashlib.sha256(
-                f"{job.id}:{replacement_id}".encode("utf-8")
-            ).hexdigest(),
+            idempotency_key=hashlib.sha256(f"{job.id}:{replacement_id}".encode("utf-8")).hexdigest(),
             provider_identity=deepcopy(job.provider_identity),
             model=job.model,
             token_counter=job.token_counter,
@@ -1264,22 +1184,10 @@ class RuntimeLedgerRepository:
             select(AgentContextCompactionJob)
             .where(
                 AgentContextCompactionJob.next_attempt_at <= claimed_at,
-                AgentContextCompactionJob.attempts
-                < AgentContextCompactionJob.max_attempts,
+                AgentContextCompactionJob.attempts < AgentContextCompactionJob.max_attempts,
                 or_(
-                    AgentContextCompactionJob.status.in_(
-                        ("queued", "retry_wait")
-                    ),
-                    (
-                        (
-                            AgentContextCompactionJob.status
-                            == "running"
-                        )
-                        & (
-                            AgentContextCompactionJob.locked_until
-                            <= claimed_at
-                        )
-                    ),
+                    AgentContextCompactionJob.status.in_(("queued", "retry_wait")),
+                    ((AgentContextCompactionJob.status == "running") & (AgentContextCompactionJob.locked_until <= claimed_at)),
                 ),
             )
             .order_by(
@@ -1316,24 +1224,11 @@ class RuntimeLedgerRepository:
             select(AgentContextCompactionJob)
             .where(
                 AgentContextCompactionJob.id == job_id,
-                AgentContextCompactionJob.next_attempt_at
-                <= claimed_at,
-                AgentContextCompactionJob.attempts
-                < AgentContextCompactionJob.max_attempts,
+                AgentContextCompactionJob.next_attempt_at <= claimed_at,
+                AgentContextCompactionJob.attempts < AgentContextCompactionJob.max_attempts,
                 or_(
-                    AgentContextCompactionJob.status.in_(
-                        ("queued", "retry_wait")
-                    ),
-                    (
-                        (
-                            AgentContextCompactionJob.status
-                            == "running"
-                        )
-                        & (
-                            AgentContextCompactionJob.locked_until
-                            <= claimed_at
-                        )
-                    ),
+                    AgentContextCompactionJob.status.in_(("queued", "retry_wait")),
+                    ((AgentContextCompactionJob.status == "running") & (AgentContextCompactionJob.locked_until <= claimed_at)),
                 ),
             )
             .with_for_update(skip_locked=True)
@@ -1344,8 +1239,7 @@ class RuntimeLedgerRepository:
         _claim_context_job(
             job,
             claimed_at=claimed_at,
-            lease_expires_at=claimed_at
-            + timedelta(seconds=lease_duration_seconds),
+            lease_expires_at=claimed_at + timedelta(seconds=lease_duration_seconds),
         )
         await self.session.flush()
         return job
@@ -1362,22 +1256,11 @@ class RuntimeLedgerRepository:
                 select(AgentContextCompactionJob)
                 .where(
                     AgentContextCompactionJob.id == job_id,
-                    AgentContextCompactionJob.attempts
-                    >= AgentContextCompactionJob.max_attempts,
-                    AgentContextCompactionJob.next_attempt_at
-                    <= claimed_at,
+                    AgentContextCompactionJob.attempts >= AgentContextCompactionJob.max_attempts,
+                    AgentContextCompactionJob.next_attempt_at <= claimed_at,
                     or_(
-                        AgentContextCompactionJob.status.in_(
-                            ("queued", "retry_wait")
-                        ),
-                        (
-                            AgentContextCompactionJob.status
-                            == "running"
-                        )
-                        & (
-                            AgentContextCompactionJob.locked_until
-                            <= claimed_at
-                        ),
+                        AgentContextCompactionJob.status.in_(("queued", "retry_wait")),
+                        (AgentContextCompactionJob.status == "running") & (AgentContextCompactionJob.locked_until <= claimed_at),
                     ),
                 )
                 .with_for_update(skip_locked=True)
@@ -1399,20 +1282,11 @@ class RuntimeLedgerRepository:
         result = await self.session.scalars(
             select(AgentContextCompactionJob)
             .where(
-                AgentContextCompactionJob.attempts
-                >= AgentContextCompactionJob.max_attempts,
+                AgentContextCompactionJob.attempts >= AgentContextCompactionJob.max_attempts,
                 AgentContextCompactionJob.next_attempt_at <= claimed_at,
                 or_(
-                    AgentContextCompactionJob.status.in_(
-                        ("queued", "retry_wait")
-                    ),
-                    (
-                        AgentContextCompactionJob.status == "running"
-                    )
-                    & (
-                        AgentContextCompactionJob.locked_until
-                        <= claimed_at
-                    ),
+                    AgentContextCompactionJob.status.in_(("queued", "retry_wait")),
+                    (AgentContextCompactionJob.status == "running") & (AgentContextCompactionJob.locked_until <= claimed_at),
                 ),
             )
             .order_by(
@@ -1457,15 +1331,8 @@ class RuntimeLedgerRepository:
     ) -> AgentContextCheckpoint:
         await self._assert_context_compaction_job_lease(job=job)
         head = await self._lock_context_head(thread_id=job.thread_id)
-        if (
-            head is None
-            or head.status != "compacting"
-            or head.pending_job_id != job.id
-            or job.generation != head.generation + 1
-        ):
-            raise RunLeaseLostError(
-                f"context head ownership lost: {job.thread_id}"
-            )
+        if head is None or head.status != "compacting" or head.pending_job_id != job.id or job.generation != head.generation + 1:
+            raise RunLeaseLostError(f"context head ownership lost: {job.thread_id}")
         stored_checkpoint = AgentContextCheckpoint(
             thread_id=job.thread_id,
             source_cutoff_run_id=job.source_cutoff_run_id,
@@ -1516,19 +1383,12 @@ class RuntimeLedgerRepository:
         job.locked_until = None
         if retryable and job.attempts < job.max_attempts:
             job.status = "retry_wait"
-            job.next_attempt_at = _utcnow() + timedelta(
-                seconds=min(2 ** max(job.attempts, 1), 60)
-            )
+            job.next_attempt_at = _utcnow() + timedelta(seconds=min(2 ** max(job.attempts, 1), 60))
         else:
             job.status = "dead_lettered"
             job.completed_at = _utcnow()
-            head = await self._lock_context_head(
-                thread_id=job.thread_id
-            )
-            if (
-                head is not None
-                and head.pending_job_id == job.id
-            ):
+            head = await self._lock_context_head(thread_id=job.thread_id)
+            if head is not None and head.pending_job_id == job.id:
                 head.status = "blocked"
                 head.error_code = error_code
         await self.session.flush()
@@ -1550,20 +1410,11 @@ class RuntimeLedgerRepository:
                 .where(
                     AgentContextCompactionJob.id == job_id,
                     AgentContextCompactionJob.status == "running",
-                    AgentContextCompactionJob.lease_token
-                    == lease_token,
+                    AgentContextCompactionJob.lease_token == lease_token,
                     AgentContextCompactionJob.locked_until.is_not(None),
-                    AgentContextCompactionJob.locked_until
-                    > func.clock_timestamp(),
+                    AgentContextCompactionJob.locked_until > func.clock_timestamp(),
                 )
-                .values(
-                    locked_until=(
-                        func.clock_timestamp()
-                        + timedelta(
-                            seconds=lease_duration_seconds
-                        )
-                    )
-                )
+                .values(locked_until=(func.clock_timestamp() + timedelta(seconds=lease_duration_seconds)))
                 .execution_options(synchronize_session=False)
             ),
         )
@@ -1576,26 +1427,20 @@ class RuntimeLedgerRepository:
     ) -> None:
         lease_token = job.lease_token
         if job.status != "running" or lease_token is None:
-            raise RunLeaseLostError(
-                f"context compaction lease lost: {job.id}"
-            )
+            raise RunLeaseLostError(f"context compaction lease lost: {job.id}")
         owned = await self.session.scalar(
             select(AgentContextCompactionJob.id)
             .where(
                 AgentContextCompactionJob.id == job.id,
                 AgentContextCompactionJob.status == "running",
-                AgentContextCompactionJob.lease_token
-                == lease_token,
+                AgentContextCompactionJob.lease_token == lease_token,
                 AgentContextCompactionJob.locked_until.is_not(None),
-                AgentContextCompactionJob.locked_until
-                > func.clock_timestamp(),
+                AgentContextCompactionJob.locked_until > func.clock_timestamp(),
             )
             .with_for_update()
         )
         if owned is None:
-            raise RunLeaseLostError(
-                f"context compaction lease lost: {job.id}"
-            )
+            raise RunLeaseLostError(f"context compaction lease lost: {job.id}")
 
     async def append_event(
         self,
@@ -1812,10 +1657,7 @@ class RuntimeLedgerRepository:
             .limit(_bounded_limit(limit))
         )
         result = await self.session.execute(statement)
-        return [
-            (cast(AgentAction, action), cast(AgentRun, run))
-            for action, run in result.all()
-        ]
+        return [(cast(AgentAction, action), cast(AgentRun, run)) for action, run in result.all()]
 
     async def get_action(self, *, action_id: UUID) -> AgentAction | None:
         statement = select(AgentAction).where(AgentAction.id == action_id).execution_options(populate_existing=True)

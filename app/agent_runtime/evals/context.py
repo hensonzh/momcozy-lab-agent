@@ -100,9 +100,7 @@ class ContextEvalFailure:
 
 
 def load_context_eval_suite(path: Path) -> ContextEvalSuite:
-    return ContextEvalSuite.model_validate_json(
-        path.read_text(encoding="utf-8")
-    )
+    return ContextEvalSuite.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def evaluate_context_case(
@@ -117,11 +115,7 @@ def evaluate_context_case(
             failures.append(
                 ContextEvalFailure(
                     assertion=assertion.type,
-                    expected=(
-                        assertion.value
-                        if assertion.value is not None
-                        else True
-                    ),
+                    expected=(assertion.value if assertion.value is not None else True),
                     observed=observed,
                 )
             )
@@ -149,39 +143,28 @@ def _evaluate_assertion(
             return False
         block = content[0]
         return (
-            request_payload.get("prompt_cache_options")
-            == {"mode": "explicit", "ttl": "30m"}
+            request_payload.get("prompt_cache_options") == {"mode": "explicit", "ttl": "30m"}
             and "instructions" not in request_payload
             and first.get("type") == "message"
             and first.get("role") == "developer"
             and isinstance(block, dict)
             and block.get("type") == "input_text"
             and bool(block.get("text"))
-            and block.get("prompt_cache_breakpoint")
-            == {"mode": "explicit"}
-            and "prompt_cache_breakpoint"
-            not in _json(input_items[1:])
+            and block.get("prompt_cache_breakpoint") == {"mode": "explicit"}
+            and "prompt_cache_breakpoint" not in _json(input_items[1:])
         )
     if assertion.type == "persistence.no_materialized_urls":
         persisted = _json(trace.get("persisted_context", {}))
         return "image_url" not in persisted and "file_url" not in persisted
     if assertion.type == "checkpoint.low_trust":
         item = trace.get("checkpoint_provider_item", {})
-        return (
-            isinstance(item, dict)
-            and item.get("role") == "user"
-            and "untrusted_historical_context"
-            in _json(item.get("content"))
-        )
+        return isinstance(item, dict) and item.get("role") == "user" and "untrusted_historical_context" in _json(item.get("content"))
     if assertion.type == "checkpoint.schema_valid":
         try:
             validate_checkpoint_document(trace.get("checkpoint"))
         except ApiError:
             return False
-        return (
-            trace["checkpoint"]["schema_version"]
-            == CONTEXT_CHECKPOINT_SCHEMA_VERSION
-        )
+        return trace["checkpoint"]["schema_version"] == CONTEXT_CHECKPOINT_SCHEMA_VERSION
     if assertion.type == "job.pins_versions":
         job = trace.get("job", {})
         return all(
@@ -200,19 +183,12 @@ def _evaluate_assertion(
             isinstance(job.get("attempts"), int)
             and isinstance(job.get("max_attempts"), int)
             and job["attempts"] <= job["max_attempts"]
-            and int(trace.get("compactor_calls", 0))
-            <= job["max_attempts"]
+            and int(trace.get("compactor_calls", 0)) <= job["max_attempts"]
         )
     if assertion.type == "head.state_equal":
-        return (
-            trace.get("head", {}).get(assertion.field)
-            == assertion.value
-        )
+        return trace.get("head", {}).get(assertion.field) == assertion.value
     if assertion.type == "run.context_state_equal":
-        return (
-            trace.get("run_context_state", {}).get(assertion.field)
-            == assertion.value
-        )
+        return trace.get("run_context_state", {}).get(assertion.field) == assertion.value
     if assertion.type == "error.required_code":
         return trace.get("error_code") == assertion.value
     if assertion.type == "business_context.low_trust":
@@ -230,16 +206,9 @@ def _evaluate_assertion(
         if not isinstance(current_run_id, str) or not isinstance(projected, list):
             return False
         snapshots = [
-            item
-            for item in projected
-            if isinstance(item, dict)
-            and str(item.get("item_key") or "").startswith(
-                "business-context:"
-            )
+            item for item in projected if isinstance(item, dict) and str(item.get("item_key") or "").startswith("business-context:")
         ]
-        return bool(snapshots) and all(
-            item.get("run_id") == current_run_id for item in snapshots
-        )
+        return bool(snapshots) and all(item.get("run_id") == current_run_id for item in snapshots)
     if assertion.type == "business_context.owner_scoped":
         actor_user_id = trace.get("actor_user_id")
         reads = trace.get("business_context_reads", [])
@@ -247,25 +216,15 @@ def _evaluate_assertion(
             isinstance(actor_user_id, str)
             and isinstance(reads, list)
             and bool(reads)
-            and all(
-                isinstance(item, dict)
-                and item.get("actor_user_id") == actor_user_id
-                for item in reads
-            )
+            and all(isinstance(item, dict) and item.get("actor_user_id") == actor_user_id for item in reads)
         )
     if assertion.type == "history.completed_run_tail":
         state = trace.get("run_context_state", {})
-        window = (
-            state.get("history_window", {})
-            if isinstance(state, dict)
-            else {}
-        )
+        window = state.get("history_window", {}) if isinstance(state, dict) else {}
         completed_run_ids = trace.get("completed_run_ids", [])
         ledger_context = trace.get("ledger_context", [])
         projected_context = trace.get("projected_context", [])
-        compaction_source_run_ids = trace.get(
-            "compaction_source_run_ids", []
-        )
+        compaction_source_run_ids = trace.get("compaction_source_run_ids", [])
         if not (
             isinstance(window, dict)
             and isinstance(completed_run_ids, list)
@@ -289,15 +248,10 @@ def _evaluate_assertion(
                 for item in ledger_context
                 if isinstance(item, dict)
                 and item.get("run_id") == run_id
-                and not str(item.get("item_key") or "").startswith(
-                    "business-context:"
-                )
+                and not str(item.get("item_key") or "").startswith("business-context:")
             ]
             projected_keys = [
-                str(item.get("item_key"))
-                for item in projected_context
-                if isinstance(item, dict)
-                and item.get("run_id") == run_id
+                str(item.get("item_key")) for item in projected_context if isinstance(item, dict) and item.get("run_id") == run_id
             ]
             if not expected_keys or projected_keys != expected_keys:
                 return False

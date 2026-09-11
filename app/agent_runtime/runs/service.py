@@ -37,9 +37,7 @@ from .registry import (
 
 
 AGENT_RUN_CREATE_IDEMPOTENCY_SCOPE = "agent.runs.create"
-TERMINAL_RUN_STATUSES = frozenset(
-    {"completed", "failed", "cancelled", "expired"}
-)
+TERMINAL_RUN_STATUSES = frozenset({"completed", "failed", "cancelled", "expired"})
 IDEMPOTENCY_TTL = timedelta(hours=24)
 
 
@@ -139,9 +137,7 @@ class AgentRuntimeService:
         idempotency_key: str | None = None,
     ) -> AgentRun:
         try:
-            authorization = RuntimePrincipal.from_authorization_context(
-                authorization_context
-            )
+            authorization = RuntimePrincipal.from_authorization_context(authorization_context)
         except (TypeError, ValueError) as exc:
             raise ApiError(
                 code="authorization_context_invalid",
@@ -161,9 +157,7 @@ class AgentRuntimeService:
                 status=403,
             )
         safe_authorization_context = authorization.authorization_context()
-        pattern = str(
-            runtime_pattern or PROPRIETARY_RUNTIME_PATTERN
-        ).strip()
+        pattern = str(runtime_pattern or PROPRIETARY_RUNTIME_PATTERN).strip()
         version = str(runtime_version or DEFAULT_RUNTIME_VERSION).strip()
         validate_runtime(version=version, pattern=pattern)
         normalized_message = _normalize_text(
@@ -171,10 +165,7 @@ class AgentRuntimeService:
             max_length=8000,
             required=True,
         )
-        requested_attachments = [
-            _normalize_requested_attachment(item)
-            for item in (attachments or ())
-        ]
+        requested_attachments = [_normalize_requested_attachment(item) for item in (attachments or ())]
         safe_client_context = normalize_client_context(
             client_context,
             now=self.clock(),
@@ -193,9 +184,7 @@ class AgentRuntimeService:
             payload=idempotency_payload,
         )
         if idempotency_record is not None and not reserved:
-            replay_run_id = parse_idempotency_response_ref(
-                idempotency_record.response_ref
-            )
+            replay_run_id = parse_idempotency_response_ref(idempotency_record.response_ref)
             replay = await self.repository.get_run_for_owner(
                 run_id=replay_run_id,
                 owner_user_id=actor_user_id,
@@ -221,26 +210,15 @@ class AgentRuntimeService:
                 "get_context_head",
                 None,
             )
-            context_head = (
-                await get_context_head(thread_id=thread.id)
-                if callable(get_context_head)
-                else None
-            )
-            if (
-                context_head is not None
-                and context_head.status == "blocked"
-            ):
+            context_head = await get_context_head(thread_id=thread.id) if callable(get_context_head) else None
+            if context_head is not None and context_head.status == "blocked":
                 raise ApiError(
                     code="context_compaction_dead_lettered",
-                    message=(
-                        "Thread context compaction requires intervention."
-                    ),
+                    message=("Thread context compaction requires intervention."),
                     status=503,
                     details={
                         "retryable": False,
-                        "recovery_id": str(
-                            context_head.pending_job_id or ""
-                        ),
+                        "recovery_id": str(context_head.pending_job_id or ""),
                     },
                 )
             active_run = await self.repository.get_active_run_for_thread(
@@ -270,13 +248,11 @@ class AgentRuntimeService:
                         status=503,
                         details={"retryable": True},
                     )
-                safe_attachments = (
-                    await self.attachment_verifier.verify_for_run(
-                        actor_user_id=actor_user_id,
-                        thread_id=thread.id,
-                        attachments=requested_attachments,
-                        request_id=request_id,
-                    )
+                safe_attachments = await self.attachment_verifier.verify_for_run(
+                    actor_user_id=actor_user_id,
+                    thread_id=thread.id,
+                    attachments=requested_attachments,
+                    request_id=request_id,
                 )
             else:
                 safe_attachments = []
@@ -318,10 +294,7 @@ class AgentRuntimeService:
             if safe_attachments:
                 model_content = [
                     {"type": "input_text", "text": normalized_message},
-                    *[
-                        _attachment_context_block(attachment)
-                        for attachment in safe_attachments
-                    ],
+                    *[_attachment_context_block(attachment) for attachment in safe_attachments],
                 ]
             await self.repository.append_context_items(
                 thread_id=thread.id,
@@ -329,9 +302,7 @@ class AgentRuntimeService:
                 run_id=run.id,
                 items=(
                     ContextItemAppend(
-                        item_key=safe_client_context.item_key(
-                            run_id=run.id
-                        ),
+                        item_key=safe_client_context.item_key(run_id=run.id),
                         item=safe_client_context.context_item(),
                     ),
                     ContextItemAppend(
@@ -375,9 +346,7 @@ class AgentRuntimeService:
                 )
             notifier = self.run_notifier
             if notifier is not None:
-                self.repository.add_after_commit_callback(
-                    lambda: notifier.notify_queued(run_id=run.id)
-                )
+                self.repository.add_after_commit_callback(lambda: notifier.notify_queued(run_id=run.id))
             return run
         except Exception:
             if admission_acquired and self.run_admission is not None:
@@ -387,9 +356,7 @@ class AgentRuntimeService:
                 )
             if idempotency_record is not None and reserved:
                 assert self.idempotency_service is not None
-                await self.idempotency_service.release(
-                    record=idempotency_record
-                )
+                await self.idempotency_service.release(record=idempotency_record)
             raise
 
     async def get_run(

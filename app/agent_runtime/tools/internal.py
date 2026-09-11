@@ -18,9 +18,7 @@ def internal_input_schema(
         raise ValueError("tool input schema properties must be an object")
     collision = properties.keys() & trusted_properties.keys()
     if collision:
-        raise ValueError(
-            f"trusted tool fields collide with model fields: {sorted(collision)}"
-        )
+        raise ValueError(f"trusted tool fields collide with model fields: {sorted(collision)}")
     properties.update(deepcopy(trusted_properties))
     existing_required = schema.setdefault("required", [])
     if not isinstance(existing_required, list):

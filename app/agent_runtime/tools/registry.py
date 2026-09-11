@@ -44,11 +44,7 @@ class ToolContractRegistry:
     ) -> None:
         policy_names = set(policy_action_types)
         handler_names = set(handler_action_types)
-        required = {
-            action_type
-            for contract in self._contracts.values()
-            for action_type in contract.action_types
-        }
+        required = {action_type for contract in self._contracts.values() for action_type in contract.action_types}
         missing_policy = sorted(required - policy_names)
         if missing_policy:
             raise ValueError(f"tool action types missing policy bindings: {missing_policy}")

@@ -1,6 +1,96 @@
 {
   "components": {
     "schemas": {
+      "AccountOperationResponse": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AccountOperationResponse",
+        "type": "object"
+      },
+      "AccountProfile": {
+        "properties": {
+          "account_status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "auth_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auth Providers",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email_verified",
+          "account_status",
+          "auth_providers",
+          "created_at",
+          "updated_at",
+          "last_login_at"
+        ],
+        "title": "AccountProfile",
+        "type": "object"
+      },
+      "AccountStatus": {
+        "enum": [
+          "active",
+          "email_unverified",
+          "disabled",
+          "suspended",
+          "deleted"
+        ],
+        "title": "AccountStatus",
+        "type": "string"
+      },
       "AgentBabyProfileUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -2929,7 +3019,10 @@
             "type": "string"
           },
           "payment_mode": {
-            "const": "sandbox",
+            "enum": [
+              "sandbox",
+              "stripe"
+            ],
             "title": "Payment Mode",
             "type": "string"
           },
@@ -2953,6 +3046,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "stripe_livemode": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stripe Livemode"
           },
           "total_sessions": {
             "title": "Total Sessions",
@@ -3619,6 +3723,65 @@
         "title": "EligibilityWrite",
         "type": "object"
       },
+      "EmailChallengeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Device Id",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "email",
+          "token"
+        ],
+        "title": "EmailChallengeRequest",
+        "type": "object"
+      },
+      "EmailRegisterRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "EmailRegisterRequest",
+        "type": "object"
+      },
       "EndWrite": {
         "additionalProperties": false,
         "properties": {
@@ -4113,6 +4276,57 @@
           "review_decision"
         ],
         "title": "FollowupServiceRead",
+        "type": "object"
+      },
+      "GoogleLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Device Id",
+            "type": "string"
+          },
+          "id_token": {
+            "maxLength": 8192,
+            "minLength": 20,
+            "title": "Id Token",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token",
+          "password"
+        ],
+        "title": "GoogleLinkRequest",
+        "type": "object"
+      },
+      "GoogleLoginRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Device Id",
+            "type": "string"
+          },
+          "id_token": {
+            "maxLength": 8192,
+            "minLength": 20,
+            "title": "Id Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token"
+        ],
+        "title": "GoogleLoginRequest",
         "type": "object"
       },
       "GrowthObservation-Input": {
@@ -7152,6 +7366,22 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unread_count": {
+            "default": 0,
+            "title": "Unread Count",
+            "type": "integer"
           }
         },
         "required": [
@@ -7160,11 +7390,52 @@
         "title": "NotificationListResponse",
         "type": "object"
       },
+      "NotificationOpenRead": {
+        "properties": {
+          "notification": {
+            "$ref": "#/components/schemas/NotificationRead"
+          },
+          "resource_available": {
+            "title": "Resource Available",
+            "type": "boolean"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "required": [
+          "notification",
+          "route",
+          "resource_available"
+        ],
+        "title": "NotificationOpenRead",
+        "type": "object"
+      },
       "NotificationRead": {
         "properties": {
           "body": {
             "title": "Body",
             "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           },
           "delivered_at": {
             "anyOf": [
@@ -7209,6 +7480,63 @@
             ],
             "title": "Read At"
           },
+          "related_resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Resource Id"
+          },
+          "related_resource_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Resource Type"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "send_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Send Status"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
           "source": {
             "title": "Source",
             "type": "string"
@@ -7220,6 +7548,18 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "trigger_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger At"
           }
         },
         "required": [
@@ -7385,6 +7725,52 @@
           "last_seen_at"
         ],
         "title": "ParticipantRead",
+        "type": "object"
+      },
+      "PasswordResetConfirmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "token",
+          "new_password"
+        ],
+        "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "PasswordResetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "PasswordResetRequest",
         "type": "object"
       },
       "PatientPlanRead": {
@@ -9504,6 +9890,138 @@
         "title": "PurchaseRead",
         "type": "object"
       },
+      "PushInstallationDetach": {
+        "additionalProperties": false,
+        "properties": {
+          "installation_secret": {
+            "format": "password",
+            "maxLength": 256,
+            "minLength": 32,
+            "title": "Installation Secret",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "installation_secret"
+        ],
+        "title": "PushInstallationDetach",
+        "type": "object"
+      },
+      "PushInstallationRead": {
+        "properties": {
+          "binding_id": {
+            "format": "uuid",
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "permission": {
+            "title": "Permission",
+            "type": "string"
+          },
+          "push_available": {
+            "default": false,
+            "title": "Push Available",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "token_registered": {
+            "title": "Token Registered",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "installation_id",
+          "binding_id",
+          "permission",
+          "revision",
+          "token_registered"
+        ],
+        "title": "PushInstallationRead",
+        "type": "object"
+      },
+      "PushInstallationWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "installation_secret": {
+            "format": "password",
+            "maxLength": 256,
+            "minLength": 32,
+            "title": "Installation Secret",
+            "type": "string",
+            "writeOnly": true
+          },
+          "locale": {
+            "default": "en",
+            "maxLength": 16,
+            "minLength": 2,
+            "title": "Locale",
+            "type": "string"
+          },
+          "permission": {
+            "enum": [
+              "not_determined",
+              "authorized",
+              "denied",
+              "provisional",
+              "unavailable"
+            ],
+            "title": "Permission",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "android",
+              "ios"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "revision": {
+            "maximum": 9000000000000000.0,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "minLength": 10,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": [
+          "installation_id",
+          "installation_secret",
+          "revision",
+          "platform",
+          "permission"
+        ],
+        "title": "PushInstallationWrite",
+        "type": "object"
+      },
       "RecordDeletion": {
         "properties": {
           "id": {
@@ -9551,6 +10069,74 @@
           "refresh_token"
         ],
         "title": "RefreshRequest",
+        "type": "object"
+      },
+      "ReminderRead": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "notification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger At"
+          }
+        },
+        "required": [
+          "enabled",
+          "status"
+        ],
+        "title": "ReminderRead",
+        "type": "object"
+      },
+      "ReminderWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "installation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installation Id"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "ReminderWrite",
         "type": "object"
       },
       "ReportCitation": {
@@ -11066,7 +11652,8 @@
           "payment_mode": {
             "enum": [
               "sandbox",
-              "disabled"
+              "disabled",
+              "stripe"
             ],
             "title": "Payment Mode",
             "type": "string"
@@ -12245,7 +12832,9 @@
               "consultation_technical_failure",
               "plan_published",
               "report_generated",
-              "report_reviewed"
+              "report_reviewed",
+              "consultation_started",
+              "service_progress_changed"
             ],
             "title": "Kind",
             "type": "string"
@@ -12789,6 +13378,152 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/auth/forgot-password": {
+      "post": {
+        "operationId": "forgot_password_v1_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/google": {
+      "post": {
+        "operationId": "google_login_v1_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/google/link": {
+      "post": {
+        "operationId": "link_google_v1_auth_google_link_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Link Google",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/auth/invite-login": {
       "post": {
         "operationId": "invite_login_v1_auth_invite_login_post",
@@ -12915,6 +13650,115 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/auth/logout-session": {
+      "post": {
+        "operationId": "logout_session_v1_auth_logout_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout Session",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/me": {
+      "delete": {
+        "operationId": "delete_account_v1_auth_me_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Account",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      },
+      "get": {
+        "operationId": "account_me_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Account Me",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/auth/refresh": {
       "post": {
         "operationId": "refresh_v1_auth_refresh_post",
@@ -12962,6 +13806,147 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/auth/register": {
+      "post": {
+        "operationId": "register_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/resend-verification": {
+      "post": {
+        "operationId": "resend_verification_v1_auth_resend_verification_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Verification",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/reset-password": {
+      "post": {
+        "operationId": "reset_password_v1_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/auth/signup": {
       "post": {
         "operationId": "signup_v1_auth_signup_post",
@@ -12976,7 +13961,54 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Signup",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/verify-email": {
+      "post": {
+        "operationId": "verify_email_v1_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
@@ -12997,7 +14029,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Signup",
+        "summary": "Verify Email",
         "tags": [
           "auth"
         ],
@@ -15732,6 +16764,116 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/care/orders/{order_id}/checkout": {
+      "post": {
+        "operationId": "create_checkout_v1_care_orders__order_id__checkout_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Checkout V1 Care Orders  Order Id  Checkout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Checkout",
+        "tags": [
+          "care"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "care",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/care/orders/{order_id}/reconcile": {
+      "post": {
+        "operationId": "reconcile_checkout_v1_care_orders__order_id__reconcile_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconcile Checkout",
+        "tags": [
+          "care"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "care",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/care/orders/{order_id}/sandbox-payment": {
       "post": {
         "operationId": "simulate_payment_v1_care_orders__order_id__sandbox_payment_post",
@@ -15897,6 +17039,47 @@
         "x-momcozy-client": [
           "flutter",
           "ibclc"
+        ],
+        "x-momcozy-owner": "care",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/care/stripe/webhook": {
+      "post": {
+        "operationId": "stripe_webhook_v1_care_stripe_webhook_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Stripe-Signature",
+            "required": true,
+            "schema": {
+              "title": "Stripe-Signature",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stripe Webhook",
+        "tags": [
+          "care"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
         ],
         "x-momcozy-owner": "care",
         "x-momcozy-stability": "stable"
@@ -19806,6 +20989,23 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
@@ -19836,6 +21036,370 @@
           }
         ],
         "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/appointments/{appointment_id}/reminder": {
+      "get": {
+        "operationId": "read_appointment_reminder_v1_notifications_appointments__appointment_id__reminder_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Appointment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Appointment Reminder",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      },
+      "put": {
+        "operationId": "update_appointment_reminder_v1_notifications_appointments__appointment_id__reminder_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Appointment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Appointment Reminder",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/installations": {
+      "post": {
+        "operationId": "register_push_installation_v1_notifications_installations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushInstallationWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushInstallationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Register Push Installation",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/installations/{installation_id}/detach": {
+      "post": {
+        "operationId": "detach_push_installation_v1_notifications_installations__installation_id__detach_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Installation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushInstallationDetach"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detach Push Installation",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/preferences": {
+      "get": {
+        "operationId": "notification_preferences_v1_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Notification Preferences V1 Notifications Preferences Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Notification Preferences",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/preferences/{category}": {
+      "patch": {
+        "operationId": "update_notification_preference_v1_notifications_preferences__category__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "title": "Category",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Update Notification Preference V1 Notifications Preferences  Category  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Notification Preference",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/read-all": {
+      "post": {
+        "operationId": "mark_all_notifications_read_v1_notifications_read_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Mark All Notifications Read V1 Notifications Read All Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mark All Notifications Read",
         "tags": [
           "notifications"
         ],
@@ -19883,6 +21447,60 @@
           }
         ],
         "summary": "Archive Notification",
+        "tags": [
+          "notifications"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/notifications/{notification_id}/open": {
+      "post": {
+        "operationId": "open_notification_v1_notifications__notification_id__open_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOpenRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Open Notification",
         "tags": [
           "notifications"
         ],

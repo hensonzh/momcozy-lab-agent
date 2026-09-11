@@ -45,9 +45,7 @@ class ContextRecoveryService:
         admin_actor_service: str = "",
         request_id: str = "",
     ) -> Any:
-        existing = await self.repository.get_context_compaction_job(
-            job_id=job_id
-        )
+        existing = await self.repository.get_context_compaction_job(job_id=job_id)
         if existing is None:
             raise ApiError(
                 code="not_found",
@@ -57,17 +55,11 @@ class ContextRecoveryService:
         if existing.status != "dead_lettered":
             raise ApiError(
                 code="context_recovery_invalid_state",
-                message=(
-                    "Only a dead-lettered context job can be superseded."
-                ),
+                message=("Only a dead-lettered context job can be superseded."),
                 status=409,
             )
         try:
-            replacement = (
-                await self.repository.supersede_context_compaction_job(
-                    job_id=job_id
-                )
-            )
+            replacement = await self.repository.supersede_context_compaction_job(job_id=job_id)
         except LedgerResourceNotFoundError as exc:
             raise ApiError(
                 code="not_found",
@@ -83,17 +75,12 @@ class ContextRecoveryService:
         except RunLeaseLostError as exc:
             raise ApiError(
                 code="context_recovery_conflict",
-                message=(
-                    "Context recovery ownership changed; refresh and "
-                    "retry against the current dead-lettered job."
-                ),
+                message=("Context recovery ownership changed; refresh and retry against the current dead-lettered job."),
                 status=409,
             ) from exc
         await self.audit_service.record(
             actor_user_id=admin_actor_user_id,
-            actor_type=(
-                "service" if admin_actor_service else None
-            ),
+            actor_type=("service" if admin_actor_service else None),
             actor_service=admin_actor_service,
             action="agent.context_compaction.supersede",
             resource_type="agent_context_compaction_job",
