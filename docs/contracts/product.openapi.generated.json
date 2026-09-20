@@ -676,6 +676,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Output",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -699,6 +700,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Output"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -736,6 +740,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -759,6 +764,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -792,6 +800,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -815,6 +824,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -1364,6 +1376,55 @@
         "title": "ClientServiceRead",
         "type": "object"
       },
+      "Concern": {
+        "additionalProperties": false,
+        "properties": {
+          "ended": {
+            "default": false,
+            "title": "Ended",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "enum": [
+                "comfort",
+                "feeding",
+                "intake",
+                "supply",
+                "work",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Issues",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Note",
+            "type": "string"
+          },
+          "reminder": {
+            "default": true,
+            "title": "Reminder",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "issues"
+        ],
+        "title": "Concern",
+        "type": "object"
+      },
       "ConsentListRead": {
         "properties": {
           "items": {
@@ -1578,6 +1639,117 @@
           "end_reason"
         ],
         "title": "ConsultationRead",
+        "type": "object"
+      },
+      "DailyStatusObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yellow",
+                  "yellow_brown",
+                  "green",
+                  "brown",
+                  "black",
+                  "red",
+                  "pale",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "consistency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "watery",
+                  "loose",
+                  "pasty",
+                  "formed",
+                  "hard",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency"
+          },
+          "kind": {
+            "const": "daily_status",
+            "title": "Kind",
+            "type": "string"
+          },
+          "mental_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "active",
+                  "crying",
+                  "drowsy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mental State"
+          },
+          "recorded_on": {
+            "format": "date",
+            "title": "Recorded On",
+            "type": "string"
+          },
+          "stool_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Count"
+          },
+          "timezone": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "wet_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wet Count"
+          }
+        },
+        "required": [
+          "recorded_on",
+          "timezone",
+          "kind"
+        ],
+        "title": "DailyStatusObservation",
         "type": "object"
       },
       "DevelopmentObservation-Input": {
@@ -2517,6 +2689,22 @@
             "title": "Kind",
             "type": "string"
           },
+          "measurement_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "home",
+                  "clinic",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Source"
+          },
           "metric": {
             "enum": [
               "weight",
@@ -2561,6 +2749,22 @@
             "const": "growth",
             "title": "Kind",
             "type": "string"
+          },
+          "measurement_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "home",
+                  "clinic",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Source"
           },
           "metric": {
             "enum": [
@@ -4241,6 +4445,200 @@
         "title": "MaternalLactationProfileUpdate",
         "type": "object"
       },
+      "MeProfilePatch": {
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "actual_delivery_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Delivery Date"
+          },
+          "additional_context": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Context"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 70.0,
+                "minimum": 12.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "baby_count": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baby Count"
+          },
+          "caregivers": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "partner",
+                    "family",
+                    "professional",
+                    "self"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregivers"
+          },
+          "current_delivery_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vaginal",
+                  "cesarean"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Delivery Method"
+          },
+          "delivery_count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Count"
+          },
+          "feeding_methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "direct",
+                    "expressed",
+                    "formula"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Methods"
+          },
+          "feeding_preference": {
+            "anyOf": [
+              {
+                "enum": [
+                  "breast",
+                  "formula",
+                  "mixed",
+                  "undecided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Preference"
+          },
+          "gestation_days": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Days"
+          },
+          "gestation_weeks": {
+            "anyOf": [
+              {
+                "maximum": 45.0,
+                "minimum": 20.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Weeks"
+          },
+          "preferred_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Name"
+          },
+          "return_to_work_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To Work Date"
+          }
+        },
+        "title": "MeProfilePatch",
+        "type": "object"
+      },
       "MilkTrendDayRead": {
         "properties": {
           "date": {
@@ -4861,6 +5259,219 @@
           "method"
         ],
         "title": "NursingObservation",
+        "type": "object"
+      },
+      "Observation": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "$ref": "#/components/schemas/ObservationFields"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "energy",
+              "sleep",
+              "mood",
+              "pain",
+              "latch",
+              "storage",
+              "pump",
+              "bottle"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "occurred_at",
+          "value"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "ObservationFields": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u6dfb\u52a0\u4e00\u888b",
+                  "\u53d6\u7528\u4e00\u888b"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "canonical_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Record Id"
+          },
+          "carer": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carer"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "feeding_record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Record Id"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u53ef\u4ee5\u7ee7\u7eed\u5582",
+                  "\u9700\u8981\u6682\u505c",
+                  "\u65e0\u6cd5\u7ee7\u7eed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "pain": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pain"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u521a\u5f00\u59cb\u542b\u5976\u65f6",
+                  "\u5582\u5976\u8fc7\u7a0b\u4e2d",
+                  "\u5582\u5976\u540e",
+                  "\u6cf5\u5976\u65f6"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u5de6\u4fa7",
+                  "\u53f3\u4fa7",
+                  "\u4e24\u4fa7"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "swallow": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u6709",
+                  "\u6ca1\u6709",
+                  "\u4e0d\u786e\u5b9a"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swallow"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          }
+        },
+        "title": "ObservationFields",
         "type": "object"
       },
       "OrderWrite": {
@@ -6870,6 +7481,38 @@
           "version"
         ],
         "title": "RecordDeletion",
+        "type": "object"
+      },
+      "RecordOrder": {
+        "additionalProperties": false,
+        "properties": {
+          "order": {
+            "items": {
+              "enum": [
+                "feed",
+                "energy",
+                "sleep",
+                "mood",
+                "pump",
+                "pain",
+                "latch",
+                "bottle",
+                "diaper",
+                "weight",
+                "storage"
+              ],
+              "type": "string"
+            },
+            "maxItems": 11,
+            "minItems": 4,
+            "title": "Order",
+            "type": "array"
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "title": "RecordOrder",
         "type": "object"
       },
       "RecordVersion": {
@@ -10517,7 +11160,8 @@
                     "sleep",
                     "diaper",
                     "growth",
-                    "development"
+                    "development",
+                    "daily_status"
                   ],
                   "type": "string"
                 },
@@ -17472,6 +18116,306 @@
           }
         ],
         "summary": "Update My Profile",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience": {
+      "get": {
+        "operationId": "read_me_v1_profile_me_experience_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Start",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "End",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Me V1 Profile Me Experience Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Me",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/concerns/{concern_id}": {
+      "put": {
+        "operationId": "put_concern_v1_profile_me_experience_concerns__concern_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "concern_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Concern Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Concern"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Concern"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Concern",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/order": {
+      "put": {
+        "operationId": "put_order_v1_profile_me_experience_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Order",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/profile": {
+      "patch": {
+        "operationId": "update_profile_v1_profile_me_experience_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeProfilePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Profile V1 Profile Me Experience Profile Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Profile",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/records/{record_id}": {
+      "put": {
+        "operationId": "put_record_v1_profile_me_experience_records__record_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Record Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Observation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Observation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Record",
         "tags": [
           "profile"
         ],

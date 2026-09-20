@@ -318,7 +318,7 @@ def deploy(spec: AgentReleaseSpec, runner: CommandRunner) -> Path:
     env = _command_env(spec)
     commands = build_deploy_commands(spec)
 
-    runner.run(commands[0], cwd=spec.repo_dir, env=env)
+    _ensure_image_available(spec.image_ref, runner, env)
     _verify_image_revision(spec, runner, env)
     for command in commands[2:6]:
         runner.run(command, cwd=spec.repo_dir, env=env)
@@ -435,7 +435,7 @@ def restart_current(
         _read_json(spec.product_manifest), spec.repo_dir / PRODUCT_CONTRACT_PATH
     )
     env = _command_env(spec)
-    runner.run(["docker", "pull", spec.image_ref], env=env)
+    _ensure_image_available(spec.image_ref, runner, env)
     _verify_image_revision(spec, runner, env)
     _clear_heartbeat(spec, runner)
     _start_agent(spec, runner, services=("api", "worker"))
@@ -482,7 +482,7 @@ def rollback(
         _read_json(product_manifest), previous.repo_dir / PRODUCT_CONTRACT_PATH
     )
     env = _command_env(previous)
-    runner.run(["docker", "pull", previous.image_ref], env=env)
+    _ensure_image_available(previous.image_ref, runner, env)
     _verify_image_revision(previous, runner, env)
 
     admission_paused = False
@@ -779,6 +779,33 @@ def _image_revision_command(image_ref: str) -> list[str]:
     ]
 
 
+def _ensure_image_available(
+    image_ref: str,
+    runner: CommandRunner,
+    env: dict[str, str],
+) -> None:
+    """Reuse only the exact immutable digest already verified by Docker."""
+    inspected = runner.run(
+        ["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image_ref],
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+    if inspected.returncode == 0:
+        try:
+            digests = json.loads(inspected.stdout or "null")
+        except json.JSONDecodeError:
+            digests = None
+        if (
+            isinstance(digests, list)
+            and all(isinstance(digest, str) for digest in digests)
+            and image_ref in digests
+        ):
+            print("Reusing locally available immutable image digest.")
+            return
+    runner.run(["docker", "pull", image_ref], env=env)
+
+
 def _verify_image_revision(
     spec: AgentReleaseSpec,
     runner: CommandRunner,
@@ -1059,7 +1086,7 @@ def _start_agent(
 ) -> None:
     _validate_spec_files(spec)
     env = _command_env(spec)
-    runner.run(["docker", "pull", spec.image_ref], env=env)
+    _ensure_image_available(spec.image_ref, runner, env)
     _verify_image_revision(spec, runner, env)
     runner.run(
         [

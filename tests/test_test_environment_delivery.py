@@ -509,3 +509,39 @@ def test_agent_drain_includes_confirmation_runs_and_blocked_context_heads() -> N
     assert "agent_thread_context_heads" in sql
     assert "'compacting', 'blocked'" in sql
     assert "'queued', 'retry_wait', 'running'" in sql
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "expected_pull"),
+    [
+        (0, '["' + IMAGE_REF + '"]', False),
+        (1, "", True),
+        (0, '[]', True),
+        (0, '["ghcr.io/hensonzh/momcozy-lab-agent@sha256:' + 'f' * 64 + '"]', True),
+        (0, 'null', True),
+        (0, 'not-json', True),
+        (0, '{"digest": "' + IMAGE_REF + '"}', True),
+        (0, '["' + IMAGE_REF + '", 123]', True),
+    ],
+)
+def test_only_exact_locally_available_digest_skips_registry_pull(
+    returncode: int, stdout: str, expected_pull: bool
+) -> None:
+    class ImageRunner:
+        def __init__(self) -> None:
+            self.commands: list[list[str]] = []
+
+        def run(self, command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            self.commands.append(command)
+            if "inspect" in command:
+                assert kwargs["check"] is False
+                assert kwargs["capture_output"] is True
+                return subprocess.CompletedProcess(command, returncode, stdout=stdout)
+            return subprocess.CompletedProcess(command, 0, stdout="")
+
+    runner = ImageRunner()
+    test_release._ensure_image_available(IMAGE_REF, runner, {})  # type: ignore[arg-type]
+    assert runner.commands[0] == [
+        "docker", "image", "inspect", "--format", "{{json .RepoDigests}}", IMAGE_REF
+    ]
+    assert (["docker", "pull", IMAGE_REF] in runner.commands) is expected_pull
