@@ -14,6 +14,8 @@ from app.agent_runtime.context.compaction import (
     ContextCompactor,
     ContextTokenCounter,
 )
+from app.agent_runtime.context.history import HistoryInputAdapter
+from .history import ResponsesHistoryAdapter
 from .contracts import (
     ModelProviderErrorMapper,
     ModelProviderProfile,
@@ -116,6 +118,7 @@ class ProviderRuntimeBundle:
     request_policy: ModelRequestPolicy
     token_counter: ContextTokenCounter
     compactor: ContextCompactor
+    history_adapter: HistoryInputAdapter
     error_mapper: ModelProviderErrorMapper
     credential: Any | None = None
     _closed: bool = False
@@ -248,6 +251,7 @@ def _bundle(
         profile=profile,
         request_policy=request_policy,
         token_counter=token_counter,
+        history_adapter=ResponsesHistoryAdapter(target_identity=profile.manifest_metadata()),
         compactor=ResponsesContextCompactor(
             client=client,
             model=profile.model,

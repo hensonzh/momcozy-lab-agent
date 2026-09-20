@@ -62,18 +62,17 @@ and checkpoints; it must not be backfilled from a mutable deployment alias.
 behavior-eval, and Runtime v1 gates against it, then publishes that same image
 under the full commit SHA and records the registry digest. It does not deploy.
 
-The current private repository plan cannot enforce GitHub environment required
-reviewers. Create one repository issue for test approvals, set repository
-variable `TEST_APPROVAL_ISSUE` to its number, and set `TEST_APPROVERS` to
-a comma-separated operator-login allowlist. Before any deployment secret is
-used, the workflow waits up to 30 minutes for an allowlisted operator to post
-the exact `/approve-test ...` command shown in the job summary. The run
-initiator may perform this separate confirmation, matching GitHub required
-reviewers when prevent-self-review is not enabled. It is bound to the repository,
-run ID, attempt, and immutable trigger
-SHA; absent configuration or approval fails closed.
-The current remote configuration uses issue `#1`,
-`TEST_APPROVAL_ISSUE=1`, and `TEST_APPROVERS=hensonzh`.
+Test delivery is an explicit manual dispatch from `main`. Before deployment
+secrets are available, the workflow checks both the original actor and the
+re-run actor against the comma-separated `TEST_APPROVERS` repository variable.
+Missing, malformed, or unauthorized operator configuration fails closed.
+The current allowlist is `hensonzh`. No second issue comment or polling wait is
+required; the old `TEST_APPROVAL_ISSUE` variable is no longer consumed.
+
+CI builds and smoke-tests the image on the publishing runner after prerequisite
+gates pass, verifies its OCI revision, then pushes that same image to GHCR.
+Only the small immutable digest manifest is uploaded to Actions; no image tar
+is saved, uploaded, downloaded, or loaded by another job.
 
 Keep the GitHub `test` environment for deployment records. Configure
 `TEST_SSH_HOST`, `TEST_SSH_PORT`, `TEST_SSH_USER`,

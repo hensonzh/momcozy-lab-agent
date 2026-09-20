@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.agent_runtime.actions import ActionPolicy
+from app.agent_runtime.actions import ActionPolicy, ActionPolicyRule
 from app.agent_runtime.runtime_metadata import (
     ACTION_CATALOG_SCHEMA_VERSION,
     ACTION_POLICY_SCHEMA_VERSION,
@@ -46,7 +46,6 @@ from app.agent_runtime.runtime_metadata import (
     validate_runtime_contract_catalog_snapshot,
 )
 from app.bootstrap import (
-    build_action_policy_rules,
     build_runtime_contract_catalog_snapshot,
     build_runtime_tool_registry,
 )
@@ -104,7 +103,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "behavior_suite": "momcozy.behavior_eval_suite.v1",
         "business_context": "agent.authoritative_business_context.v1",
         "client_context": "client_context.v1",
-        "compaction_prompt": "agent_context_compaction.v1",
+        "compaction_prompt": "agent_context_compaction.v2",
         "context_checkpoint": "agent_context_checkpoint.v1",
         "context_eval": "agent_context_eval_suite.v1",
         "context_history_policy": "agent_context_history_policy.v2",
@@ -123,7 +122,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "runtime_contract_catalog": "agent.runtime_contract_catalog.v1",
         "runtime_metadata": "agent.runtime_metadata.v1",
         "runtime_safety_policy": "momcozy.runtime_safety.v1",
-        "service_skill": "momcozy.service_skill.v1",
+        "service_skill": "momcozy.service_skill.v2",
         "text_stream": "append-only.v1",
         "tool_catalog": "agent.tool_catalog.v1",
         "tool_contract": "agent.tool_contract.v1",
@@ -169,7 +168,8 @@ def test_runtime_metadata_is_the_canonical_version_source() -> None:
 
 def test_tool_and_action_contract_versions_fail_closed() -> None:
     tool = build_runtime_tool_registry().list()[0]
-    action_type, rule = next(iter(build_action_policy_rules().items()))
+    action_type = "test.update"
+    rule = ActionPolicyRule(action_type=action_type, target_type="test", side_effect_level="low", required_permissions=frozenset({"test:write"}))
 
     assert tool.schema_version == TOOL_CONTRACT_SCHEMA_VERSION
     assert rule.schema_version == ACTION_POLICY_SCHEMA_VERSION
@@ -215,7 +215,7 @@ def test_runtime_contract_catalog_is_versioned_and_deterministic() -> None:
     } == {TOOL_CONTRACT_SCHEMA_VERSION}
     assert {
         item["schema_version"] for item in first["actions"]["items"]
-    } == {ACTION_POLICY_SCHEMA_VERSION}
+    } == set()
     assert len(first["tools"]["sha256"]) == 64
     assert len(first["actions"]["sha256"]) == 64
     assert len(first["catalog_sha256"]) == 64
@@ -223,8 +223,8 @@ def test_runtime_contract_catalog_is_versioned_and_deterministic() -> None:
 
 def test_runtime_contract_catalog_rejects_metadata_or_hash_tampering() -> None:
     snapshot = build_runtime_contract_catalog_snapshot()
-    snapshot["actions"]["items"][0]["schema_version"] = (
-        "agent.action_policy.v2"
+    snapshot["tools"]["items"][0]["schema_version"] = (
+        "agent.tool_contract.v2"
     )
 
     with pytest.raises(ValueError, match="schema version"):

@@ -1019,6 +1019,20 @@ class RuntimeLedgerRepository:
         )
         return list(result.all())
 
+    async def list_context_run_manifests(
+        self, *, thread_id: UUID, run_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]:
+        if not run_ids:
+            return {}
+        result = await self.session.execute(
+            select(AgentRun.id, AgentRun.execution_manifest).where(
+                AgentRun.thread_id == thread_id,
+                AgentRun.id.in_(run_ids),
+                AgentRun.status == "completed",
+            )
+        )
+        return {run_id: manifest for run_id, manifest in result.all()}
+
     async def set_run_context_state(
         self,
         *,

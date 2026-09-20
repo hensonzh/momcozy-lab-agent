@@ -355,6 +355,13 @@ class ToolExecutor:
                         "output": model_output,
                     },
                 ),
+                *(
+                    ContextItemAppend(
+                        item_key=f"run:{run.id}:tool-context:{call_id}:{index}",
+                        item={"role": "developer", "content": instructions},
+                    )
+                    for index, instructions in enumerate(result.developer_instructions)
+                ),
             ),
         )
         await self.repository.append_event(

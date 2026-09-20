@@ -353,7 +353,7 @@ def _runtime_token_permission_errors(
         for contract in build_runtime_tool_registry().list()
         for permission in contract.required_permissions
     }
-    required_permissions.add("agent:run")
+    required_permissions.update({"agent:run", "profile:read", "files:read"})
     missing = sorted(required_permissions - set(raw_permissions))
     if not missing:
         return []

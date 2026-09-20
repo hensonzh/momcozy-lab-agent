@@ -54,12 +54,12 @@ def test_diary_and_prenatal_capabilities_are_not_composed() -> None:
         namespace.name for namespace in TOOL_NAMESPACE_DEFINITIONS
     }
 
-    assert len(tool_names) == 18
-    assert len(action_types) == 18
+    assert tool_names == {"load_service_skill"}
+    assert action_types == set()
     assert REMOVED_TOOL_NAMES.isdisjoint(tool_names)
     assert REMOVED_ACTION_TYPES.isdisjoint(action_types)
     assert {"diary", "prenatal"}.isdisjoint(namespace_names)
-    assert SERVICE_SKILL_NAMES == ("lactation", "device")
+    assert SERVICE_SKILL_NAMES == ("lactation",)
 
 
 def test_runtime_contracts_reject_duplicate_action_binding() -> None:

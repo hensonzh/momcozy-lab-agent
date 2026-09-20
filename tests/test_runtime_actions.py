@@ -19,7 +19,6 @@ from app.agent_runtime.actions import (
 )
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
-from app.bootstrap import build_action_policy_rules
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError, DependencyError
 
@@ -36,7 +35,10 @@ ACTION_PERMISSIONS = frozenset(
 
 
 def _policy() -> ActionPolicy:
-    return ActionPolicy(rules=build_action_policy_rules())
+    return ActionPolicy(rules={
+        CONFIRMATION_ACTION_TYPE: ActionPolicyRule(action_type=CONFIRMATION_ACTION_TYPE, target_type="plan", side_effect_level="medium", required_permissions=frozenset({"plans:write"}), requires_confirmation=True, blocking_policy="wait_for_confirmation"),
+        "profile.update": ActionPolicyRule(action_type="profile.update", target_type="profile", side_effect_level="low", required_permissions=frozenset({"profile:write"})),
+    })
 
 
 def _principal(

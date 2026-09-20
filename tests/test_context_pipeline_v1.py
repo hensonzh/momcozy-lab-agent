@@ -8,6 +8,8 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+
+from context_history_fixture import PassthroughHistoryAdapter
 from sqlalchemy.dialects import postgresql
 
 from app.agent_runtime.context.compaction import (
@@ -206,8 +208,9 @@ def test_prepare_run_materializes_before_count_and_pins_job_versions() -> None:
     resolver = RecordingResolver(
         resolved_url="https://signed.example/history"
     )
-    counter = RecordingCounter(input_tokens=100_001)
+    counter = RecordingCounter(input_tokens=200_001)
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=counter,
         compactor=NeverCompactor(),
@@ -246,13 +249,14 @@ def test_context_job_idempotency_pins_provider_and_counter_identity() -> None:
     provider_changed = deepcopy(baseline)
     counter_changed = deepcopy(baseline)
 
-    baseline_counter = RecordingCounter(input_tokens=100_001)
-    provider_counter = RecordingCounter(input_tokens=100_001)
-    changed_counter = RecordingCounter(input_tokens=100_001)
+    baseline_counter = RecordingCounter(input_tokens=200_001)
+    provider_counter = RecordingCounter(input_tokens=200_001)
+    changed_counter = RecordingCounter(input_tokens=200_001)
     changed_counter.version = "v2"
 
     services = (
         ContextCompactionService(
+            history_adapter=PassthroughHistoryAdapter(),
             repository=baseline,  # type: ignore[arg-type]
             token_counter=baseline_counter,
             compactor=NeverCompactor(),
@@ -263,6 +267,7 @@ def test_context_job_idempotency_pins_provider_and_counter_identity() -> None:
             provider_identity=_provider_identity(),
         ),
         ContextCompactionService(
+            history_adapter=PassthroughHistoryAdapter(),
             repository=provider_changed,  # type: ignore[arg-type]
             token_counter=provider_counter,
             compactor=NeverCompactor(),
@@ -275,6 +280,7 @@ def test_context_job_idempotency_pins_provider_and_counter_identity() -> None:
             ),
         ),
         ContextCompactionService(
+            history_adapter=PassthroughHistoryAdapter(),
             repository=counter_changed,  # type: ignore[arg-type]
             token_counter=changed_counter,
             compactor=NeverCompactor(),
@@ -301,8 +307,9 @@ def test_context_job_idempotency_pins_provider_and_counter_identity() -> None:
 def test_prepare_run_does_not_queue_at_exactly_threshold() -> None:
     repository = PipelineRepository()
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
-        token_counter=RecordingCounter(input_tokens=100_000),
+        token_counter=RecordingCounter(input_tokens=200_000),
         compactor=NeverCompactor(),
         model_input_resolver=RecordingResolver(
             resolved_url="https://signed.example/history"
@@ -314,13 +321,14 @@ def test_prepare_run_does_not_queue_at_exactly_threshold() -> None:
     asyncio.run(service.prepare_run(run=repository.run))
 
     assert repository.created_job == {}
-    assert repository.run.context_state["history_input_tokens"] == 100_000
+    assert repository.run.context_state["history_input_tokens"] == 200_000
 
 
 def test_first_run_records_zero_without_provider_token_count() -> None:
     repository = FirstRunPipelineRepository()
     counter = RecordingCounter(input_tokens=999_999)
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=counter,
         compactor=NeverCompactor(),
@@ -388,6 +396,7 @@ def test_complete_model_request_budget_counts_tools_and_reserves_output() -> Non
     repository = PipelineRepository()
     counter = RecordingCounter(input_tokens=81)
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=counter,
         compactor=NeverCompactor(),
@@ -429,6 +438,7 @@ def test_complete_model_request_budget_allows_exact_reserved_limit() -> None:
     repository = PipelineRepository()
     counter = RecordingCounter(input_tokens=80)
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=counter,
         compactor=NeverCompactor(),
@@ -455,6 +465,7 @@ def test_compaction_worker_fails_closed_on_provider_identity_drift() -> None:
     repository = PipelineRepository()
     compactor = NeverCompactor(model="gpt-5.6-terra")
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=RecordingCounter(input_tokens=1),
         compactor=compactor,
@@ -485,6 +496,7 @@ def test_compaction_worker_fails_closed_on_provider_identity_drift() -> None:
 def test_hard_limit_suspends_run_and_resumes_once_from_ready_head() -> None:
     repository = PipelineRepository()
     service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=RecordingCounter(input_tokens=10),
         compactor=NeverCompactor(),
@@ -609,6 +621,9 @@ class NeverCompactor:
 
 
 class PipelineRepository:
+    async def list_context_run_manifests(self, **_kwargs: Any) -> dict[Any, Any]:
+        return {}
+
     def __init__(self) -> None:
         self.owner_user_id = uuid4()
         self.thread_id = uuid4()

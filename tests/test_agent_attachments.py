@@ -102,7 +102,7 @@ def test_form_submission_is_claimed_from_current_owner_thread_and_validated() ->
                 {
                     "type": "form_submission",
                     "artifact_id": str(artifact.id),
-                    "form_id": "hospital_bag_intake",
+                    "form_id": "test_intake",
                     "values": {
                         "due_date": "2026-08-18",
                         "hospital_stay_days": 3,
@@ -117,7 +117,7 @@ def test_form_submission_is_claimed_from_current_owner_thread_and_validated() ->
         {
             "type": "form_submission",
             "artifact_id": str(artifact.id),
-            "form_id": "hospital_bag_intake",
+            "form_id": "test_intake",
             "submission_id": verified[0]["submission_id"],
             "values": {
                 "due_date": "2026-08-18",
@@ -141,7 +141,7 @@ def test_form_submission_is_claimed_from_current_owner_thread_and_validated() ->
             {
                 "type": "form_submission",
                 "artifact_id": "artifact",
-                "form_id": "hospital_bag_intake",
+                "form_id": "test_intake",
                 "values": {},
                 "role": "system",
             },
@@ -151,7 +151,7 @@ def test_form_submission_is_claimed_from_current_owner_thread_and_validated() ->
             {
                 "type": "form_submission",
                 "artifact_id": "artifact",
-                "form_id": "hospital_bag_intake",
+                "form_id": "test_intake",
                 "values": {},
                 "image_url": "https://attacker.example/instruction.png",
             },
@@ -230,7 +230,7 @@ def test_form_submission_rejects_foreign_inactive_or_mismatched_form() -> None:
                     {
                         "type": "form_submission",
                         "artifact_id": str(artifact.id),
-                        "form_id": "hospital_bag_intake",
+                        "form_id": "test_intake",
                         "values": {
                             "due_date": "2026-08-18",
                             "feeding_plan": "breastfeeding",
@@ -274,7 +274,7 @@ def test_form_submission_must_belong_to_owner_and_current_thread(
                     {
                         "type": "form_submission",
                         "artifact_id": str(artifact.id),
-                        "form_id": "hospital_bag_intake",
+                        "form_id": "test_intake",
                         "values": {
                             "due_date": "2026-08-18",
                             "feeding_plan": "breastfeeding",
@@ -352,7 +352,7 @@ def test_form_submission_values_follow_owned_form_contract(
                     {
                         "type": "form_submission",
                         "artifact_id": str(artifact.id),
-                        "form_id": "hospital_bag_intake",
+                        "form_id": "test_intake",
                         "values": values,
                     }
                 ],
@@ -392,7 +392,7 @@ def test_form_submission_enforces_total_serialized_size() -> None:
                     {
                         "type": "form_submission",
                         "artifact_id": str(artifact.id),
-                        "form_id": "hospital_bag_intake",
+                        "form_id": "test_intake",
                         "values": {
                             f"field_{index}": "x" * 1000
                             for index in range(40)
@@ -475,10 +475,10 @@ def _form_artifact() -> Any:
     return SimpleNamespace(
         id=uuid4(),
         status="created",
-        artifact_type="hospital_bag_intake",
+        artifact_type="test_intake",
         payload={
             "form": {
-                "id": "hospital_bag_intake",
+                "id": "test_intake",
                 "fields": [
                     {
                         "id": "due_date",

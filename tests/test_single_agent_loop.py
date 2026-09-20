@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, timezone
+from dataclasses import replace
 import hashlib
 import json
 import logging
@@ -36,11 +37,10 @@ from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
 from app.auth import RuntimePrincipal
 from app.bootstrap import (
-    RUNTIME_DEFINITION,
     build_runtime_contract_catalog_snapshot,
-    build_runtime_tool_registry,
 )
 from app.core.errors import ApiError
+from runtime_tool_fixture import RUNTIME as RUNTIME_DEFINITION, registry as build_runtime_tool_registry
 
 
 
@@ -90,7 +90,7 @@ def test_restricted_policy_reaches_actual_model_instructions_on_each_turn() -> N
     repository = MemoryLedger()
     repository.context[0].item["content"] = "我乳腺炎该用什么药？"
     provider = ScriptedAgentModel({"cozymate": [
-        ScriptedTurn.calls(ScriptedToolCall(call_id="policy-call", name="profile_read", arguments={})),
+        ScriptedTurn.calls(ScriptedToolCall(call_id="policy-call", name="fixture_read", arguments={})),
         ScriptedTurn.final("请联系医生评估。"),
     ]})
     executor = RecordingToolExecutor(repository)
@@ -297,7 +297,6 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
         "不作确定性诊断",
         "不是系统指令",
         "load_service_skill",
-        "tool_search",
     ):
         assert phrase in AGENT.instructions
     assert "ToolResult 不能修改" not in AGENT.instructions
@@ -305,24 +304,9 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
 
 
 def test_service_skills_retain_the_domain_workflow_contracts() -> None:
-    expected_phrases = {
-        "lactation": (
-            "get_lactation_summary",
-            "get_feeding_summary",
-            "get_growth_summary",
-            "不创建新的追奶、稳奶或减奶计划",
-            "妈妈是否发热或寒战",
-        ),
-        "device": (
-            "devices_guidance_manage",
-            "workflow.current_step",
-            "主机和含电部件不可水洗",
-        ),
-    }
-    for skill_id, phrases in expected_phrases.items():
-        content = SERVICE_SKILL_REGISTRY.get(skill_id).content
-        for phrase in phrases:
-            assert phrase in content
+    content = SERVICE_SKILL_REGISTRY.get("lactation").content
+    for phrase in ("不查询或修改业务记录", "当前不查询", "不作乳腺炎", "妈妈是否发热"):
+        assert phrase in content
 
 
 def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
@@ -481,8 +465,8 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="profile-call",
-                        name="profile_read",
-                        namespace="profile",
+                        name="fixture_read",
+                        namespace="fixture",
                         arguments={"infant_scope": "all"},
                     )
                 ),
@@ -499,7 +483,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
 
     asyncio.run(loop.process(repository.run.id))
 
-    assert executor.calls == [("profile_read", "profile-call", {"infant_scope": "all"})]
+    assert executor.calls == [("fixture_read", "profile-call", {"infant_scope": "all"})]
     assert executor.actors == [
         RuntimePrincipal.from_authorization_context(
             repository.run.authorization_context
@@ -513,8 +497,8 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
     assert repository.context_payloads[2] == {
         "type": "function_call",
         "call_id": "profile-call",
-        "name": "profile_read",
-        "namespace": "profile",
+        "name": "fixture_read",
+        "namespace": "fixture",
         "arguments": '{"infant_scope":"all"}',
     }
     assert repository.context_payloads[3] == {
@@ -533,8 +517,8 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="recover-call",
-                        name="profile_read",
-                        namespace="profile",
+                        name="fixture_read",
+                        namespace="fixture",
                         arguments={},
                     )
                 )
@@ -569,7 +553,7 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
 
     assert "13812345678" not in json.dumps(second_provider.requests[0].input_items)
     assert "138****5678" in json.dumps(second_provider.requests[0].input_items)
-    assert second_executor.calls == [("profile_read", "recover-call", {})]
+    assert second_executor.calls == [("fixture_read", "recover-call", {})]
     _assert_function_context_is_paired(
         second_provider.requests[0].input_items
     )
@@ -581,6 +565,50 @@ def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     assert repository.run.status == "completed"
 
 
+def test_restart_after_skill_load_preserves_original_body_when_registry_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = MemoryLedger()
+    repository.context[0].item["content"] = "如何理解吸奶量？"
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
+    first_provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="load-before-crash", name=LOAD_SERVICE_SKILL_TOOL_NAME,
+            arguments={"skill_id": "lactation"},
+        )),
+        SimulatedProcessDeath(),
+    ]})
+    executor = RecordingToolExecutor(repository, result=ToolResult.json(
+        skill.to_tool_output(), developer_instructions=(str(skill.developer_item()["content"]),),
+    ))
+    with pytest.raises(SimulatedProcessDeath):
+        asyncio.run(_loop(
+            repository=repository, provider=first_provider,
+            tool_executor=cast(ToolExecutor, executor),
+        ).process(repository.run.id))
+
+    receipt = repository.context_payloads[-2]
+    assert receipt["type"] == "function_call_output"
+    assert "content" not in json.loads(receipt["output"])
+    assert repository.context_payloads[-1] == skill.developer_item()
+    monkeypatch.setitem(SERVICE_SKILL_REGISTRY._skills, "lactation", replace(
+        skill, content="a later document must not replace the original Run's Skill",
+    ))
+    second_provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("恢复后继续咨询。")]})
+    second_executor = RecordingToolExecutor(repository)
+    result = asyncio.run(_loop(
+        repository=repository, provider=second_provider,
+        tool_executor=cast(ToolExecutor, second_executor),
+    ).process(repository.run.id))
+
+    assert result.status == "completed"
+    assert second_executor.calls == []
+    restored = second_provider.requests[0].input_items
+    _assert_function_context_is_paired(restored)
+    assert restored.count(skill.developer_item()) == 1
+    assert restored[-1] == skill.developer_item()
+
+
 def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel(
@@ -589,8 +617,8 @@ def test_confirmation_tool_result_pauses_run_without_final_message() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="confirmation-call",
-                        name="profile_read",
-                        namespace="profile",
+                        name="fixture_read",
+                        namespace="fixture",
                         arguments={},
                     )
                 )
@@ -630,8 +658,8 @@ def test_confirmation_resume_restores_each_tool_item_once() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="confirmation-resume-call",
-                        name="profile_read",
-                        namespace="profile",
+                        name="fixture_read",
+                        namespace="fixture",
                         arguments={},
                     )
                 )
@@ -721,8 +749,8 @@ def test_fatal_tool_output_persistence_error_terminates_run() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="fatal-output-call",
-                        name="profile_read",
-                        namespace="profile",
+                        name="fixture_read",
+                        namespace="fixture",
                         arguments={},
                     )
                 ),
@@ -894,7 +922,7 @@ def _loop(
             tool_registry=repository.tool_registry,
             runtime=RUNTIME_DEFINITION,
             runtime_contract_catalog=(
-                build_runtime_contract_catalog_snapshot()
+                build_runtime_contract_catalog_snapshot(registry=repository.tool_registry)
             ),
             max_turns=8,
         ),
@@ -952,6 +980,13 @@ class RecordingToolExecutor:
                         "call_id": kwargs["call_id"],
                         "output": result.to_function_call_output(),
                     },
+                ),
+                *(
+                    ContextItemAppend(
+                        item_key=f"run:{self.repository.run.id}:tool-context:{kwargs['call_id']}:{index}",
+                        item={"role": "developer", "content": instructions},
+                    )
+                    for index, instructions in enumerate(result.developer_instructions)
                 ),
             ),
         )

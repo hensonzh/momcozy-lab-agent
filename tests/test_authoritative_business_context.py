@@ -14,7 +14,9 @@ from app.agent_runtime.context.business import (
     AUTHORITATIVE_BUSINESS_CONTEXT_ITEM_PREFIX,
     AuthoritativeBusinessContextService,
     business_context_item_key,
+    project_business_context,
 )
+from app.agent_runtime.context.client import normalize_client_context
 from app.agent_runtime.context.coordinator import RuntimeContextCoordinator
 from app.agent_runtime.ledger import ContextItemAppend
 from app.agent_runtime.orchestration.loop import _restore_agent_input
@@ -65,7 +67,7 @@ def test_business_context_is_loaded_once_owner_scoped_and_persisted_as_low_trust
         if record.item_key == business_context_item_key(run_id=run_id)
     )
     assert persisted.run_id == run_id
-    assert persisted.item["role"] == "user"
+    assert persisted.item["role"] == "developer"
     content = persisted.item["content"]
     assert content.startswith(AUTHORITATIVE_BUSINESS_CONTEXT_ITEM_PREFIX)
     document = json.loads(
@@ -191,6 +193,10 @@ def test_context_coordinator_places_only_current_snapshot_before_current_request
         sequence=3,
         content="client context",
     )
+    client_context.item = normalize_client_context(
+        {"locale": "zh-CN", "timezone": "Asia/Shanghai", "message_sent_at": "2026-08-23T09:30:00Z"},
+        now=datetime(2026, 8, 23, 9, 30, tzinfo=timezone.utc),
+    ).context_item()
     user_message = _record(
         run_id=current_run_id,
         item_key="message:current",
@@ -203,6 +209,10 @@ def test_context_coordinator_places_only_current_snapshot_before_current_request
         sequence=5,
         content="current facts",
     )
+    current_snapshot.item = project_business_context(
+        ProfileReadResponse.model_validate(_profile_response()),
+        loaded_at=datetime(2026, 8, 23, 9, 30, tzinfo=timezone.utc),
+    ).provider_item()
     compaction = RecordingCompactionCoordinator(
         records=[
             prior_snapshot,
@@ -230,6 +240,36 @@ def test_context_coordinator_places_only_current_snapshot_before_current_request
         "run:current:client-context:2026-08-23",
         "message:current",
     ]
+    assert [record.item["role"] for record in projected] == ["user", "developer", "developer", "user"]
+
+    # Verify the model boundary on both sides of a Skill tool round trip.
+    from app.agent_runtime.orchestration.testing import ScriptedAgentModel, ScriptedToolCall, ScriptedTurn
+    from app.bootstrap import RUNTIME_DEFINITION
+    from test_single_agent_execution import RecordingExecutionPort, _engine
+
+    model = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="load-lactation", name="load_service_skill", arguments={"skill_id": "lactation"},
+        )),
+        ScriptedTurn.final("已结合当前资料回复。"),
+    ]})
+    port = RecordingExecutionPort()
+    asyncio.run(_engine(model).execute(
+        input_items=tuple(record.item for record in projected),
+        port=port,
+        authorization_permissions=frozenset({"agent:run"}),
+    ))
+    assert len(model.requests) == 2
+    assert len(port.model_budget_requests) == 2
+    for request in model.requests:
+        assert list(request.input_items[:4]) == [record.item for record in projected]
+    for input_items, _tools in port.model_budget_requests:
+        prefix = input_items[0]
+        assert prefix["role"] == "developer"
+        assert prefix["content"][0]["text"] == RUNTIME_DEFINITION.agent.instructions
+        assert list(input_items[1:5]) == [record.item for record in projected]
+        assert "prompt_cache_breakpoint" not in json.dumps(input_items[1:])
+    assert any(item.get("type") == "function_call_output" for item in model.requests[1].input_items)
 
 
 def test_late_loaded_snapshot_survives_resume_boundary_before_agent_records() -> None:

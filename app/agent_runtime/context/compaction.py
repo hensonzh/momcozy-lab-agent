@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 import hashlib
 import json
 import logging
@@ -27,6 +27,7 @@ from app.agent_runtime.runtime_metadata import (
 )
 from app.core.errors import ApiError
 from app.core.observability import emit_operation_metric
+from .history import HistoryInputAdapter
 
 LOGGER = logging.getLogger("agent_runtime.context")
 
@@ -38,6 +39,8 @@ class ContextSourceEntry:
     source_ref: str
     item: dict[str, Any]
     trust: str = "untrusted_transcript"
+    # Request projection metadata only; excluded from the canonical source hash.
+    execution_manifest: dict[str, Any] | None = dataclass_field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,10 @@ class CanonicalContextPlan:
 
 
 class ContextRepository(Protocol):
+    async def list_context_run_manifests(
+        self, *, thread_id: UUID, run_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]: ...
+
     async def get_or_create_context_head(
         self,
         *,
@@ -274,7 +281,8 @@ class ContextCompactionService:
         model_input_resolver: Any,
         model: str,
         provider_identity: Mapping[str, Any],
-        threshold_tokens: int = 100_000,
+        history_adapter: HistoryInputAdapter,
+        threshold_tokens: int = 200_000,
         summary_max_tokens: int = 2_000,
         response_reserve_tokens: int = 8_000,
         max_attempts: int = 3,
@@ -320,6 +328,7 @@ class ContextCompactionService:
         self.repository = repository
         self.token_counter = token_counter
         self.compactor = compactor
+        self.history_adapter = history_adapter
         self.model_input_resolver = model_input_resolver
         self.provider_identity = identity
         self.provider = str(identity["provider"])
@@ -439,6 +448,22 @@ class ContextCompactionService:
             current_run_id=run.id,
             after_sequence=after_sequence,
         )
+        manifests = await self._history_manifests(thread_id=run.thread_id, records=records)
+        projected_records = []
+        for record in records:
+            item = (
+                deepcopy(record.item) if record.run_id == run.id else self.history_adapter.project_item(
+                    record.item,
+                    source_manifest=manifests.get(record.run_id),
+                )
+            )
+            if item is not None:
+                projected_records.append(SimpleNamespace(
+                    id=record.id, run_id=record.run_id, item_key=record.item_key,
+                    item_type=getattr(record, "item_type", item.get("type", "message")),
+                    item=item, sequence=record.sequence,
+                ))
+        records = projected_records
         if checkpoint is None:
             return list(records)
         item = checkpoint_provider_item(_checkpoint_document(checkpoint))
@@ -712,7 +737,18 @@ class ContextCompactionService:
             request_id=request_id,
         )
         return await self.token_counter.count(
-            input_items=materialized.items,
+            input_items=tuple(
+                projected
+                for entry, item in zip(plan.entries, materialized.items, strict=True)
+                if (projected := self.history_adapter.project_item(
+                    item, source_manifest=entry.execution_manifest,
+                )) is not None
+            ),
+        )
+
+    async def _history_manifests(self, *, thread_id: UUID, records: list[Any]) -> dict[UUID, dict[str, Any]]:
+        return await self.repository.list_context_run_manifests(
+            thread_id=thread_id, run_ids={record.run_id for record in records if record.run_id is not None},
         )
 
     async def _build_plan(
@@ -734,6 +770,7 @@ class ContextCompactionService:
             else []
         )
         entries: list[ContextSourceEntry] = []
+        manifests = await self._history_manifests(thread_id=thread_id, records=records)
         if checkpoint is not None:
             entries.append(
                 ContextSourceEntry(
@@ -746,6 +783,7 @@ class ContextCompactionService:
             ContextSourceEntry(
                 source_ref=(f"context_item:{record.id}:sequence:{record.sequence}"),
                 item=deepcopy(record.item),
+                execution_manifest=manifests.get(record.run_id),
             )
             for record in records
         )

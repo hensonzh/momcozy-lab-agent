@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+
+from context_history_fixture import PassthroughHistoryAdapter
 
 from app.agent_runtime.context.compaction import ContextCompactionService
 from app.agent_runtime.providers import openai_responses_profile
@@ -19,11 +22,14 @@ from app.agent_runtime.runtime_metadata import (
     SUMMARY_POLICY_VERSION,
 )
 from app.core.errors import ApiError
+from app.agent import SERVICE_SKILL_REGISTRY
+from app.agent_runtime.providers.openai_context import ResponsesContextCompactor
+from test_context_pipeline_v1 import TypedCheckpointClient
 
 
 def test_compaction_cutoff_is_end_of_sixth_most_recent_completed_run() -> None:
     repository = CompletedRunWindowRepository(completed_run_count=7)
-    service = _service(repository, input_tokens=100_001)
+    service = _service(repository, input_tokens=200_001)
 
     asyncio.run(service.prepare_run(run=repository.run))
 
@@ -46,7 +52,7 @@ def test_compaction_cutoff_is_end_of_sixth_most_recent_completed_run() -> None:
 
 def test_hard_limit_does_not_compact_any_of_only_five_completed_runs() -> None:
     repository = CompletedRunWindowRepository(completed_run_count=5)
-    service = _service(repository, input_tokens=100_001)
+    service = _service(repository, input_tokens=200_001)
 
     asyncio.run(service.prepare_run(run=repository.run))
 
@@ -99,7 +105,7 @@ def test_ready_checkpoint_is_followed_by_five_complete_raw_runs() -> None:
 def test_recursive_compaction_adds_only_run_that_aged_out_of_tail() -> None:
     repository = CompletedRunWindowRepository(completed_run_count=8)
     repository.install_ready_checkpoint(cutoff_run_index=1)
-    service = _service(repository, input_tokens=100_001)
+    service = _service(repository, input_tokens=200_001)
 
     asyncio.run(service.prepare_run(run=repository.run))
 
@@ -180,12 +186,70 @@ def test_waiting_run_finishes_prior_policy_job_before_recompute() -> None:
     assert repository.run.context_state["hard_limit_retry_count"] == 1
 
 
+def test_skill_body_is_compacted_with_its_run_and_not_restored_from_summary() -> None:
+    repository = CompletingSkillRepository(completed_run_count=6)
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
+    old_run_id = repository.completed_run_ids[0]
+    call, output, document = repository.records[2:5]
+    call.item = {
+        "type": "function_call", "call_id": "old-skill", "name": "load_service_skill",
+        "arguments": '{"skill_id":"lactation"}',
+    }
+    output.item = {
+        "type": "function_call_output", "call_id": "old-skill",
+        "output": json.dumps(skill.to_tool_output()),
+    }
+    document.item_key = f"run:{old_run_id}:tool-context:old-skill:0"
+    document.item = skill.developer_item()
+    source_ref = f"context_item:{document.id}:sequence:{document.sequence}"
+    checkpoint = {
+        "schema_version": CONTEXT_CHECKPOINT_SCHEMA_VERSION,
+        "user_claims": [], "verified_tool_facts": [], "confirmed_decisions": [],
+        "unresolved_items": [], "safety_constraints": [],
+        "chronology_summary": [{
+            "summary": f"The old Run loaded lactation {skill.version} for feeding guidance with medical safety limits.",
+            "source_refs": [source_ref],
+        }],
+    }
+    client = TypedCheckpointClient(checkpoint)
+    service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
+        repository=repository,
+        token_counter=FixedCounter(input_tokens=200_001),
+        compactor=ResponsesContextCompactor(model="gpt-5.6-terra", client=client),
+        model_input_resolver=PassThroughResolver(), model="gpt-5.6-terra",
+        provider_identity=openai_responses_profile(model="gpt-5.6-terra").manifest_metadata(),
+    )
+    asyncio.run(service.prepare_run(run=repository.run))
+    asyncio.run(service.process_claimed_job(job=repository.job))
+
+    # The compactor sees the original developer message as historical source data.
+    envelopes = [json.loads(item["content"][0]["text"]) for item in client.kwargs["input"]]
+    source = next(item for item in envelopes if item["source_ref"] == source_ref)
+    assert source["provider_item"] == skill.developer_item()
+    assert all(item["role"] == "user" for item in client.kwargs["input"])
+    assert "question-6" not in str(envelopes)
+    assert repository.records[4].item == skill.developer_item()
+
+    # A subsequent Run adopts the checkpoint; neither receipt nor body is raw history.
+    repository.run.context_state = {}
+    asyncio.run(service.prepare_run(run=repository.run))
+    records = asyncio.run(service.list_context_records(run=repository.run))
+    items = SERVICE_SKILL_REGISTRY.project_model_input(tuple(record.item for record in records))
+    assert f"lactation {skill.version}" in str(items[0])
+    assert skill.content not in str(items)
+    assert not any(item.get("name") == "load_service_skill" for item in items)
+    assert "question-6" in str(items)
+    assert "current question" in str(items)
+
+
 def _service(
     repository: "CompletedRunWindowRepository",
     *,
     input_tokens: int,
 ) -> ContextCompactionService:
     return ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,  # type: ignore[arg-type]
         token_counter=FixedCounter(input_tokens=input_tokens),
         compactor=NeverCompactor(),
@@ -234,6 +298,9 @@ class PassThroughResolver:
 
 
 class CompletedRunWindowRepository:
+    async def list_context_run_manifests(self, **_kwargs: Any) -> dict[Any, Any]:
+        return getattr(self, "run_manifests", {})
+
     def __init__(self, *, completed_run_count: int) -> None:
         self.thread_id = uuid4()
         self.actor_user_id = uuid4()
@@ -514,6 +581,23 @@ class CompletedRunWindowRepository:
         )
         self.head.generation = 1
         self.head.ready_checkpoint_id = self.checkpoint.id
+
+
+class CompletingSkillRepository(CompletedRunWindowRepository):
+    async def complete_context_compaction_job(self, **kwargs: Any) -> Any:
+        self.install_ready_checkpoint(cutoff_run_index=0)
+        assert self.checkpoint is not None
+        self.checkpoint.checkpoint = deepcopy(kwargs["checkpoint"])
+        self.checkpoint.source_sha256 = self.job.source_sha256
+        self.checkpoint.summary_sha256 = kwargs["summary_sha256"]
+        self.job.status = "completed"
+        self.job.checkpoint_id = self.checkpoint.id
+        self.head.status = "ready"
+        self.head.pending_job_id = None
+        return self.job
+
+    async def fail_context_compaction_job(self, **kwargs: Any) -> None:
+        raise AssertionError(f"unexpected compaction failure: {kwargs['error_code']}")
 
 
 def _record(

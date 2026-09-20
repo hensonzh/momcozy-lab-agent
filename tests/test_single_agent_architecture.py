@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 from uuid import UUID
 
 from app.agent import (
@@ -61,7 +60,7 @@ def test_stable_prompt_defines_current_run_business_context_trust_boundary() -> 
     assert "字符串字段" in AGENT.instructions
 
 
-def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> None:
+def test_load_service_skill_returns_only_a_versioned_load_receipt() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
     result = LoadServiceSkillToolHandler(
         registry=SERVICE_SKILL_REGISTRY
@@ -87,29 +86,22 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
 
     output = result.canonical_output
     assert output == {
-        "schema_version": "momcozy.service_skill.v1",
+        "schema_version": "momcozy.service_skill.v2",
+        "status": "loaded",
         "skill_id": "lactation",
         "version": skill.version,
         "description": skill.description,
-        "content": skill.content,
         "content_sha256": hashlib.sha256(
             skill.content.encode("utf-8")
         ).hexdigest(),
     }
-    assert output["content"].startswith("---\n")
-    skill_path = (
-        Path(__file__).resolve().parents[1]
-        / "app"
-        / "agent"
-        / "skills"
-        / "lactation"
-        / "v1"
-        / "SKILL.md"
-    )
-    assert output["content"] == skill_path.read_text(encoding="utf-8")
-    assert "# 角色与使命" in output["content"]
-    assert "# 奶量分析" in output["content"]
+    assert "content" not in output
+    assert result.developer_instructions == (skill.developer_item()["content"],)
 
     function_output = result.to_function_call_output()
     assert isinstance(function_output, str)
     assert json.loads(function_output) == output
+
+
+def test_lactation_skill_activates_the_versioned_assessment_workflow() -> None:
+    assert SERVICE_SKILL_REGISTRY.get("lactation").version == "v3"

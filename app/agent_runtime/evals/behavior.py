@@ -28,29 +28,9 @@ TerminalStatus = Literal["completed", "failed", "cancelled", "expired"]
 ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
 ReleaseStatus = Literal["passed", "failed", "review_required"]
 
-KNOWN_TOOL_NAMES = frozenset(
-    {
-        "conversation_history_image_read",
-        "devices_guidance_manage",
-        "ibclc_consult_card_create",
-        "load_service_skill",
-        "get_feeding_records",
-        "get_feeding_summary",
-        "get_growth_records",
-        "get_growth_summary",
-        "get_lactation_records",
-        "get_lactation_summary",
-        "plan_mutate",
-        "plan_read",
-        "profile_read",
-        "profile_update",
-        "pump_models_read",
-        "schedule_timeline_mutate",
-        "schedule_timeline_read",
-        "support_ticket_draft_create",
-    }
-)
-SERVICE_SKILL_NAMES = frozenset({"lactation", "device"})
+# Includes dormant tools so evals can explicitly forbid their invocation.
+KNOWN_TOOL_NAMES = frozenset({"load_service_skill", "search_rednote_posts"})
+SERVICE_SKILL_NAMES = frozenset({"lactation"})
 
 
 class _StrictModel(BaseModel):

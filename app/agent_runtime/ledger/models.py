@@ -692,13 +692,6 @@ class AgentWorkflowState(Base):
     __table_args__ = (
         Index("ix_agent_workflow_states_thread_status", "thread_id", "status"),
         Index("ix_agent_workflow_states_owner_type_status", "owner_user_id", "workflow_type", "status"),
-        Index(
-            "uq_agent_workflow_states_owner_type_active",
-            "owner_user_id",
-            "workflow_type",
-            unique=True,
-            postgresql_where=text("workflow_type = 'pregnancy_plan' AND status IN ('collecting', 'ready', 'waiting', 'paused')"),
-        ),
         Index("ix_agent_workflow_states_run_created", "run_id", "created_at"),
         Index("ix_agent_workflow_states_expires_at", "expires_at"),
     )

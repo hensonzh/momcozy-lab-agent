@@ -43,6 +43,8 @@ class ToolResult:
     model_output: dict[str, Any]
     supplemental_content: tuple[ToolMediaOutput, ...] = ()
     deferred_events: tuple[dict[str, Any], ...] = ()
+    # Application-authored instructions, separate from any model/tool output data.
+    developer_instructions: tuple[str, ...] = ()
 
     @classmethod
     def json(
@@ -52,12 +54,14 @@ class ToolResult:
         model_output: dict[str, Any] | None = None,
         supplemental_content: tuple[ToolMediaOutput, ...] = (),
         deferred_events: tuple[dict[str, Any], ...] = (),
+        developer_instructions: tuple[str, ...] = (),
     ) -> ToolResult:
         return cls(
             canonical_output=deepcopy(value),
             model_output=deepcopy(value if model_output is None else model_output),
             supplemental_content=supplemental_content,
             deferred_events=tuple(deepcopy(deferred_events)),
+            developer_instructions=tuple(developer_instructions),
         )
 
     def to_function_call_output(

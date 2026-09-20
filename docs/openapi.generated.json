@@ -1243,7 +1243,6 @@
             "enum": [
               "dialogue",
               "intake",
-              "mother_diary",
               "lactation",
               "care_plan",
               "baby_record"

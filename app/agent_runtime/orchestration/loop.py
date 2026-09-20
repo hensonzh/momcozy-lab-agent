@@ -28,7 +28,6 @@ from app.agent_runtime.safety import (
 from app.agent_runtime.runtime_metadata import TEXT_STREAM_SCHEMA_VERSION
 from app.agent_runtime.tools import (
     ToolExecutor,
-    TrustedToolArgumentsProvider,
 )
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
@@ -122,7 +121,6 @@ class AgentLoop:
         tool_executor: ToolExecutor,
         runtime: RuntimeDefinition,
         transient_delta_publisher: TransientDeltaPublisher | None = None,
-        trusted_arguments_provider: (TrustedToolArgumentsProvider | None) = None,
         context_coordinator: ContextCoordinator | None = None,
         safety_policy: RuntimeSafetyPolicy | None = None,
     ) -> None:
@@ -131,7 +129,6 @@ class AgentLoop:
         self.tool_executor = tool_executor
         self.runtime = runtime
         self.transient_delta_publisher = transient_delta_publisher
-        self.trusted_arguments_provider = trusted_arguments_provider
         self.context_coordinator = context_coordinator
         self.safety_policy = safety_policy or RuntimeSafetyPolicy()
         self._persistence_lock = asyncio.Lock()
@@ -582,20 +579,13 @@ class AgentLoop:
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
+        if call.name == "search_rednote_posts" and self._response_policy in {"restricted_medical", "general_medical"}:
+            return await self._append_tool_error(run=run, call=call, code="community_search_medical_restricted")
         safety_probe = self.safety_policy.evaluate(json.dumps({"tool": call.name, "arguments": call.arguments}, ensure_ascii=False))
         if safety_probe.decision in {"block", "escalate"}:
             await self._record_safety_decision(run=run, decision=safety_probe, event_type="safety.tool")
             return await self._append_tool_error(run=run, call=call, code="safety_guardrail_blocked")
         principal = self._runtime_principal(run)
-        trusted_args: dict[str, Any] = {}
-        if self.trusted_arguments_provider is not None:
-            trusted_args = await self.trusted_arguments_provider.build(
-                run=run,
-                tool_name=call.name,
-                model_args=dict(call.arguments),
-                context_records=await self._context_records(run),
-                as_of_date=as_of_date,
-            )
         try:
             async with self._persistence_lock:
                 execution = await self.tool_executor.execute(
@@ -604,7 +594,6 @@ class AgentLoop:
                     tool_name=call.name,
                     call_id=call.call_id,
                     args=dict(call.arguments),
-                    trusted_args=trusted_args,
                     request_id=run.request_id,
                     as_of_date=as_of_date,
                 )
@@ -1172,12 +1161,16 @@ def _restore_agent_input(
         for action_id in (_tool_output_action_id(record.item.get("output")),)
         if action_id
     }
+    own_tool_context_prefixes = tuple(
+        f"run:{run_id}:tool-context:{call_id}:" for call_id in own_call_ids
+    )
     suffix_records = [
         record
         for record in context_records
         if record.run_id == run_id
         and (
             str(record.item_key).startswith(own_prefix)
+            or str(record.item_key).startswith(own_tool_context_prefixes)
             or (record.item.get("type") == "function_call_output" and str(record.item.get("call_id") or "") in own_call_ids)
             or _runtime_action_id(record.item) in own_action_ids
         )

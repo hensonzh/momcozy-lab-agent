@@ -14,14 +14,16 @@ recoverable, and safe for attachments.
   context and user message, Agent instructions, and Tool definitions do not
   contribute to this proactive trigger.
 - Compaction is queued only when the history count is strictly greater than
-  `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS`.
+  `AGENT_CONTEXT_COMPACTION_THRESHOLD_TOKENS` (default `200000`).
 - Separately, immediately before **every** model call, Runtime uses the active
   provider's exact or conservative counter on the complete request: stable
   developer Prompt, materialized current
   input, all current ToolResults, and the exact Tool schemas sent by the Agents
   SDK. The request is accepted only when input tokens plus
   `AGENT_CONTEXT_RESPONSE_RESERVE_TOKENS` fit below the same threshold. This
-  guard therefore also runs after Skill loading and ordinary Tool calls.
+  guard therefore also runs after Skill loading and ordinary Tool calls. With
+  the default 8,000-token response reserve, the complete input budget is
+  192,000 tokens.
 - Normal Agent calls set `max_output_tokens` from
   `AGENT_MODEL_MAX_OUTPUT_TOKENS` (default `8000`). The GPT-5.6 Responses
   contract counts both visible output and reasoning tokens against this hard
@@ -80,15 +82,54 @@ Immediately before any token-count, compaction, or SDK Agent model call, the sha
 capability URLs. Materialized input is ephemeral. `image_url` and `file_url`
 values are not written to the ledger or Replay.
 
-Normalized `client_context` is projected as a bounded `user` item with an
-explicit untrusted-data envelope. The model projection contains only locale,
-timezone, and the Runtime-derived local `as_of_date`; request source and raw
-send time remain Runtime-side metadata. Client data cannot gain
-developer/system authority merely because it was supplied by the client.
-The retired `hospital_bag_cart` field is absent from the public schema and is
-never persisted or projected to the model. Runtime only strips a bounded copy
-of that field at ingress so already-installed legacy mobile clients continue to
-create Runs during the retirement window.
+Normalized `client_context` is projected as a separate bounded `developer` item
+after history and the current business snapshot, immediately before the current
+user message. Its JSON values remain data, not instructions. The model projection contains locale,
+timezone, the validated and normalized `message_sent_at` when supplied, and the
+Runtime-derived local `as_of_date`. The projection omits `schema_version`;
+schema version metadata and request source remain Runtime-side metadata.
+An absent client timestamp is not synthesized for the model. Only the validated
+allowlisted fields enter this application-authored message; their values cannot
+override the stable instructions or safety rules. Historical client parameters
+describe only their original turns.
+Unknown client context fields are rejected by the strict public schema.
+
+## Loaded service Skill instructions
+
+The Skill loader persists a paired `function_call` and `function_call_output`.
+The `momcozy.service_skill.v2` output is a receipt containing loading status,
+Skill identity, version, description, and content SHA-256; it has no document body.
+The application-owned loader also produces the complete matching SKILL.md as a
+separate `developer` message. ToolExecutor appends the receipt and this document
+snapshot together in the same transaction, under the loading Run. The document's
+ledger key is `run:<run_id>:tool-context:<call_id>:<index>`. The stable leading
+developer prompt still contains only the manifest. Tool-returned data, user
+messages, and checkpoint summaries are never promoted to Skill instructions.
+Skill rules supplement global rules and must not change their safety boundaries.
+
+Developer Skill messages belong to their original Run. Recovery restores their
+original text even if the registry has since changed. They remain in raw history
+while that Run is retained, participate in history token counting and the source
+plan hash, and enter compaction alongside that Run's calls and receipts. The
+protected latest five completed Runs and current Run remain outside compaction.
+The compactor receives the original role and text inside an untrusted historical
+source envelope, summarizes the relevant workflow and constraints, and does not
+execute the Skill. Once the Run is compacted, only the summary remains model-visible;
+neither the full document nor its receipt is automatically reactivated from a
+summary. A later request requiring the full Skill must load it again. Original
+ledger records remain available for audit.
+
+The existing model-input projector still supports older receipt-only histories by
+checking identity, version, and hash against the trusted registry. Legacy v1 tool
+bodies are removed only from ordinary model-bound tool outputs, without rewriting
+the ledger or promoting arbitrary tool text. No missing historical snapshot is
+fabricated during compaction. The final request budget includes all full Skill
+developer text, after the stable prompt cache breakpoint.
+
+The compaction prompt is now `agent_context_compaction.v2`; checkpoint JSON and
+history policy schemas are unchanged. Existing ready checkpoints remain valid.
+Pending jobs pin their original prompt version, so v1 jobs must finish under a
+matching worker or be explicitly recovered before switching workers to v2.
 
 ## Current-Run authoritative business context
 
@@ -108,14 +149,15 @@ behind owner-scoped read Tools. The item records `source`, `owner_scope`,
 `as_of_date`, and `loaded_at`, and its schema version is copied into Runtime
 metadata and every model execution manifest.
 
-The provider projection remains a `user` message with an
+The provider projection is a separate `developer` message with an
 `authoritative_business_context` data envelope. Backend provenance makes its
 values authoritative business facts; it does not turn user-editable string
 fields into instructions. The model must never follow text embedded in a name
 or another value. Within the Run, a later Tool or Action result supersedes the
 initial snapshot.
 
-The snapshot is inserted after checkpoint/history and before the current
+The stable leading prompt remains a `developer` message and does not contain
+these dynamic values. The snapshot is inserted after checkpoint/history and before the current
 Run's `client_context` and user message. It is usable by every model turn in
 that Run, but it is not ordinary conversation history:
 
@@ -130,6 +172,10 @@ that Run, but it is not ordinary conversation history:
 - the original ledger items remain durable and are available to privileged,
   redacted Replay for audit and exact reconstruction of the source Run.
 
+The developer roles apply to newly created context items. Existing persisted
+user-role items are not rewritten or promoted during replay. Historical
+checkpoints continue to use the `user` role.
+
 For example, Run A may persist `postpartum_days=40`, while Run B two weeks
 later loads `postpartum_days=54`. Reinjecting Run A's snapshot as chat history
 would give the model conflicting values; repeating that over many Runs would
@@ -137,7 +183,8 @@ accumulate stale facts and waste tokens. Current-Run-only projection preserves
 auditability without treating old snapshots as current truth.
 
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
-materializes attachments, then renders the active Agent instructions as the
+materializes attachments, projects verified Skill receipts into developer messages,
+then renders the active Agent instructions as the
 first developer `input_text` block and writes one explicit cache breakpoint on it.
 The Responses adapter injects the stable tool schemas before developer instructions, so the
 breakpoint covers tools plus instructions while all history and attachment

@@ -753,9 +753,11 @@ def _active_work_count(postgres_container: str, runner: CommandRunner) -> int:
             (
                 "SELECT "
                 "(SELECT count(*) FROM agent_runs "
-                " WHERE status IN ('queued', 'running')) + "
+                " WHERE status IN ('queued', 'running', 'waiting_for_confirmation')) + "
                 "(SELECT count(*) FROM agent_context_compaction_jobs "
-                " WHERE status IN ('queued', 'retry_wait', 'running'))"
+                " WHERE status IN ('queued', 'retry_wait', 'running')) + "
+                "(SELECT count(*) FROM agent_thread_context_heads "
+                " WHERE status IN ('compacting', 'blocked'))"
             ),
         ],
         capture_output=True,

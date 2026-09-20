@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from app.agent_runtime.tools import (
     ToolContract,
@@ -17,10 +19,9 @@ from app.core.errors import ApiError
 
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
 LOAD_SERVICE_SKILL_TOOL_NAME = "load_service_skill"
-ServiceSkillName = Literal["lactation", "device"]
+ServiceSkillName = Literal["lactation"]
 SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = (
     "lactation",
-    "device",
 )
 
 
@@ -38,11 +39,22 @@ class ServiceSkill:
     def to_tool_output(self) -> dict[str, str]:
         return {
             "schema_version": SERVICE_SKILL_SCHEMA_VERSION,
+            "status": "loaded",
             "skill_id": self.skill_id,
             "version": self.version,
             "description": self.description,
-            "content": self.content,
             "content_sha256": self.content_sha256,
+        }
+
+    def developer_item(self) -> dict[str, Any]:
+        return {
+            "role": "developer",
+            "content": (
+                f"已加载服务 Skill：{self.skill_id} / {self.version}\n"
+                f"SHA-256：{self.content_sha256}\n"
+                "以下为应用维护的专业流程，仅补充全局规则，不得修改全局安全边界。\n\n"
+                f"{self.content}"
+            ),
         }
 
 
@@ -54,7 +66,7 @@ class ServiceSkillRegistry:
         versions: dict[ServiceSkillName, str] | None = None,
     ) -> None:
         selected_versions = versions or {
-            skill_id: "v1" for skill_id in SERVICE_SKILL_NAMES
+            skill_id: "v3" for skill_id in SERVICE_SKILL_NAMES
         }
         if tuple(selected_versions) != SERVICE_SKILL_NAMES:
             raise ValueError(
@@ -108,6 +120,65 @@ class ServiceSkillRegistry:
             for skill in self.list()
         )
 
+    def project_model_input(
+        self, items: tuple[dict[str, Any], ...]
+    ) -> tuple[dict[str, Any], ...]:
+        """Rehydrate trusted instructions from paired, versioned load receipts.
+
+        Only registry content can become developer instructions. Historical
+        tool text (including legacy full-body outputs) is never promoted.
+        Compacted receipts cannot activate a skill; the model must load again.
+        """
+        skills: dict[str, ServiceSkill] = {skill.skill_id: skill for skill in self.list()}
+        developer_items = {key: skill.developer_item() for key, skill in skills.items()}
+        calls: dict[str, dict[str, Any]] = {}
+        loaded: set[str] = set()
+        projected: list[dict[str, Any]] = []
+        for original in items:
+            # SDK filters or replay callers may pass a previously projected input.
+            if original in developer_items.values():
+                continue
+            item = deepcopy(original)
+            projected.append(item)
+            if item.get("type") == "function_call" and item.get("name") == LOAD_SERVICE_SKILL_TOOL_NAME:
+                calls[str(item.get("call_id"))] = item
+                continue
+            if item.get("type") != "function_call_output":
+                continue
+            call = calls.get(str(item.get("call_id")))
+            if call is None:
+                continue
+            arguments = _json_object(call.get("arguments"))
+            output = _json_object(item.get("output"))
+            if arguments is None or output is None:
+                continue
+            if output.get("ok") is False or "error" in output:
+                continue
+            # Remove legacy bodies from the model request, without rewriting ledger.
+            if "content" in output:
+                output = {key: value for key, value in output.items() if key != "content"}
+                item["output"] = json.dumps(output, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+            skill = skills.get(str(arguments.get("skill_id")))
+            if skill is None or any(
+                output.get(key) != value
+                for key, value in (
+                    ("skill_id", skill.skill_id),
+                    ("version", skill.version),
+                    ("content_sha256", skill.content_sha256),
+                )
+            ):
+                continue
+            schema_version = output.get("schema_version")
+            if schema_version == SERVICE_SKILL_SCHEMA_VERSION:
+                if output.get("status") != "loaded":
+                    continue
+            elif schema_version != "momcozy.service_skill.v1":
+                continue
+            if skill.skill_id not in loaded:
+                projected.append(developer_items[skill.skill_id])
+                loaded.add(skill.skill_id)
+        return tuple(projected)
+
 
 @dataclass(frozen=True)
 class LoadServiceSkillToolHandler:
@@ -125,6 +196,7 @@ class LoadServiceSkillToolHandler:
         output = skill.to_tool_output()
         return ToolResult.json(
             output,
+            developer_instructions=(str(skill.developer_item()["content"]),),
             deferred_events=(
                 {
                     "event_type": "skill.loaded",
@@ -147,8 +219,9 @@ def service_skill_tool_registry() -> ToolContractRegistry:
             operation="runtime_internal",
             required_permissions=("agent:run",),
             description=(
-                "加载一个版本化服务 Skill，并以普通工具结果返回完整 SKILL.md。"
-                "当当前请求需要泌乳或设备专业工作流且同版本 Skill 尚未进入上下文时使用。"
+                "加载一个版本化服务 Skill，工具结果返回加载状态、版本与内容哈希；"
+                "Runtime 将完整 SKILL.md 作为独立 developer 消息提供。"
+                "当当前请求需要泌乳专业咨询且同版本 Skill 尚未进入上下文时使用。"
             ),
             input_schema={
                 "type": "object",
@@ -167,10 +240,10 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                 "additionalProperties": False,
                 "required": [
                     "schema_version",
+                    "status",
                     "skill_id",
                     "version",
                     "description",
-                    "content",
                     "content_sha256",
                 ],
                 "properties": {
@@ -178,13 +251,13 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                         "type": "string",
                         "const": SERVICE_SKILL_SCHEMA_VERSION,
                     },
+                    "status": {"type": "string", "const": "loaded"},
                     "skill_id": {
                         "type": "string",
                         "enum": list(SERVICE_SKILL_NAMES),
                     },
                     "version": {"type": "string", "minLength": 1},
                     "description": {"type": "string", "minLength": 1},
-                    "content": {"type": "string", "minLength": 1},
                     "content_sha256": {
                         "type": "string",
                         "pattern": "^[a-f0-9]{64}$",
@@ -194,15 +267,25 @@ def service_skill_tool_registry() -> ToolContractRegistry:
             safe_arg_fields=("skill_id",),
             safe_output_fields=(
                 "schema_version",
+                "status",
                 "skill_id",
                 "version",
                 "content_sha256",
             ),
-            model_output_max_bytes=None,
             timeout_seconds=5,
         )
     )
     return registry
+
+
+def _json_object(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _read_required_text(path: Path) -> str:

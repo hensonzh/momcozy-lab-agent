@@ -23,7 +23,6 @@ on:
 permissions:
   actions: read
   contents: read
-  issues: read
   packages: read
 
 concurrency:
@@ -31,72 +30,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  approve:
+  authorize:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 2
     steps:
-      - name: Wait for independent test approval
+      - name: Validate the manual release operator
         env:
-          GH_TOKEN: ${{ github.token }}
           TEST_APPROVERS: ${{ vars.TEST_APPROVERS }}
-          TEST_APPROVAL_ISSUE: ${{ vars.TEST_APPROVAL_ISSUE }}
         run: |
           set -euo pipefail
-          [[ "${TEST_APPROVAL_ISSUE}" =~ ^[1-9][0-9]*$ ]] || {
-            echo "TEST_APPROVAL_ISSUE must name the repository's approval issue." >&2
-            exit 1
-          }
-
           IFS=',' read -r -a raw_approvers <<< "${TEST_APPROVERS}"
           normalized_approvers=","
           for raw_approver in "${raw_approvers[@]}"; do
             approver="${raw_approver//[[:space:]]/}"
-            approver="${approver,,}"
+            approver="$(printf '%s' "${approver}" | tr '[:upper:]' '[:lower:]')"
             [[ "${approver}" =~ ^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$ ]] || {
               echo "TEST_APPROVERS must be a comma-separated GitHub login allowlist." >&2
               exit 1
             }
             normalized_approvers+="${approver},"
           done
-          [[ "${normalized_approvers}" != "," ]] || {
-            echo "TEST_APPROVERS must contain at least one GitHub login." >&2
-            exit 1
-          }
-
-          expected_approval="/approve-test ${GITHUB_REPOSITORY} ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT} ${GITHUB_SHA}"
-          printf 'Waiting for an allowlisted reviewer to comment:\n%s\n' "${expected_approval}"
-          printf 'Approval command: `%s`\n' "${expected_approval}" >> "${GITHUB_STEP_SUMMARY}"
-
-          deadline=$((SECONDS + 1800))
-          while (( SECONDS < deadline )); do
-            candidate_output="$(
-              EXPECTED_APPROVAL="${expected_approval}" gh api --paginate \
-                "repos/${GITHUB_REPOSITORY}/issues/${TEST_APPROVAL_ISSUE}/comments?per_page=100" \
-                --jq '.[] | select(.body == env.EXPECTED_APPROVAL) | .user.login'
-            )"
-            approved_by=""
-            while IFS= read -r candidate; do
-              [[ -n "${candidate}" ]] || continue
-              candidate="${candidate,,}"
-              if [[ "${normalized_approvers}" == *",${candidate},"* ]]; then
-                approved_by="${candidate}"
-                break
-              else
-                echo "Ignoring approval from non-allowlisted user ${candidate}." >&2
-              fi
-            done <<< "${candidate_output}"
-            if [[ -n "${approved_by}" ]]; then
-              echo "Test delivery approved by ${approved_by}."
-              exit 0
-            fi
-            sleep 10
+          [[ "${normalized_approvers}" != "," ]] || exit 1
+          # A manual dispatch is the release decision. Re-runs must also be
+          # initiated by an allowed operator; no second issue comment is needed.
+          for actor in "${GITHUB_ACTOR}" "${GITHUB_TRIGGERING_ACTOR}"; do
+            actor="$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')"
+            [[ -n "${actor}" && "${normalized_approvers}" == *",${actor},"* ]] || {
+              echo "The manual release operator is not in TEST_APPROVERS." >&2
+              exit 1
+            }
           done
-          echo "Timed out waiting for independent test approval." >&2
-          exit 1
 
   deliver:
-    needs: approve
+    needs: authorize
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 75

@@ -226,6 +226,24 @@ def test_provider_runtime_does_not_read_application_settings() -> None:
     assert "app.core.settings" not in provider_source
 
 
+def test_context_and_run_lifecycle_do_not_import_provider_implementations() -> None:
+    runtime_root = REPOSITORY_ROOT / "app" / "agent_runtime"
+    violations: list[str] = []
+    for directory in ("context", "runs"):
+        for path in (runtime_root / directory).glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [node.module or ""]
+                else:
+                    continue
+                if any(module.startswith(("app.agent_runtime.providers", "openai", "azure")) or "providers" in module.split(".") for module in modules):
+                    violations.append(f"{path.name}:{node.lineno}")
+    assert violations == []
+
+
 def test_fact_and_memory_background_features_are_removed() -> None:
     assert [
         relative_path
@@ -249,62 +267,12 @@ def test_fact_and_memory_background_features_are_removed() -> None:
     assert violations == []
 
 
-def test_capability_implementations_are_owned_by_domain_packages() -> None:
-    capabilities_root = REPOSITORY_ROOT / "app" / "capabilities"
-    internal_root = capabilities_root / "_internal"
-
-    assert {
-        path.name for path in internal_root.iterdir() if path.is_file()
-    } == {
-        "__init__.py",
-        "action_proposals.py",
-        "execution.py",
-        "model_schemas.py",
-        "plans_actions.py",
-        "schemas.py",
-    }
-
-    violations: list[str] = []
-    for package_name in CAPABILITY_IMPLEMENTATION_PACKAGES:
-        package_root = capabilities_root / package_name
-        for filename in ("contracts.py", "handlers.py", "registry.py"):
-            path = package_root / filename
-            assert path.is_file()
-            source = path.read_text(encoding="utf-8")
-            if "app.capabilities._internal.contracts" in source:
-                violations.append(str(path.relative_to(REPOSITORY_ROOT)))
-            if "app.capabilities._internal.handlers" in source:
-                violations.append(str(path.relative_to(REPOSITORY_ROOT)))
-
-    assert violations == []
 
 
-def test_model_visible_schemas_are_owned_by_domain_capabilities() -> None:
-    capabilities_root = REPOSITORY_ROOT / "app" / "capabilities"
-
-    assert not (capabilities_root / "model_input_schemas.py").exists()
-    for package_name in (
-        "conversation_history_image",
-        "device_guidance",
-        "ibclc",
-        "lactation_analysis",
-        "plans",
-        "profile",
-        "pump_models",
-        "support_ticket",
-        "timeline",
-    ):
-        package_root = capabilities_root / package_name
-        assert (package_root / "model_schemas.py").is_file()
-        assert (package_root / "module.py").is_file()
 
 
-def test_plans_and_timeline_capabilities_have_distinct_ownership() -> None:
-    plans_root = REPOSITORY_ROOT / "app" / "capabilities" / "plans"
-    timeline_root = REPOSITORY_ROOT / "app" / "capabilities" / "timeline"
 
-    assert timeline_root.is_dir()
-    for path in plans_root.glob("*.py"):
-        source = path.read_text(encoding="utf-8")
-        assert "ScheduleTimeline" not in source
-        assert "schedule_timeline" not in source
+
+def test_removed_business_capability_implementations_are_absent() -> None:
+    assert not (REPOSITORY_ROOT / "app" / "capabilities").exists()
+    assert not (REPOSITORY_ROOT / "app" / "agent_runtime" / "tools" / "trusted.py").exists()

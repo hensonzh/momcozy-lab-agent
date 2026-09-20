@@ -76,7 +76,7 @@ class AuthoritativeBusinessContextDocument(_StrictContextModel):
     def provider_item(self) -> dict[str, str]:
         payload = self.model_dump(mode="json")
         return {
-            "role": "user",
+            "role": "developer",
             "content": (
                 AUTHORITATIVE_BUSINESS_CONTEXT_ITEM_PREFIX
                 + json.dumps(

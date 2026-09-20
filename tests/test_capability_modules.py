@@ -15,19 +15,7 @@ from app.capability_module import (
 )
 
 
-EXPECTED_MODULE_NAMES = (
-    "service_skill",
-    "profile",
-    "plans",
-    "timeline",
-    "conversation_history_image",
-    "lactation_analysis",
-    "ibclc",
-    "device_guidance",
-    "pump_models",
-    "support_ticket",
-)
-
+EXPECTED_MODULE_NAMES = ("service_skill",)
 
 def test_capability_modules_are_the_single_runtime_composition_source() -> None:
     assert tuple(module.name for module in CAPABILITY_MODULES) == (
@@ -58,6 +46,7 @@ def test_each_capability_owns_matching_contracts_handlers_and_actions() -> None:
         repository=cast(Any, SimpleNamespace()),
         product_backend=cast(Any, SimpleNamespace()),
         action_proposer=cast(Any, SimpleNamespace()),
+        rednote_service=cast(Any, SimpleNamespace()),
     )
 
     for module in CAPABILITY_MODULES:
@@ -81,40 +70,7 @@ def test_each_capability_owns_matching_contracts_handlers_and_actions() -> None:
         assert set(applicators) == bound_actions
 
 
-def test_capability_namespaces_preserve_the_model_visible_catalog() -> None:
-    assert tuple(
-        (namespace.name, namespace.tool_names)
-        for namespace in TOOL_NAMESPACE_DEFINITIONS
-    ) == (
-        ("profile", ("profile_read", "profile_update")),
-        (
-            "planning",
-            (
-                "plan_read",
-                "plan_mutate",
-                "schedule_timeline_read",
-                "schedule_timeline_mutate",
-            ),
-        ),
-        ("attachments", ("conversation_history_image_read",)),
-        (
-            "lactation",
-            (
-                "get_lactation_summary",
-                "get_lactation_records",
-                "get_feeding_summary",
-                "get_feeding_records",
-                "get_growth_summary",
-                "get_growth_records",
-                "ibclc_consult_card_create",
-            ),
-        ),
-        (
-            "device",
-            (
-                "devices_guidance_manage",
-                "pump_models_read",
-                "support_ticket_draft_create",
-            ),
-        ),
-    )
+def test_consultation_catalog_has_no_deferred_tools() -> None:
+    assert TOOL_NAMESPACE_DEFINITIONS == ()
+    assert NAMESPACED_TOOL_NAMES == ()
+    assert EAGER_TOOL_NAMES == ("load_service_skill",)

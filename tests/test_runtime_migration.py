@@ -9,7 +9,7 @@ from app.infrastructure.db.schema import RUNTIME_SCHEMA_REVISION
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_BASELINE_REVISION = "20260727_0001"
+RUNTIME_HEAD_REVISION = "20260916_0002"
 
 
 def test_runtime_has_one_fresh_alembic_head() -> None:
@@ -23,9 +23,9 @@ def test_runtime_has_one_fresh_alembic_head() -> None:
     )
 
     assert result.stdout.strip() == (
-        f"{RUNTIME_BASELINE_REVISION} (head)"
+        f"{RUNTIME_HEAD_REVISION} (head)"
     )
-    assert RUNTIME_SCHEMA_REVISION == RUNTIME_BASELINE_REVISION
+    assert RUNTIME_SCHEMA_REVISION == RUNTIME_HEAD_REVISION
 
 
 def test_runtime_baseline_generates_empty_database_sql_without_product_tables() -> None:
@@ -48,6 +48,7 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     )
 
     sql = result.stdout
+    assert "DROP INDEX uq_agent_workflow_states_owner_type_active" in sql
     assert "CREATE TABLE agent_threads" in sql
     assert "CREATE TABLE agent_runs" in sql
     assert (

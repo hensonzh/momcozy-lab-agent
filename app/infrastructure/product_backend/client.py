@@ -11,22 +11,8 @@ from app.core.errors import ApiError, DependencyError
 from .contracts import (
     AgentFileResolveRequest,
     AgentFileResolveResponse,
-    LactationRecordApplyRequest,
-    LactationRecordApplyResponse,
     ProfileReadRequest,
     ProfileReadResponse,
-    ProfileUpdateApplyRequest,
-    ProfileUpdateApplyResponse,
-)
-from .plans_contracts import (
-    PlanDetail,
-    PlanDetailReadRequest,
-    PlansActionApplyRequest,
-    PlansActionApplyResponse,
-    PlansCurrentReadRequest,
-    PlansCurrentReadResponse,
-    ScheduleTimelineReadRequest,
-    ScheduleTimelineReadResponse,
 )
 
 
@@ -93,24 +79,6 @@ class ProductBackendClient:
             request_id=request_id,
         )
 
-    async def apply_profile_update(
-        self,
-        *,
-        command: ProfileUpdateApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> ProfileUpdateApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/profile.update/apply",
-            response_model=ProfileUpdateApplyResponse,
-            json=command.model_dump(mode="json", exclude_unset=True),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        if result.action_id != command.action_id or result.resource_id != command.actor_user_id:
-            raise _invalid_response()
-        return result
 
     async def resolve_agent_file(
         self,
@@ -129,111 +97,10 @@ class ProductBackendClient:
             raise _invalid_response()
         return result
 
-    async def apply_lactation_record(
-        self,
-        *,
-        command: LactationRecordApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> LactationRecordApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/lactation.record/apply",
-            response_model=LactationRecordApplyResponse,
-            json=command.model_dump(mode="json", exclude_unset=True),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        expected_resource_type = f"{command.payload.item_type}_record"
-        if (
-            result.action_id != command.action_id
-            or result.resource_type != expected_resource_type
-        ):
-            raise _invalid_response()
-        return result
 
-    async def read_current_plans(
-        self,
-        *,
-        query: PlansCurrentReadRequest,
-        request_id: str,
-    ) -> PlansCurrentReadResponse:
-        params = {
-            key: str(value)
-            for key, value in query.model_dump(
-                mode="json",
-                exclude_none=True,
-            ).items()
-        }
-        return await self._request_model(
-            "GET",
-            "/v1/internal/agent/plans/current",
-            response_model=PlansCurrentReadResponse,
-            params=params,
-            request_id=request_id,
-        )
 
-    async def read_plan_detail(
-        self,
-        *,
-        query: PlanDetailReadRequest,
-        request_id: str,
-    ) -> PlanDetail:
-        return await self._request_model(
-            "GET",
-            f"/v1/internal/agent/plans/{query.plan_id}",
-            response_model=PlanDetail,
-            params={"actor_user_id": str(query.actor_user_id)},
-            request_id=request_id,
-        )
 
-    async def read_schedule_timeline(
-        self,
-        *,
-        query: ScheduleTimelineReadRequest,
-        request_id: str,
-    ) -> ScheduleTimelineReadResponse:
-        raw = query.model_dump(mode="json", exclude_none=True)
-        params: list[tuple[str, QueryParamValue]] = []
-        for key, value in raw.items():
-            if isinstance(value, list):
-                params.extend((key, str(item)) for item in value)
-            else:
-                params.append((key, str(value)))
-        return await self._request_model(
-            "GET",
-            "/v1/internal/agent/schedule-timeline",
-            response_model=ScheduleTimelineReadResponse,
-            params=params,
-            request_id=request_id,
-        )
 
-    async def apply_plans_action(
-        self,
-        *,
-        command: PlansActionApplyRequest,
-        idempotency_key: str,
-        request_id: str,
-    ) -> PlansActionApplyResponse:
-        result = await self._request_model(
-            "POST",
-            "/v1/internal/agent/actions/plans/apply",
-            response_model=PlansActionApplyResponse,
-            json=command.model_dump(mode="json", exclude_unset=True),
-            idempotency_key=idempotency_key,
-            request_id=request_id,
-        )
-        expected_resource_type = (
-            "plan_task"
-            if command.action_type.startswith("plans.task.")
-            else "plan"
-        )
-        if (
-            result.action_id != command.action_id
-            or result.resource_type != expected_resource_type
-        ):
-            raise _invalid_response()
-        return result
 
     async def _request_model(
         self,

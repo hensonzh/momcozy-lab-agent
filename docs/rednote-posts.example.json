@@ -1,0 +1,52 @@
+{
+  "type": "artifact.created",
+  "payload": {
+    "artifact_id": "00000000-0000-0000-0000-000000000001",
+    "artifact_type": "rednote_posts",
+    "schema_version": "v1",
+    "status": "ready",
+    "artifact": {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "artifact_type": "rednote_posts",
+      "schema_version": "v1",
+      "status": "ready",
+      "payload": {
+        "card": {
+          "card_type": "rednote_posts",
+          "title": "参考帖子",
+          "evidence_type": "community_experience",
+          "posts": [
+            {
+              "title": "测试帖子：返岗准备经验",
+              "summary": "这是一条仅用于客户端契约验证的虚构摘要，描述提前准备配件和合理安排时间的个人经验。",
+              "thumbnail": null,
+              "author": "测试作者",
+              "favorites": 123,
+              "url": "https://www.xiaohongshu.com/explore/000000000000000000000001",
+              "published_at": null,
+              "relevance_score": 0.92
+            }
+          ]
+        }
+      },
+      "raw_payload_ref": ""
+    },
+    "card": {
+      "card_type": "rednote_posts",
+      "title": "参考帖子",
+      "evidence_type": "community_experience",
+      "posts": [
+        {
+          "title": "测试帖子：返岗准备经验",
+          "summary": "这是一条仅用于客户端契约验证的虚构摘要，描述提前准备配件和合理安排时间的个人经验。",
+          "thumbnail": null,
+          "author": "测试作者",
+          "favorites": 123,
+          "url": "https://www.xiaohongshu.com/explore/000000000000000000000001",
+          "published_at": null,
+          "relevance_score": 0.92
+        }
+      ]
+    }
+  }
+}
