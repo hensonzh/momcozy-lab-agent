@@ -36,7 +36,12 @@ from agents.items import (
 )
 from agents.models.interface import Model, ModelTracing
 from agents.models.openai_responses import Converter
-from agents.retry import ModelRetryAdvice, ModelRetryAdviceRequest
+from agents.retry import (
+    ModelRetryAdvice,
+    ModelRetryAdviceRequest,
+    ModelRetrySettings,
+    retry_policies,
+)
 from agents.run_config import CallModelData, ModelInputData
 from agents.run_context import RunContextWrapper
 from agents.stream_events import RawResponsesStreamEvent
@@ -396,6 +401,15 @@ class ResponsesAgentsExecutionEngine:
                 reasoning={"effort": self.reasoning_effort},
                 verbosity=cast(Any, self.text_verbosity),
                 store=self.store,
+                # A dropped HTTP stream after a tool turn is safe to replay:
+                # the durable function output is already part of the next
+                # request input. Keep one SDK-level retry for transient
+                # connection/read timeouts so a single provider disconnect
+                # does not fail the whole user run before any answer streams.
+                retry=ModelRetrySettings(
+                    max_retries=1,
+                    policy=retry_policies.network_error(),
+                ),
                 response_include=(
                     ["reasoning.encrypted_content"] if (not self.store and self.request_policy.include_encrypted_reasoning) else None
                 ),
