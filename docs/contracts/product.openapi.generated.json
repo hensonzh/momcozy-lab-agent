@@ -91,6 +91,329 @@
         "title": "AccountStatus",
         "type": "string"
       },
+      "AgentBabyProfileUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Date"
+          },
+          "feeding_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "exclusive_breastfeeding",
+                  "expressed_milk_feeding",
+                  "mixed_feeding",
+                  "formula_feeding",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Mode"
+          },
+          "infant_id": {
+            "format": "uuid",
+            "title": "Infant Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male",
+                  "unspecified"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          }
+        },
+        "required": [
+          "infant_id"
+        ],
+        "title": "AgentBabyProfileUpdate",
+        "type": "object"
+      },
+      "AgentBusinessActionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "application_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Application Events",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/AgentProfileUpdateDetails"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "const": "profile",
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status": {
+            "const": "applied",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action_id",
+          "resource_type",
+          "resource_id",
+          "details"
+        ],
+        "title": "AgentBusinessActionResult",
+        "type": "object"
+      },
+      "AgentCurrentInfantLink": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_order": {
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Birth Order",
+            "type": "integer"
+          },
+          "infant_id": {
+            "format": "uuid",
+            "title": "Infant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "infant_id",
+          "birth_order"
+        ],
+        "title": "AgentCurrentInfantLink",
+        "type": "object"
+      },
+      "AgentDiaryApplyPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "entry_date": {
+            "format": "date",
+            "title": "Entry Date",
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ],
+            "title": "Operation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "entry_date"
+        ],
+        "title": "AgentDiaryApplyPayload",
+        "type": "object"
+      },
+      "AgentDiaryApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AgentDiaryApplyPayload"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "action_id",
+          "run_id",
+          "payload"
+        ],
+        "title": "AgentDiaryApplyRequest",
+        "type": "object"
+      },
+      "AgentDiaryApplyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "application_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Application Events",
+            "type": "array"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "const": "diary_entry",
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status": {
+            "const": "applied",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action_id",
+          "resource_type",
+          "resource_id"
+        ],
+        "title": "AgentDiaryApplyResponse",
+        "type": "object"
+      },
+      "AgentDiaryReadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Date"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "side_effect_performed": {
+            "const": false,
+            "default": false,
+            "title": "Side Effect Performed",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "entry_read",
+              "entry_not_found",
+              "entries_read"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AgentDiaryReadResponse",
+        "type": "object"
+      },
       "AgentFileResolveRequest": {
         "additionalProperties": false,
         "properties": {
@@ -155,6 +478,1503 @@
           "expires_at"
         ],
         "title": "AgentFileResolveResponse",
+        "type": "object"
+      },
+      "AgentLactationRecordApplyPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "feed_action": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed Action"
+          },
+          "feed_type": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed Type"
+          },
+          "head_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infant Id"
+          },
+          "item_type": {
+            "enum": [
+              "feeding",
+              "pumping",
+              "growth"
+            ],
+            "title": "Item Type",
+            "type": "string"
+          },
+          "milk_volume_ml": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Milk Volume Ml"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "operation": {
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "plan_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Task Id"
+          },
+          "pump_type": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pump Type"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "operation",
+          "item_type"
+        ],
+        "title": "AgentLactationRecordApplyPayload",
+        "type": "object"
+      },
+      "AgentLactationRecordApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AgentLactationRecordApplyPayload"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "action_id",
+          "run_id",
+          "payload"
+        ],
+        "title": "AgentLactationRecordApplyRequest",
+        "type": "object"
+      },
+      "AgentLactationRecordApplyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "application_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Application Events",
+            "type": "array"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "feeding_record",
+              "pumping_record",
+              "growth_record"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status": {
+            "const": "applied",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action_id",
+          "resource_type",
+          "resource_id"
+        ],
+        "title": "AgentLactationRecordApplyResponse",
+        "type": "object"
+      },
+      "AgentMilkAnalysisSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/MilkAnalysisInterpretation"
+          },
+          "as_of_date": {
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/MilkAnalysisCounts",
+            "description": "\u5f53\u524d\u5feb\u7167\u5305\u542b\u7684\u5b9d\u5b9d\u3001\u8bb0\u5f55\u548c\u8d8b\u52bf\u8ba1\u6570\u3002"
+          },
+          "detail_level": {
+            "const": "detailed",
+            "title": "Detail Level",
+            "type": "string"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/MilkAnalysisLatestEvents",
+            "description": "\u6700\u8fd1\u4e00\u6b21\u5582\u517b\u548c\u5438\u5976\u7684\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u3002"
+          },
+          "observation_flags": {
+            "description": "\u5f53\u524d\u8d44\u6599\u6216\u5b9e\u9645\u8bb0\u5f55\u4e2d\u7f3a\u5931\u4fe1\u606f\u7684\u7a33\u5b9a\u63d0\u793a\u4ee3\u7801\u3002",
+            "items": {
+              "type": "string"
+            },
+            "title": "Observation Flags",
+            "type": "array"
+          },
+          "pumping_rhythm": {
+            "$ref": "#/components/schemas/MilkAnalysisPumpingRhythm"
+          },
+          "pumping_trends": {
+            "items": {
+              "$ref": "#/components/schemas/MilkAnalysisTrendDay"
+            },
+            "title": "Pumping Trends",
+            "type": "array"
+          },
+          "recent_feedings": {
+            "items": {
+              "$ref": "#/components/schemas/MilkAnalysisFeedingRecord"
+            },
+            "title": "Recent Feedings",
+            "type": "array"
+          },
+          "recent_growth": {
+            "items": {
+              "$ref": "#/components/schemas/MilkAnalysisGrowthRecord"
+            },
+            "title": "Recent Growth",
+            "type": "array"
+          },
+          "recent_pumpings": {
+            "items": {
+              "$ref": "#/components/schemas/MilkAnalysisPumpingRecord"
+            },
+            "title": "Recent Pumpings",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MilkAnalysisStatus",
+            "description": "\u6839\u636e\u5b9e\u9645\u8bb0\u5f55\u786e\u5b9a\u6027\u8ba1\u7b97\u51fa\u7684\u6570\u636e\u8986\u76d6\u548c\u5438\u5976\u8d8b\u52bf\u72b6\u6001\u3002"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "volumes": {
+            "$ref": "#/components/schemas/MilkAnalysisVolumes",
+            "description": "\u5b9d\u5b9d\u4fa7\u6444\u5165\u548c\u5988\u5988\u4fa7\u5438\u5976\u4ea7\u51fa\u7684\u786e\u5b9a\u6027\u6c47\u603b\u3002"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MilkAnalysisWindow",
+            "description": "\u672c\u6b21\u5feb\u7167\u4f7f\u7528\u7684\u7edf\u8ba1\u7a97\u53e3\u3002"
+          }
+        },
+        "required": [
+          "detail_level",
+          "window",
+          "status",
+          "counts",
+          "volumes",
+          "latest",
+          "observation_flags",
+          "recent_feedings",
+          "recent_pumpings",
+          "pumping_rhythm",
+          "recent_growth",
+          "pumping_trends",
+          "analysis",
+          "as_of_date",
+          "timezone"
+        ],
+        "title": "AgentMilkAnalysisSnapshot",
+        "type": "object"
+      },
+      "AgentMilkScheduleCalendarEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "end_time": {
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "End Time",
+            "type": "string"
+          },
+          "start_time": {
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "start_time",
+          "end_time",
+          "title"
+        ],
+        "title": "AgentMilkScheduleCalendarEvent",
+        "type": "object"
+      },
+      "AgentMilkScheduleReschedulePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "calendar_events": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMilkScheduleCalendarEvent"
+            },
+            "maxItems": 21,
+            "title": "Calendar Events",
+            "type": "array"
+          },
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMilkScheduleUpdate"
+            },
+            "maxItems": 100,
+            "title": "Updates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "AgentMilkScheduleReschedulePayload",
+        "type": "object"
+      },
+      "AgentMilkScheduleUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_plan_id": {
+            "format": "uuid",
+            "title": "Expected Plan Id",
+            "type": "string"
+          },
+          "expected_task_date": {
+            "format": "date",
+            "title": "Expected Task Date",
+            "type": "string"
+          },
+          "expected_task_time": {
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Expected Task Time",
+            "type": "string"
+          },
+          "new_task_date": {
+            "format": "date",
+            "title": "New Task Date",
+            "type": "string"
+          },
+          "new_task_time": {
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "New Task Time",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "expected_plan_id",
+          "expected_task_date",
+          "expected_task_time",
+          "new_task_date",
+          "new_task_time"
+        ],
+        "title": "AgentMilkScheduleUpdate",
+        "type": "object"
+      },
+      "AgentMotherProfileUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "actual_delivery_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Delivery Date"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 70.0,
+                "minimum": 12.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "current_delivery_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vaginal",
+                  "cesarean",
+                  "assisted_vaginal",
+                  "other",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Delivery Method"
+          },
+          "current_feeding_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "exclusive_breastfeeding",
+                  "expressed_milk_feeding",
+                  "mixed_feeding",
+                  "formula_feeding",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Feeding Mode"
+          },
+          "delivery_count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Count"
+          },
+          "has_cesarean_history": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Cesarean History"
+          },
+          "preferred_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Name"
+          }
+        },
+        "title": "AgentMotherProfileUpdate",
+        "type": "object"
+      },
+      "AgentPlanDeletePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "AgentPlanDeletePayload",
+        "type": "object"
+      },
+      "AgentPlanDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "plan_type": {
+            "title": "Plan Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "plan_type",
+          "title",
+          "summary",
+          "status",
+          "source",
+          "version",
+          "updated_at"
+        ],
+        "title": "AgentPlanDetail",
+        "type": "object"
+      },
+      "AgentPlanSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "plan_type": {
+            "title": "Plan Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "plan_type",
+          "title",
+          "summary",
+          "status",
+          "source",
+          "version",
+          "updated_at"
+        ],
+        "title": "AgentPlanSummary",
+        "type": "object"
+      },
+      "AgentPlanTaskCompletePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "default": true,
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "AgentPlanTaskCompletePayload",
+        "type": "object"
+      },
+      "AgentPlanTaskCreatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "task_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Date"
+          },
+          "task_time": {
+            "default": "",
+            "maxLength": 16,
+            "title": "Task Time",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "AgentPlanTaskCreatePayload",
+        "type": "object"
+      },
+      "AgentPlanTaskDeletePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Reason",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "AgentPlanTaskDeletePayload",
+        "type": "object"
+      },
+      "AgentPlanTaskSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Date"
+          },
+          "task_time": {
+            "title": "Task Time",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_time",
+          "title",
+          "status"
+        ],
+        "title": "AgentPlanTaskSummary",
+        "type": "object"
+      },
+      "AgentPlanTaskUpdatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "task_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Date"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_time": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Time"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "AgentPlanTaskUpdatePayload",
+        "type": "object"
+      },
+      "AgentPlanUpdatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "plan_id",
+          "expected_version"
+        ],
+        "title": "AgentPlanUpdatePayload",
+        "type": "object"
+      },
+      "AgentPlansActionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_type": {
+            "enum": [
+              "plans.task.create",
+              "plans.task.complete",
+              "plans.task.update",
+              "plans.task.delete",
+              "plans.plan.update",
+              "plans.plan.delete",
+              "pregnancy.plan.create",
+              "plans.milk_schedule.reschedule"
+            ],
+            "title": "Action Type",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPlanTaskCreatePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPlanTaskCompletePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPlanTaskUpdatePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPlanTaskDeletePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPlanUpdatePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPlanDeletePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentPregnancyPlanCreatePayload"
+              },
+              {
+                "$ref": "#/components/schemas/AgentMilkScheduleReschedulePayload"
+              }
+            ],
+            "title": "Payload"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "action_id",
+          "run_id",
+          "action_type",
+          "payload"
+        ],
+        "title": "AgentPlansActionRequest",
+        "type": "object"
+      },
+      "AgentPlansApplyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "application_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Application Events",
+            "type": "array"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "plan",
+              "plan_task"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status": {
+            "const": "applied",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "action_id",
+          "resource_type",
+          "resource_id"
+        ],
+        "title": "AgentPlansApplyResponse",
+        "type": "object"
+      },
+      "AgentPlansCalendarReadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPlanTaskSummary"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks",
+          "count",
+          "filters"
+        ],
+        "title": "AgentPlansCalendarReadResponse",
+        "type": "object"
+      },
+      "AgentPlansCurrentReadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPlanSummary"
+            },
+            "title": "Plans",
+            "type": "array"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPlanTaskSummary"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plans",
+          "tasks",
+          "counts"
+        ],
+        "title": "AgentPlansCurrentReadResponse",
+        "type": "object"
+      },
+      "AgentPregnancyPlanCreatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "payload"
+        ],
+        "title": "AgentPregnancyPlanCreatePayload",
+        "type": "object"
+      },
+      "AgentProfileInfantUpdateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "enum": [
+                "birth_date",
+                "name",
+                "sex",
+                "feeding_mode"
+              ],
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "infant_id": {
+            "format": "uuid",
+            "title": "Infant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "infant_id",
+          "fields"
+        ],
+        "title": "AgentProfileInfantUpdateSummary",
+        "type": "object"
+      },
+      "AgentProfileUpdateApply": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_type": {
+            "enum": [
+              "profile.update",
+              "profile.current_infants.replace"
+            ],
+            "title": "Action Type",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AgentProfileUpdatePayload"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "action_id",
+          "run_id",
+          "action_type",
+          "payload"
+        ],
+        "title": "AgentProfileUpdateApply",
+        "type": "object"
+      },
+      "AgentProfileUpdateDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "current_infants_updated": {
+            "default": false,
+            "title": "Current Infants Updated",
+            "type": "boolean"
+          },
+          "infants": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProfileInfantUpdateSummary"
+            },
+            "title": "Infants",
+            "type": "array"
+          },
+          "mother_fields": {
+            "items": {
+              "enum": [
+                "actual_delivery_date",
+                "age",
+                "current_delivery_method",
+                "current_feeding_mode",
+                "delivery_count",
+                "has_cesarean_history",
+                "preferred_name"
+              ],
+              "type": "string"
+            },
+            "title": "Mother Fields",
+            "type": "array"
+          }
+        },
+        "title": "AgentProfileUpdateDetails",
+        "type": "object"
+      },
+      "AgentProfileUpdatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "current_infants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentCurrentInfantLink"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Infants"
+          },
+          "expected_current_infants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentCurrentInfantLink"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Current Infants"
+          },
+          "infants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentBabyProfileUpdate"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infants"
+          },
+          "mother": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentMotherProfileUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_date": {
+            "format": "date",
+            "title": "Reference Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_date"
+        ],
+        "title": "AgentProfileUpdatePayload",
         "type": "object"
       },
       "AppointmentRead": {
@@ -676,7 +2496,6 @@
           "observation": {
             "discriminator": {
               "mapping": {
-                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Output",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -700,9 +2519,6 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Output"
-              },
-              {
-                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -740,7 +2556,6 @@
           "observation": {
             "discriminator": {
               "mapping": {
-                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -764,9 +2579,6 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
-              },
-              {
-                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -800,7 +2612,6 @@
           "observation": {
             "discriminator": {
               "mapping": {
-                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -824,9 +2635,6 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
-              },
-              {
-                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -1639,117 +3447,6 @@
           "end_reason"
         ],
         "title": "ConsultationRead",
-        "type": "object"
-      },
-      "DailyStatusObservation": {
-        "additionalProperties": false,
-        "properties": {
-          "color": {
-            "anyOf": [
-              {
-                "enum": [
-                  "yellow",
-                  "yellow_brown",
-                  "green",
-                  "brown",
-                  "black",
-                  "red",
-                  "pale",
-                  "unsure"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color"
-          },
-          "consistency": {
-            "anyOf": [
-              {
-                "enum": [
-                  "watery",
-                  "loose",
-                  "pasty",
-                  "formed",
-                  "hard",
-                  "unsure"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consistency"
-          },
-          "kind": {
-            "const": "daily_status",
-            "title": "Kind",
-            "type": "string"
-          },
-          "mental_state": {
-            "anyOf": [
-              {
-                "enum": [
-                  "content",
-                  "active",
-                  "crying",
-                  "drowsy"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mental State"
-          },
-          "recorded_on": {
-            "format": "date",
-            "title": "Recorded On",
-            "type": "string"
-          },
-          "stool_count": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stool Count"
-          },
-          "timezone": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Timezone",
-            "type": "string"
-          },
-          "wet_count": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wet Count"
-          }
-        },
-        "required": [
-          "recorded_on",
-          "timezone",
-          "kind"
-        ],
-        "title": "DailyStatusObservation",
         "type": "object"
       },
       "DevelopmentObservation-Input": {
@@ -4639,6 +6336,554 @@
         "title": "MeProfilePatch",
         "type": "object"
       },
+      "MilkAnalysisCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "days_with_pumping": {
+            "description": "\u8d8b\u52bf\u7a97\u53e3\u4e2d\u81f3\u5c11\u6709\u4e00\u6b21\u5438\u5976\u8bb0\u5f55\u7684\u81ea\u7136\u65e5\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Days With Pumping",
+            "type": "integer"
+          },
+          "infants": {
+            "description": "\u5f53\u524d\u7528\u6237\u8d44\u6599\u4e2d\u7684\u5b9d\u5b9d\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Infants",
+            "type": "integer"
+          },
+          "recent_feedings": {
+            "description": "\u672c\u6b21\u5feb\u7167\u8bfb\u53d6\u5230\u7684\u8fd1\u671f\u5b9d\u5b9d\u5582\u517b\u5b9e\u9645\u8bb0\u5f55\u6570\u3002",
+            "minimum": 0.0,
+            "title": "Recent Feedings",
+            "type": "integer"
+          },
+          "recent_growth": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be6\u7ec6\u5206\u6790\u8bfb\u53d6\u5230\u7684\u8fd1\u671f\u5b9d\u5b9d\u751f\u957f\u8bb0\u5f55\u6570\uff1b\u6458\u8981\u6a21\u5f0f\u4e3a null \u6216\u4e0d\u8fd4\u56de\u3002",
+            "title": "Recent Growth"
+          },
+          "recent_pumpings": {
+            "description": "\u672c\u6b21\u5feb\u7167\u8bfb\u53d6\u5230\u7684\u8fd1\u671f\u5988\u5988\u5438\u5976\u5b9e\u9645\u8bb0\u5f55\u6570\u3002",
+            "minimum": 0.0,
+            "title": "Recent Pumpings",
+            "type": "integer"
+          },
+          "trend_days": {
+            "description": "\u5438\u5976\u8d8b\u52bf\u8fd4\u56de\u7684\u81ea\u7136\u65e5\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Trend Days",
+            "type": "integer"
+          },
+          "trend_pumping_count": {
+            "description": "\u8d8b\u52bf\u7a97\u53e3\u5185\u5177\u6709\u6d4b\u91cf\u503c\u7684\u5438\u5976\u603b\u6b21\u6570\u3002",
+            "minimum": 0.0,
+            "title": "Trend Pumping Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "infants",
+          "recent_feedings",
+          "recent_pumpings",
+          "trend_days",
+          "days_with_pumping",
+          "trend_pumping_count"
+        ],
+        "title": "MilkAnalysisCounts",
+        "type": "object"
+      },
+      "MilkAnalysisFeedingRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u6b21\u5582\u517b\u6301\u7eed\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "title": "Duration Seconds"
+          },
+          "feed_action": {
+            "description": "\u5582\u517b\u52a8\u4f5c\u3002",
+            "title": "Feed Action",
+            "type": "string"
+          },
+          "feed_time": {
+            "description": "\u8be5\u6b21\u5582\u517b\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u3002",
+            "format": "date-time",
+            "title": "Feed Time",
+            "type": "string"
+          },
+          "feed_type": {
+            "description": "\u5582\u517b\u65b9\u5f0f\u3002",
+            "title": "Feed Type",
+            "type": "string"
+          },
+          "id": {
+            "description": "\u5b9d\u5b9d\u5582\u517b\u5b9e\u9645\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\u3002",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u6b21\u5582\u517b\u5bf9\u5e94\u7684\u5b9d\u5b9d UUID\uff1b\u672a\u6307\u5b9a\u65f6\u4e3a null\u3002",
+            "title": "Infant Id"
+          },
+          "title": {
+            "description": "\u8be5\u6b21\u5582\u517b\u8bb0\u5f55\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u660e\u786e\u8bb0\u5f55\u7684\u5b9d\u5b9d\u6444\u5165\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "title": "Volume Ml"
+          }
+        },
+        "required": [
+          "id",
+          "feed_time",
+          "feed_type",
+          "feed_action",
+          "title"
+        ],
+        "title": "MilkAnalysisFeedingRecord",
+        "type": "object"
+      },
+      "MilkAnalysisGrowthRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "head_cm": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u5934\u56f4\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Head Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u8eab\u9ad8\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Height Cm"
+          },
+          "id": {
+            "description": "\u5b9d\u5b9d\u751f\u957f\u6d4b\u91cf\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\u3002",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u6b21\u6d4b\u91cf\u5bf9\u5e94\u7684\u5b9d\u5b9d UUID\uff1b\u672a\u6307\u5b9a\u65f6\u4e3a null\u3002",
+            "title": "Infant Id"
+          },
+          "measured_at": {
+            "description": "\u8eab\u9ad8\u3001\u4f53\u91cd\u6216\u5934\u56f4\u7684\u5b9e\u9645\u6d4b\u91cf\u65f6\u95f4\u3002",
+            "format": "date-time",
+            "title": "Measured At",
+            "type": "string"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u4f53\u91cd\uff0c\u5355\u4f4d kg\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "id",
+          "measured_at"
+        ],
+        "title": "MilkAnalysisGrowthRecord",
+        "type": "object"
+      },
+      "MilkAnalysisInterpretation": {
+        "additionalProperties": false,
+        "properties": {
+          "data_coverage": {
+            "description": "\u7528\u4e8e\u751f\u6210\u5206\u6790\u8def\u5f84\u7684\u6570\u636e\u8986\u76d6\u60c5\u51b5\u3002",
+            "title": "Data Coverage",
+            "type": "string"
+          },
+          "has_recent_growth": {
+            "description": "\u5f53\u524d\u5feb\u7167\u662f\u5426\u5305\u542b\u81f3\u5c11\u4e00\u6761\u8fd1\u671f\u5b9d\u5b9d\u751f\u957f\u8bb0\u5f55\u3002",
+            "title": "Has Recent Growth",
+            "type": "boolean"
+          },
+          "missing_inputs": {
+            "description": "\u5f53\u524d\u5206\u6790\u4ecd\u7f3a\u5931\u6216\u9700\u8981\u7559\u610f\u7684\u8f93\u5165\u4fe1\u53f7\u4ee3\u7801\u3002",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Inputs",
+            "type": "array"
+          },
+          "pathway": {
+            "description": "\u57fa\u4e8e\u5f53\u524d\u786e\u5b9a\u6027\u4e8b\u5b9e\u5efa\u8bae\u8fdb\u5165\u7684\u5206\u6790\u8def\u5f84\u3002",
+            "title": "Pathway",
+            "type": "string"
+          },
+          "pumping_trend": {
+            "description": "\u7528\u4e8e\u751f\u6210\u5206\u6790\u8def\u5f84\u7684\u5988\u5988\u4fa7\u5438\u5976\u4ea7\u51fa\u8d8b\u52bf\u3002",
+            "title": "Pumping Trend",
+            "type": "string"
+          },
+          "recommended_next_step": {
+            "description": "\u57fa\u4e8e\u5f53\u524d\u5feb\u7167\u5efa\u8bae\u7684\u4e0b\u4e00\u6b65\u91c7\u96c6\u3001\u5224\u65ad\u6216\u5b89\u5168\u652f\u6301\u52a8\u4f5c\u3002",
+            "title": "Recommended Next Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pathway",
+          "data_coverage",
+          "pumping_trend",
+          "has_recent_growth",
+          "missing_inputs",
+          "recommended_next_step"
+        ],
+        "title": "MilkAnalysisInterpretation",
+        "type": "object"
+      },
+      "MilkAnalysisLatestEvents": {
+        "additionalProperties": false,
+        "properties": {
+          "feeding_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6700\u8fd1\u4e00\u6b21\u5b9d\u5b9d\u5582\u517b\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\uff1b\u6ca1\u6709\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Feeding At"
+          },
+          "pumping_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6700\u8fd1\u4e00\u6b21\u5988\u5988\u5438\u5976\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\uff1b\u6ca1\u6709\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Pumping At"
+          }
+        },
+        "title": "MilkAnalysisLatestEvents",
+        "type": "object"
+      },
+      "MilkAnalysisPumpingRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u6b21\u5438\u5976\u6301\u7eed\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "title": "Duration Seconds"
+          },
+          "id": {
+            "description": "\u5988\u5988\u5438\u5976\u5b9e\u9645\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\u3002",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "milk_volume_ml": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u660e\u786e\u8bb0\u5f55\u7684\u5438\u5976\u4ea7\u51fa\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "title": "Milk Volume Ml"
+          },
+          "pump_end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u6b21\u5438\u5976\u5b9e\u9645\u7ed3\u675f\u65f6\u95f4\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "title": "Pump End Time"
+          },
+          "pump_start_time": {
+            "description": "\u8be5\u6b21\u5438\u5976\u5b9e\u9645\u5f00\u59cb\u65f6\u95f4\u3002",
+            "format": "date-time",
+            "title": "Pump Start Time",
+            "type": "string"
+          },
+          "pump_type": {
+            "description": "\u5438\u5976\u65b9\u5f0f\u6216\u8bbe\u5907\u7c7b\u578b\u3002",
+            "title": "Pump Type",
+            "type": "string"
+          },
+          "source": {
+            "description": "\u5438\u5976\u8bb0\u5f55\u6765\u6e90\uff0c\u4f8b\u5982 manual\u3001agent \u6216 device\u3002",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "description": "\u8be5\u6b21\u5438\u5976\u8bb0\u5f55\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pump_start_time",
+          "pump_type",
+          "source",
+          "title"
+        ],
+        "title": "MilkAnalysisPumpingRecord",
+        "type": "object"
+      },
+      "MilkAnalysisPumpingRhythm": {
+        "additionalProperties": false,
+        "properties": {
+          "representative_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u7528\u4e8e\u63d0\u53d6\u4ee3\u8868\u6027\u5438\u5976\u65f6\u523b\u7684\u8bb0\u5f55\u65e5\u671f\uff1b\u6ca1\u6709\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Representative Date"
+          },
+          "representative_times": {
+            "description": "\u4ee3\u8868\u6027\u65e5\u671f\u5185\u53bb\u91cd\u5e76\u6392\u5e8f\u540e\u7684\u672c\u5730\u5438\u5976\u65f6\u523b\uff0c\u683c\u5f0f HH:MM\u3002",
+            "items": {
+              "type": "string"
+            },
+            "title": "Representative Times",
+            "type": "array"
+          },
+          "timezone": {
+            "description": "\u4ee3\u8868\u6027\u5438\u5976\u65f6\u523b\u91c7\u7528\u7684 IANA \u65f6\u533a\u3002",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone",
+          "representative_times"
+        ],
+        "title": "MilkAnalysisPumpingRhythm",
+        "type": "object"
+      },
+      "MilkAnalysisStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "data_coverage": {
+            "description": "\u6570\u636e\u8986\u76d6\u60c5\u51b5\uff0c\u4f8b\u5982 ready\u3001limited \u6216 no_recent_data\u3002",
+            "title": "Data Coverage",
+            "type": "string"
+          },
+          "measured_only": {
+            "description": "\u8d8b\u52bf\u8ba1\u7b97\u662f\u5426\u53ea\u4f7f\u7528\u5177\u6709\u660e\u786e\u6d4b\u91cf\u503c\u7684\u5b9e\u9645\u5438\u5976\u8bb0\u5f55\u3002",
+            "title": "Measured Only",
+            "type": "boolean"
+          },
+          "pumping_trend": {
+            "description": "\u5988\u5988\u4fa7\u6709\u6d4b\u91cf\u503c\u7684\u5438\u5976\u4ea7\u51fa\u8d8b\u52bf\uff0c\u4f8b\u5982 increasing\u3001stable \u6216 decreasing\u3002",
+            "title": "Pumping Trend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_coverage",
+          "pumping_trend",
+          "measured_only"
+        ],
+        "title": "MilkAnalysisStatus",
+        "type": "object"
+      },
+      "MilkAnalysisTrendDay": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "\u8be5\u6761\u5438\u5976\u8d8b\u52bf\u7edf\u8ba1\u5bf9\u5e94\u7684\u81ea\u7136\u65e5\u3002",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "measured_only": {
+            "description": "\u8be5\u65e5\u7edf\u8ba1\u662f\u5426\u53ea\u5305\u542b\u5177\u6709\u660e\u786e\u5976\u91cf\u6d4b\u91cf\u503c\u7684\u5b9e\u9645\u8bb0\u5f55\u3002",
+            "title": "Measured Only",
+            "type": "boolean"
+          },
+          "pumped_milk_volume_ml": {
+            "description": "\u8be5\u65e5\u5177\u6709\u6d4b\u91cf\u503c\u7684\u5988\u5988\u5438\u5976\u4ea7\u51fa\u91cf\u5408\u8ba1\uff0c\u5355\u4f4d ml\u3002",
+            "minimum": 0.0,
+            "title": "Pumped Milk Volume Ml",
+            "type": "number"
+          },
+          "pumping_count": {
+            "description": "\u8be5\u65e5\u5177\u6709\u6d4b\u91cf\u503c\u7684\u5438\u5976\u6b21\u6570\u3002",
+            "minimum": 0.0,
+            "title": "Pumping Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "pumped_milk_volume_ml",
+          "pumping_count",
+          "measured_only"
+        ],
+        "title": "MilkAnalysisTrendDay",
+        "type": "object"
+      },
+      "MilkAnalysisVolumes": {
+        "additionalProperties": false,
+        "properties": {
+          "average_daily_pumped_volume_ml": {
+            "description": "\u8d8b\u52bf\u7a97\u53e3\u5185\u6309\u7a97\u53e3\u5929\u6570\u8ba1\u7b97\u7684\u5988\u5988\u65e5\u5747\u5438\u5976\u4ea7\u51fa\u91cf\uff0c\u5355\u4f4d ml\u3002",
+            "minimum": 0.0,
+            "title": "Average Daily Pumped Volume Ml",
+            "type": "number"
+          },
+          "recent_feeding_volume_ml": {
+            "description": "\u8fd1\u671f\u5b9d\u5b9d\u5582\u517b\u8bb0\u5f55\u4e2d\u660e\u786e\u8bb0\u5f55\u7684\u6444\u5165\u91cf\u5408\u8ba1\uff0c\u5355\u4f4d ml\u3002",
+            "minimum": 0.0,
+            "title": "Recent Feeding Volume Ml",
+            "type": "number"
+          },
+          "recent_pumped_volume_ml": {
+            "description": "\u8fd1\u671f\u5988\u5988\u5438\u5976\u660e\u7ec6\u4e2d\u660e\u786e\u8bb0\u5f55\u7684\u4ea7\u51fa\u91cf\u5408\u8ba1\uff0c\u5355\u4f4d ml\u3002",
+            "minimum": 0.0,
+            "title": "Recent Pumped Volume Ml",
+            "type": "number"
+          },
+          "trend_pumped_volume_ml": {
+            "description": "\u8d8b\u52bf\u7a97\u53e3\u5185\u5988\u5988\u5438\u5976\u4ea7\u51fa\u91cf\u5408\u8ba1\uff0c\u5355\u4f4d ml\u3002",
+            "minimum": 0.0,
+            "title": "Trend Pumped Volume Ml",
+            "type": "number"
+          }
+        },
+        "required": [
+          "recent_feeding_volume_ml",
+          "recent_pumped_volume_ml",
+          "trend_pumped_volume_ml",
+          "average_daily_pumped_volume_ml"
+        ],
+        "title": "MilkAnalysisVolumes",
+        "type": "object"
+      },
+      "MilkAnalysisWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "description": "\u672c\u6b21\u72b6\u6001\u6216\u5206\u6790\u5feb\u7167\u8986\u76d6\u7684\u8fd1\u671f\u81ea\u7136\u65e5\u6570\u3002",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "include_today": {
+            "description": "\u7edf\u8ba1\u7a97\u53e3\u662f\u5426\u5305\u542b\u5f53\u524d\u81ea\u7136\u65e5\u3002",
+            "title": "Include Today",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "\u5feb\u7167\u6700\u591a\u5c55\u793a\u7684\u6bcf\u7c7b\u8fd1\u671f\u660e\u7ec6\u6570\u91cf\u3002",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "limit",
+          "include_today"
+        ],
+        "title": "MilkAnalysisWindow",
+        "type": "object"
+      },
       "MilkTrendDayRead": {
         "properties": {
           "date": {
@@ -4692,6 +6937,427 @@
           "include_today"
         ],
         "title": "MilkTrendListResponse",
+        "type": "object"
+      },
+      "MotherBody": {
+        "additionalProperties": false,
+        "properties": {
+          "bowel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "smooth",
+                  "difficult",
+                  "painful-piles"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bowel"
+          },
+          "discomfort_sites": {
+            "items": {
+              "enum": [
+                "lower-abdomen",
+                "perineum",
+                "c-section",
+                "back",
+                "head-chest",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Discomfort Sites",
+            "type": "array"
+          },
+          "energy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "energized",
+                  "managing",
+                  "depleted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "some",
+                  "care-limited"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Note",
+            "type": "string"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mild",
+                  "noticeable",
+                  "hard-to-ignore"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "better",
+                  "same",
+                  "worse"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend"
+          },
+          "urination": {
+            "anyOf": [
+              {
+                "enum": [
+                  "normal",
+                  "leaking-urgency",
+                  "painful-difficult"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urination"
+          }
+        },
+        "title": "MotherBody",
+        "type": "object"
+      },
+      "MotherDiary": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/MotherBody"
+          },
+          "mood": {
+            "$ref": "#/components/schemas/MotherMood"
+          },
+          "rest": {
+            "$ref": "#/components/schemas/MotherRest"
+          }
+        },
+        "title": "MotherDiary",
+        "type": "object"
+      },
+      "MotherDiaryList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MotherDiaryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "MotherDiaryList",
+        "type": "object"
+      },
+      "MotherDiaryRead": {
+        "additionalProperties": false,
+        "properties": {
+          "diary": {
+            "$ref": "#/components/schemas/MotherDiary"
+          },
+          "entry_date": {
+            "format": "date",
+            "title": "Entry Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "format": "uuid",
+            "title": "Owner User Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "owner_user_id",
+          "entry_date",
+          "diary",
+          "version",
+          "updated_at"
+        ],
+        "title": "MotherDiaryRead",
+        "type": "object"
+      },
+      "MotherDiaryWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "diary": {
+            "$ref": "#/components/schemas/MotherDiary"
+          },
+          "expected_version": {
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "diary"
+        ],
+        "title": "MotherDiaryWrite",
+        "type": "object"
+      },
+      "MotherMood": {
+        "additionalProperties": false,
+        "properties": {
+          "impact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "some",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "pressures": {
+            "items": {
+              "enum": [
+                "baby-worry",
+                "feeding-pressure",
+                "body-recovery",
+                "sleep-loss",
+                "family-friction",
+                "self-doubt",
+                "no-time",
+                "unclear"
+              ],
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Pressures",
+            "type": "array"
+          },
+          "support": {
+            "anyOf": [
+              {
+                "enum": [
+                  "supported",
+                  "carrying-most",
+                  "alone"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Support"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "enum": [
+                  "steady",
+                  "tense",
+                  "low",
+                  "reactive",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          }
+        },
+        "title": "MotherMood",
+        "type": "object"
+      },
+      "MotherRest": {
+        "additionalProperties": false,
+        "properties": {
+          "day_rest": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "under-30m",
+                  "30-60m",
+                  "60m-plus"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Rest"
+          },
+          "disruptions": {
+            "items": {
+              "enum": [
+                "feeding",
+                "baby",
+                "discomfort",
+                "cannot-sleep",
+                "environment",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Disruptions",
+            "type": "array"
+          },
+          "interruptions": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "1-2",
+                  "3-4",
+                  "5-plus",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interruptions"
+          },
+          "longest_stretch": {
+            "anyOf": [
+              {
+                "enum": [
+                  "under-1h",
+                  "1-2h",
+                  "2-3h",
+                  "3h-plus",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longest Stretch"
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "enum": [
+                  "restored",
+                  "managing",
+                  "exhausted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery"
+          },
+          "resleep_difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "somewhat-hard",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resleep Difficulty"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "enum": [
+                  "under-3h",
+                  "3-4h",
+                  "4-5h",
+                  "5-6h",
+                  "6h-plus",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "title": "MotherRest",
         "type": "object"
       },
       "NoteAmendWrite": {
@@ -6356,6 +9022,25 @@
         "title": "PlanTaskUpdate",
         "type": "object"
       },
+      "PlanTodoCompletionUpdate": {
+        "properties": {
+          "completed": {
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "completed",
+          "expected_version"
+        ],
+        "title": "PlanTodoCompletionUpdate",
+        "type": "object"
+      },
       "PlanWrite": {
         "additionalProperties": false,
         "properties": {
@@ -6373,6 +9058,367 @@
           "content"
         ],
         "title": "PlanWrite",
+        "type": "object"
+      },
+      "PregnancyDiaryEntryCreate": {
+        "properties": {
+          "appointment_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Note"
+          },
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "energy_level": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Level"
+          },
+          "entry_date": {
+            "format": "date",
+            "title": "Entry Date",
+            "type": "string"
+          },
+          "fetal_movement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetal Movement"
+          },
+          "gestational_week": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestational Week"
+          },
+          "mood": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mood"
+          },
+          "nutrition_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nutrition Note"
+          },
+          "sleep_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Summary"
+          },
+          "symptom_tags": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symptom Tags"
+          }
+        },
+        "required": [
+          "entry_date"
+        ],
+        "title": "PregnancyDiaryEntryCreate",
+        "type": "object"
+      },
+      "PregnancyDiaryEntryListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PregnancyDiaryEntryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PregnancyDiaryEntryListResponse",
+        "type": "object"
+      },
+      "PregnancyDiaryEntryRead": {
+        "properties": {
+          "appointment_note": {
+            "title": "Appointment Note",
+            "type": "string"
+          },
+          "attachments": {
+            "items": {},
+            "title": "Attachments",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "energy_level": {
+            "title": "Energy Level",
+            "type": "string"
+          },
+          "entry_date": {
+            "format": "date",
+            "title": "Entry Date",
+            "type": "string"
+          },
+          "fetal_movement": {
+            "title": "Fetal Movement",
+            "type": "string"
+          },
+          "gestational_week": {
+            "title": "Gestational Week",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mood": {
+            "title": "Mood",
+            "type": "string"
+          },
+          "nutrition_note": {
+            "title": "Nutrition Note",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "format": "uuid",
+            "title": "Owner User Id",
+            "type": "string"
+          },
+          "sleep_summary": {
+            "title": "Sleep Summary",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "symptom_tags": {
+            "items": {},
+            "title": "Symptom Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner_user_id",
+          "entry_date",
+          "gestational_week",
+          "mood",
+          "energy_level",
+          "sleep_summary",
+          "fetal_movement",
+          "symptom_tags",
+          "appointment_note",
+          "nutrition_note",
+          "content",
+          "attachments",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PregnancyDiaryEntryRead",
+        "type": "object"
+      },
+      "PregnancyDiaryEntryUpdate": {
+        "properties": {
+          "appointment_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Note"
+          },
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "energy_level": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Level"
+          },
+          "fetal_movement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetal Movement"
+          },
+          "gestational_week": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestational Week"
+          },
+          "mood": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mood"
+          },
+          "nutrition_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nutrition Note"
+          },
+          "sleep_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Summary"
+          },
+          "symptom_tags": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symptom Tags"
+          }
+        },
+        "title": "PregnancyDiaryEntryUpdate",
         "type": "object"
       },
       "PresenceWrite": {
@@ -8131,6 +11177,7 @@
             "enum": [
               "dialogue",
               "intake",
+              "mother_diary",
               "lactation",
               "care_plan",
               "baby_record"
@@ -8534,6 +11581,576 @@
           "publication"
         ],
         "title": "SchedulePlanRead",
+        "type": "object"
+      },
+      "ScheduleTimelineCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u5b8c\u6210\u4f46\u6ca1\u6709\u5b9e\u9645\u8bb0\u5f55\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u4ecd\u5f85\u6267\u884c\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "recorded": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5305\u542b\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u7684\u9879\u76ee\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Recorded",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u4e2d\u5df2\u8df3\u8fc7\u7684\u8ba1\u5212\u6570\u91cf\u3002",
+            "minimum": 0.0,
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "completed",
+          "skipped",
+          "recorded"
+        ],
+        "title": "ScheduleTimelineCounts",
+        "type": "object"
+      },
+      "ScheduleTimelineExecution": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u6216\u5438\u5976\u6301\u7eed\u65f6\u95f4\uff0c\u5355\u4f4d\u79d2\uff1b\u672a\u8bb0\u5f55\u6216\u751f\u957f\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Duration Seconds"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9e\u9645\u6267\u884c\u7ed3\u675f\u65f6\u95f4\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Ended At"
+          },
+          "feed_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u52a8\u4f5c\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Feed Action"
+          },
+          "feed_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5582\u517b\u65b9\u5f0f\uff1b\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Feed Type"
+          },
+          "head_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u5934\u56f4\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Head Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u8eab\u9ad8\uff0c\u5355\u4f4d cm\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Height Cm"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8bb0\u5f55\u5bf9\u5e94\u7684\u5b9d\u5b9d UUID\uff1b\u5988\u5988\u4fa7\u5438\u5976\u8bb0\u5f55\u6216\u672a\u6307\u5b9a\u5b9d\u5b9d\u65f6\u4e3a null\u3002",
+            "title": "Infant Id"
+          },
+          "milk_volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5988\u5988\u4fa7\u5438\u5976\u4ea7\u51fa\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Milk Volume Ml"
+          },
+          "occurred_at": {
+            "description": "\u5b9e\u9645\u6267\u884c\u53d1\u751f\u65f6\u95f4\uff0c\u6309\u7528\u6237\u65f6\u533a\u8fd4\u56de\u3002",
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "plan_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8be5\u5b9e\u9645\u8bb0\u5f55\u5173\u8054\u7684\u65e5\u7a0b\u4efb\u52a1 UUID\uff1b\u4e34\u65f6\u53d1\u751f\u6216\u672a\u5173\u8054\u65f6\u4e3a null\u3002",
+            "title": "Plan Task Id"
+          },
+          "pump_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5438\u5976\u65b9\u5f0f\u6216\u8bbe\u5907\u7c7b\u578b\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Pump Type"
+          },
+          "record_id": {
+            "description": "\u5b9e\u9645\u8bb0\u5f55\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u9886\u57df\u8bb0\u5f55\u5de5\u5177\u540e\u7eed\u66f4\u6b63\u6216\u5220\u9664\u3002",
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "record_type": {
+            "description": "\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u7c7b\u578b\uff1a\u5582\u517b\u3001\u5438\u5976\u6216\u5b9d\u5b9d\u751f\u957f\u6d4b\u91cf\u3002",
+            "enum": [
+              "feeding",
+              "pumping",
+              "growth"
+            ],
+            "title": "Record Type",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5438\u5976\u8bb0\u5f55\u6765\u6e90\uff1b\u975e\u5438\u5976\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Source"
+          },
+          "title": {
+            "description": "\u5b9e\u9645\u8bb0\u5f55\u6807\u9898\uff1b\u6ca1\u6709\u6807\u9898\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Title",
+            "type": "string"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u4fa7\u5582\u517b\u6444\u5165\u91cf\uff0c\u5355\u4f4d ml\uff1b\u672a\u8bb0\u5f55\u6216\u975e\u5582\u517b\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Volume Ml"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5b9d\u5b9d\u4f53\u91cd\uff0c\u5355\u4f4d kg\uff1b\u672a\u6d4b\u91cf\u65f6\u4e3a null\u3002",
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "record_type",
+          "record_id",
+          "occurred_at",
+          "title"
+        ],
+        "title": "ScheduleTimelineExecution",
+        "type": "object"
+      },
+      "ScheduleTimelineItem": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "description": "\u9879\u76ee\u6240\u5c5e\u9886\u57df\u3002",
+            "enum": [
+              "lactation",
+              "pregnancy",
+              "postpartum_recovery",
+              "general"
+            ],
+            "title": "Domain",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "\u9886\u57df\u5185\u4e8b\u4ef6\u7c7b\u578b\uff0c\u4f8b\u5982 pumping\u3001feeding\u3001appointment \u6216 exercise\u3002",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "executions": {
+            "description": "\u4e0e\u8be5\u65e5\u7a0b\u5173\u8054\u7684\u5b9e\u9645\u4e1a\u52a1\u4e8b\u5b9e\uff1b\u672a\u6267\u884c\u6216\u4ec5\u624b\u52a8\u5b8c\u6210\u7684\u4efb\u52a1\u4e3a\u7a7a\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelineExecution"
+            },
+            "title": "Executions",
+            "type": "array"
+          },
+          "item_id": {
+            "description": "\u65f6\u95f4\u7ebf\u9879\u76ee\u805a\u5408\u6807\u8bc6\uff0c\u4ec5\u7528\u4e8e\u5217\u8868\u5c55\u793a\u4e0e\u53bb\u91cd\uff1b\u4fee\u6539\u65e5\u7a0b\u4f7f\u7528 schedule.task_id\uff0c\u4fee\u6539\u5b9e\u9645\u8bb0\u5f55\u4f7f\u7528 executions[].record_id\u3002",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleTimelineSchedule"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8ba1\u5212\u65e5\u7a0b\uff1b\u4e34\u65f6\u53d1\u751f\u4e14\u6ca1\u6709\u5173\u8054\u65e5\u7a0b\u7684\u5b9e\u9645\u4e8b\u5b9e\u4e3a null\u3002"
+          },
+          "state": {
+            "description": "\u5f52\u4e00\u5316\u72b6\u6001\uff1a\u5f85\u6267\u884c\u3001\u5df2\u5b8c\u6210\u4f46\u65e0\u5b9e\u9645\u8bb0\u5f55\u3001\u5df2\u8df3\u8fc7\uff0c\u6216\u5df2\u6709\u5b9e\u9645\u6267\u884c\u4e8b\u5b9e\u3002",
+            "enum": [
+              "pending",
+              "completed",
+              "skipped",
+              "recorded"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "domain",
+          "event_type",
+          "state"
+        ],
+        "title": "ScheduleTimelineItem",
+        "type": "object"
+      },
+      "ScheduleTimelinePlanSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u5976\u91cf\u8ba1\u5212\u65b9\u5411\uff0c\u4f8b\u5982 increase\u3001maintain \u6216 decrease\uff1b\u5176\u4ed6\u8ba1\u5212\u6216\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Direction"
+          },
+          "domain": {
+            "description": "\u8ba1\u5212\u6240\u5c5e\u9886\u57df\uff1a\u6ccc\u4e73\u3001\u5b55\u671f\u3001\u4ea7\u540e\u5eb7\u590d\u6216\u901a\u7528\u3002",
+            "enum": [
+              "lactation",
+              "pregnancy",
+              "postpartum_recovery",
+              "general"
+            ],
+            "title": "Domain",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6839\u636e\u8ba1\u5212\u5f00\u59cb\u65e5\u671f\u548c\u8986\u76d6\u5929\u6570\u8ba1\u7b97\u7684\u7ed3\u675f\u65e5\u671f\uff1b\u4fe1\u606f\u4e0d\u8db3\u65f6\u4e3a null\u3002",
+            "title": "End Date"
+          },
+          "plan_id": {
+            "description": "\u5f53\u524d\u7528\u6237\u8ba1\u5212\u7684\u7a33\u5b9a UUID\u3002",
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "plan_type": {
+            "description": "\u8ba1\u5212\u5728\u4e1a\u52a1\u6570\u636e\u5e93\u4e2d\u7684\u5177\u4f53\u7c7b\u578b\u3002",
+            "title": "Plan Type",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u8ba1\u5212\u5f00\u59cb\u7684\u672c\u5730\u65e5\u671f\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Start Date"
+          },
+          "status": {
+            "description": "\u8ba1\u5212\u6301\u4e45\u5316\u72b6\u6001\uff0c\u5f53\u524d\u5217\u8868\u53ea\u8fd4\u56de active\u3002",
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "description": "\u8ba1\u5212\u7684\u7b80\u8981\u76ee\u6807\u4e0e\u7b56\u7565\u8bf4\u660e\uff1b\u6ca1\u6709\u6458\u8981\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "description": "\u8ba1\u5212\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id",
+          "domain",
+          "plan_type",
+          "title",
+          "summary",
+          "status"
+        ],
+        "title": "ScheduleTimelinePlanSummary",
+        "type": "object"
+      },
+      "ScheduleTimelineReadOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of_date": {
+            "description": "\u672c\u6b21\u8bfb\u53d6\u4f7f\u7528\u7684\u53ef\u4fe1\u8fd0\u884c\u65f6\u672c\u5730\u65e5\u671f\u3002",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ScheduleTimelineCounts",
+            "description": "\u5bf9\u5f53\u524d\u8fd4\u56de\u9879\u76ee\u6309\u5f52\u4e00\u5316\u72b6\u6001\u6c47\u603b\u7684\u6570\u91cf\u3002"
+          },
+          "domains": {
+            "description": "\u672c\u6b21\u5b9e\u9645\u8bfb\u53d6\u7684\u65e5\u7a0b\u9886\u57df\u3002",
+            "items": {
+              "enum": [
+                "lactation",
+                "pregnancy",
+                "postpartum_recovery",
+                "general"
+              ],
+              "type": "string"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "end_date": {
+            "description": "\u65f6\u95f4\u7ebf\u7ed3\u675f\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "items": {
+            "description": "\u6309\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u6216\u8ba1\u5212\u6267\u884c\u65f6\u95f4\u5347\u5e8f\u6392\u5217\u7684\u65f6\u95f4\u7ebf\u9879\u76ee\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelineItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "plans": {
+            "description": "\u6240\u9009\u9886\u57df\u5f53\u524d active \u8ba1\u5212\u7684\u7cbe\u7b80\u6458\u8981\u3002",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTimelinePlanSummary"
+            },
+            "title": "Plans",
+            "type": "array"
+          },
+          "start_date": {
+            "description": "\u65f6\u95f4\u7ebf\u8d77\u59cb\u672c\u5730\u65e5\u671f\uff0c\u5305\u542b\u8be5\u65e5\u3002",
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "\u8ba1\u5212\u65f6\u95f4\u548c\u5b9e\u9645\u65f6\u95f4\u4f7f\u7528\u7684 IANA \u65f6\u533a\u3002",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "\u662f\u5426\u56e0\u8fd4\u56de\u6570\u91cf\u4e0a\u9650\u800c\u7701\u7565\u4e86\u5176\u4ed6\u5339\u914d\u9879\u76ee\u3002",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "as_of_date",
+          "timezone",
+          "start_date",
+          "end_date",
+          "domains",
+          "plans",
+          "items",
+          "counts",
+          "truncated"
+        ],
+        "title": "ScheduleTimelineReadOutput",
+        "type": "object"
+      },
+      "ScheduleTimelineSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u4efb\u52a1\u88ab\u6807\u8bb0\u5b8c\u6210\u7684\u7cfb\u7edf\u65f6\u95f4\uff1b\u5b83\u4e0d\u7b49\u540c\u4e8e\u4e1a\u52a1\u4e8b\u5b9e\u7684\u5b9e\u9645\u53d1\u751f\u65f6\u95f4\u3002",
+            "title": "Completed At"
+          },
+          "description": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u8bf4\u660e\uff1b\u6ca1\u6709\u8bf4\u660e\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Description",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "\u5f52\u4e00\u5316\u540e\u7684\u4efb\u52a1\u65f6\u957f\uff08\u5206\u949f\uff09\uff1b\u7f3a\u5931\u6216\u65e0\u6548\u65f6\u4e3a 30\u3002",
+            "maximum": 240.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6240\u5c5e\u8ba1\u5212\u7684\u7a33\u5b9a UUID\uff1b\u72ec\u7acb\u4efb\u52a1\u65f6\u4e3a null\u3002",
+            "title": "Plan Id"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u6309\u7528\u6237\u65f6\u533a\u7ec4\u5408\u4efb\u52a1\u65e5\u671f\u548c\u65f6\u95f4\u5f97\u5230\u7684\u8ba1\u5212\u6267\u884c\u65f6\u95f4\uff1b\u4fe1\u606f\u4e0d\u5b8c\u6574\u65f6\u4e3a null\u3002",
+            "title": "Scheduled At"
+          },
+          "status": {
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u72b6\u6001\uff0c\u4f8b\u5982 pending\u3001completed \u6216 skipped\u3002",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u7684\u672c\u5730\u65e5\u671f\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a null\u3002",
+            "title": "Task Date"
+          },
+          "task_id": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u7684\u7a33\u5b9a UUID\uff0c\u53ef\u7528\u4e8e\u540e\u7eed\u66f4\u65b0\u3001\u72b6\u6001\u53d8\u66f4\u6216\u5220\u9664\u3002",
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_time": {
+            "description": "\u4efb\u52a1\u6301\u4e45\u5316\u7684\u672c\u5730\u65f6\u95f4\uff0c\u901a\u5e38\u4e3a HH:MM\uff1b\u672a\u8bb0\u5f55\u65f6\u4e3a\u7a7a\u5b57\u7b26\u4e32\u3002",
+            "title": "Task Time",
+            "type": "string"
+          },
+          "title": {
+            "description": "\u65e5\u7a0b\u4efb\u52a1\u6807\u9898\u3002",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_time",
+          "title",
+          "description",
+          "status",
+          "duration_minutes"
+        ],
+        "title": "ScheduleTimelineSchedule",
         "type": "object"
       },
       "ServiceCatalog": {
@@ -11160,8 +14777,7 @@
                     "sleep",
                     "diaper",
                     "growth",
-                    "development",
-                    "daily_status"
+                    "development"
                   ],
                   "type": "string"
                 },
@@ -16118,6 +19734,458 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/internal/agent/actions/diary.entry/apply": {
+      "post": {
+        "operationId": "apply_agent_diary_action_v1_internal_agent_actions_diary_entry_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentDiaryApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDiaryApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Agent Diary Action",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "diary",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/actions/lactation.record/apply": {
+      "post": {
+        "operationId": "apply_agent_lactation_record_v1_internal_agent_actions_lactation_record_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentLactationRecordApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentLactationRecordApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Agent Lactation Record",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "records",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/actions/plans/apply": {
+      "post": {
+        "operationId": "apply_agent_plans_action_v1_internal_agent_actions_plans_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPlansActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPlansApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Agent Plans Action",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/actions/profile.update/apply": {
+      "post": {
+        "operationId": "apply_agent_profile_update_v1_internal_agent_actions_profile_update_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentProfileUpdateApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBusinessActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Agent Profile Update",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/diary": {
+      "get": {
+        "operationId": "read_agent_diary_v1_internal_agent_diary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entry_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entry Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDiaryReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Diary",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "diary",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/internal/agent/files/resolve": {
       "post": {
         "operationId": "resolve_agent_file_v1_internal_agent_files_resolve_post",
@@ -16180,6 +20248,405 @@
           "agent-runtime"
         ],
         "x-momcozy-owner": "files",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/lactation/milk-analysis-snapshot": {
+      "get": {
+        "operationId": "read_agent_milk_analysis_snapshot_v1_internal_agent_lactation_milk_analysis_snapshot_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone_name",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Timezone Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMilkAnalysisSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Milk Analysis Snapshot",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "records",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/plans/calendar": {
+      "get": {
+        "operationId": "read_agent_plan_calendar_v1_internal_agent_plans_calendar_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "task_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPlansCalendarReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Plan Calendar",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/plans/current": {
+      "get": {
+        "operationId": "read_agent_current_plans_v1_internal_agent_plans_current_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPlansCurrentReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Current Plans",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/plans/{plan_id}": {
+      "get": {
+        "operationId": "read_agent_plan_detail_v1_internal_agent_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPlanDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Plan Detail",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
         "x-momcozy-stability": "stable"
       }
     },
@@ -16276,6 +20743,194 @@
           "agent-runtime"
         ],
         "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/schedule-timeline": {
+      "get": {
+        "operationId": "read_agent_schedule_timeline_v1_internal_agent_schedule_timeline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone_name",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Timezone Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "domains",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Domains"
+            }
+          },
+          {
+            "in": "query",
+            "name": "states",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "States"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_executions",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Executions",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleTimelineReadOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Schedule Timeline",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "plans",
         "x-momcozy-stability": "stable"
       }
     },
@@ -16676,6 +21331,134 @@
         ],
         "x-momcozy-notes": "Opaque bearer capability used only for model input fetches.",
         "x-momcozy-owner": "files",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/mother/diary": {
+      "get": {
+        "operationId": "list_diary_v1_mother_diary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Start",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "End",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotherDiaryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Diary",
+        "tags": [
+          "mother"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "mother",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/mother/diary/{entry_date}": {
+      "put": {
+        "operationId": "save_diary_v1_mother_diary__entry_date__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Entry Date",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotherDiaryWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotherDiaryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Diary",
+        "tags": [
+          "mother"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "mother",
         "x-momcozy-stability": "stable"
       }
     },
@@ -17960,6 +22743,402 @@
         ],
         "x-momcozy-notes": "Use /v1/schedule and /v1/care plan publications for the current product.",
         "x-momcozy-owner": "plans",
+        "x-momcozy-stability": "deprecated"
+      }
+    },
+    "/v1/plans/{plan_id}/todos/{item_id}/completion": {
+      "patch": {
+        "operationId": "update_plan_todo_completion_v1_plans__plan_id__todos__item_id__completion_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanTodoCompletionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Plan Todo Completion",
+        "tags": [
+          "plans"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/schedule and /v1/care plan publications for the current product.",
+        "x-momcozy-owner": "plans",
+        "x-momcozy-stability": "deprecated"
+      }
+    },
+    "/v1/pregnancy-diary/entries": {
+      "get": {
+        "operationId": "list_entries_v1_pregnancy_diary_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PregnancyDiaryEntryListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Entries",
+        "tags": [
+          "pregnancy-diary"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/mother/diary for the current postpartum diary contract.",
+        "x-momcozy-owner": "pregnancy-diary",
+        "x-momcozy-stability": "deprecated"
+      },
+      "post": {
+        "operationId": "create_entry_v1_pregnancy_diary_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PregnancyDiaryEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PregnancyDiaryEntryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Entry",
+        "tags": [
+          "pregnancy-diary"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/mother/diary for the current postpartum diary contract.",
+        "x-momcozy-owner": "pregnancy-diary",
+        "x-momcozy-stability": "deprecated"
+      }
+    },
+    "/v1/pregnancy-diary/entries/{entry_date}": {
+      "delete": {
+        "operationId": "delete_entry_v1_pregnancy_diary_entries__entry_date__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Entry Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Entry",
+        "tags": [
+          "pregnancy-diary"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/mother/diary for the current postpartum diary contract.",
+        "x-momcozy-owner": "pregnancy-diary",
+        "x-momcozy-stability": "deprecated"
+      },
+      "get": {
+        "operationId": "get_entry_v1_pregnancy_diary_entries__entry_date__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Entry Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PregnancyDiaryEntryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Entry",
+        "tags": [
+          "pregnancy-diary"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/mother/diary for the current postpartum diary contract.",
+        "x-momcozy-owner": "pregnancy-diary",
+        "x-momcozy-stability": "deprecated"
+      },
+      "patch": {
+        "operationId": "update_entry_v1_pregnancy_diary_entries__entry_date__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Entry Date",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PregnancyDiaryEntryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PregnancyDiaryEntryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Entry",
+        "tags": [
+          "pregnancy-diary"
+        ],
+        "x-momcozy-api-surface": "deprecated_api",
+        "x-momcozy-client": [
+          "legacy-flutter"
+        ],
+        "x-momcozy-notes": "Use /v1/mother/diary for the current postpartum diary contract.",
+        "x-momcozy-owner": "pregnancy-diary",
         "x-momcozy-stability": "deprecated"
       }
     },
@@ -19758,9 +24937,13 @@
   "x-momcozy-runtime-token-permissions": [
     "agent:run",
     "device:read",
+    "diary:read",
+    "diary:write",
     "files:read",
     "plans:read",
     "plans:write",
+    "prenatal:read",
+    "prenatal:write",
     "profile:read",
     "profile:write",
     "records:read",
