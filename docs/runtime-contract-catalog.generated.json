@@ -5,7 +5,7 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "a950eb7cb571b1f3e8e9c9b936a6dd1ba62c7f1eb210a38a830da0602d549f7c"
   },
-  "catalog_sha256": "75348df030c77c72c01ed23e3ec28837e9be8f302535e53db9730b04fb56ecc3",
+  "catalog_sha256": "4cbf030e850836ce035907db22c714653374a21a2ef755cf99707b48d7874c3d",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -32,7 +32,7 @@
     "runtime_safety_policy_version": "momcozy.runtime_safety.v1",
     "runtime_version": "momcozy-agent-v1",
     "schema_version": "agent.runtime_metadata.v1",
-    "service_skill_schema_version": "momcozy.service_skill.v2",
+    "service_skill_schema_version": "momcozy.service_skill.v3",
     "text_stream_schema_version": "append-only.v1",
     "tool_catalog_schema_version": "agent.tool_catalog.v1",
     "tool_contract_schema_version": "agent.tool_contract.v1"
@@ -43,11 +43,22 @@
     "items": [
       {
         "action_types": [],
-        "description": "加载当前服务 Skill，工具结果返回加载状态与内容指纹；Runtime 将完整 SKILL.md 作为独立 developer 消息提供。当当前请求需要泌乳专业咨询且当前内容指纹的完整 Skill 尚未进入上下文时使用。",
+        "description": "渐进加载服务 Skill 或按路由选定的专题参考，返回加载状态与内容指纹。当当前请求需要泌乳专业规则且匹配正文尚未进入上下文时使用。",
         "domain": "runtime",
         "input_schema": {
           "additionalProperties": false,
           "properties": {
+            "reference_id": {
+              "description": "可选专题参考标识。省略时加载 SKILL.md；仅在已按 Skill 路由确定当前问题后传入。",
+              "enum": [
+                "milk-supply-assessment",
+                "lactation-establishment-and-output-change",
+                "latch-and-nipple-pain",
+                "pumping-comfort-and-output",
+                "breast-fullness-and-inflammatory-symptoms"
+              ],
+              "type": "string"
+            },
             "skill_id": {
               "description": "要加载的服务 Skill 标识。",
               "enum": [
@@ -76,8 +87,26 @@
               "minLength": 1,
               "type": "string"
             },
+            "resource_id": {
+              "enum": [
+                "lactation",
+                "milk-supply-assessment",
+                "lactation-establishment-and-output-change",
+                "latch-and-nipple-pain",
+                "pumping-comfort-and-output",
+                "breast-fullness-and-inflammatory-symptoms"
+              ],
+              "type": "string"
+            },
+            "resource_type": {
+              "enum": [
+                "skill",
+                "reference"
+              ],
+              "type": "string"
+            },
             "schema_version": {
-              "const": "momcozy.service_skill.v2",
+              "const": "momcozy.service_skill.v3",
               "type": "string"
             },
             "skill_id": {
@@ -99,6 +128,8 @@
             "schema_version",
             "status",
             "skill_id",
+            "resource_type",
+            "resource_id",
             "version",
             "description",
             "content_sha256"
@@ -111,10 +142,13 @@
         ],
         "retry_policy": "none",
         "safe_arg_fields": [
+          "reference_id",
           "skill_id"
         ],
         "safe_output_fields": [
           "content_sha256",
+          "resource_id",
+          "resource_type",
           "schema_version",
           "skill_id",
           "status",
@@ -125,6 +159,6 @@
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "5ff1c1c27255c707b42a5a4cab33612c5d649387966b0da13044d3a7ab2067ff"
+    "sha256": "68c57a26d7a0557f4874225d566c029f680d00f34790e887288d86a43cbf3049"
   }
 }

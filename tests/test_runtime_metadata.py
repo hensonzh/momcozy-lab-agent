@@ -122,7 +122,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "runtime_contract_catalog": "agent.runtime_contract_catalog.v1",
         "runtime_metadata": "agent.runtime_metadata.v1",
         "runtime_safety_policy": "momcozy.runtime_safety.v1",
-        "service_skill": "momcozy.service_skill.v2",
+        "service_skill": "momcozy.service_skill.v3",
         "text_stream": "append-only.v1",
         "tool_catalog": "agent.tool_catalog.v1",
         "tool_contract": "agent.tool_contract.v1",

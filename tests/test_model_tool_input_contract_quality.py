@@ -132,10 +132,32 @@ def test_single_operation_tools_do_not_repeat_the_operation_name() -> None:
     assert redundant == []
 
 
-@pytest.mark.parametrize("value", [{"skill_id": "device"}, {"skill_id": "unknown"}, {"skill_id": "lactation", "user_id": "other"}, {}])
-def test_skill_loader_rejects_removed_skills_and_extra_fields(value: dict[str, Any]) -> None:
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"skill_id": "device"},
+        {"skill_id": "unknown"},
+        {"skill_id": "lactation", "user_id": "other"},
+        {"skill_id": "lactation", "reference_id": "unknown"},
+        {"skill_id": "lactation", "reference_id": "../../system_prompt"},
+        {},
+    ],
+)
+def test_skill_loader_rejects_removed_skills_references_and_extra_fields(
+    value: dict[str, Any],
+) -> None:
     _assert_invalid("load_service_skill", value)
 
 
-def test_skill_loader_accepts_lactation() -> None:
-    _validate("load_service_skill", {"skill_id": "lactation"})
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"skill_id": "lactation"},
+        {
+            "skill_id": "lactation",
+            "reference_id": "milk-supply-assessment",
+        },
+    ],
+)
+def test_skill_loader_accepts_registered_resources(value: dict[str, Any]) -> None:
+    _validate("load_service_skill", value)

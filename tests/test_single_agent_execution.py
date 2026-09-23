@@ -101,6 +101,64 @@ def test_skill_body_is_a_separate_developer_item_after_the_load_receipt() -> Non
     assert "cache_control" not in str(developer_item)
 
 
+def test_skill_router_can_load_one_reference_before_the_final_response() -> None:
+    reference = SERVICE_SKILL_REGISTRY.get("lactation").get_reference(
+        "milk-supply-assessment"
+    )
+    model = ScriptedAgentModel(
+        {
+            "cozymate": [
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
+                        call_id="load-lactation",
+                        name=LOAD_SERVICE_SKILL_TOOL_NAME,
+                        arguments={"skill_id": "lactation"},
+                    )
+                ),
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
+                        call_id="load-milk-supply",
+                        name=LOAD_SERVICE_SKILL_TOOL_NAME,
+                        arguments={
+                            "skill_id": "lactation",
+                            "reference_id": reference.reference_id,
+                        },
+                    )
+                ),
+                ScriptedTurn.final("已按奶量评估专题继续处理。"),
+            ]
+        }
+    )
+    port = RecordingExecutionPort()
+
+    result = asyncio.run(
+        _engine(model).execute(
+            input_items=(
+                {"role": "user", "content": "帮我判断宝宝是不是没吃够"},
+            ),
+            port=port,
+            authorization_permissions=_all_tool_permissions(),
+        )
+    )
+
+    assert result.text == "已按奶量评估专题继续处理。"
+    assert [call[3] for call in port.tool_calls] == [
+        {"skill_id": "lactation"},
+        {
+            "skill_id": "lactation",
+            "reference_id": reference.reference_id,
+        },
+    ]
+    assert len(model.requests) == 3
+    skill_item = SERVICE_SKILL_REGISTRY.get("lactation").developer_item()
+    reference_item = reference.developer_item()
+    assert skill_item not in model.requests[0].input_items
+    assert model.requests[1].input_items.count(skill_item) == 1
+    assert reference_item not in model.requests[1].input_items
+    assert model.requests[2].input_items.count(skill_item) == 1
+    assert model.requests[2].input_items.count(reference_item) == 1
+
+
 def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools() -> None:
     model = ScriptedAgentModel(
         {"cozymate": [ScriptedTurn.final("完成。")]}
@@ -339,10 +397,17 @@ class RecordingExecutionPort:
             (agent_name, tool_name, call_id, dict(arguments))
         )
         if tool_name == LOAD_SERVICE_SKILL_TOOL_NAME:
+            skill = SERVICE_SKILL_REGISTRY.get(
+                str(arguments["skill_id"])
+            )
+            reference_id = arguments.get("reference_id")
+            resource = (
+                skill
+                if reference_id is None
+                else skill.get_reference(str(reference_id))
+            )
             return json.dumps(
-                SERVICE_SKILL_REGISTRY.get(
-                    str(arguments["skill_id"])
-                ).to_tool_output(),
+                resource.to_tool_output(),
                 ensure_ascii=False,
                 separators=(",", ":"),
                 sort_keys=True,

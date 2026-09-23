@@ -56,10 +56,10 @@ def test_stable_prompt_contains_skill_manifest_but_not_full_skill_bodies() -> No
         assert skill.content not in AGENT.instructions
 
 
-def test_stable_prompt_defines_current_run_business_context_trust_boundary() -> None:
-    assert "authoritative_business_context" in AGENT.instructions
-    assert "只在当前 Run" in AGENT.instructions
-    assert "字符串字段" in AGENT.instructions
+def test_stable_prompt_keeps_runtime_business_context_out_of_static_instructions() -> None:
+    assert "authoritative_business_context" not in AGENT.instructions
+    assert "the current context" in AGENT.instructions
+    assert "Do not fabricate tool results or execution status" in AGENT.instructions
 
 
 def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:
@@ -88,9 +88,11 @@ def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:
 
     output = result.canonical_output
     assert output == {
-        "schema_version": "momcozy.service_skill.v2",
+        "schema_version": "momcozy.service_skill.v3",
         "status": "loaded",
         "skill_id": "lactation",
+        "resource_type": "skill",
+        "resource_id": "lactation",
         "version": skill.version,
         "description": skill.description,
         "content_sha256": hashlib.sha256(
@@ -105,7 +107,7 @@ def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:
     assert json.loads(function_output) == output
 
 
-def test_lactation_skill_loads_the_single_source_file() -> None:
+def test_lactation_skill_loads_the_router_source_file() -> None:
     path = Path(__file__).parents[1] / "app/agent/skills/lactation/SKILL.md"
     assert SERVICE_SKILL_REGISTRY.get("lactation").content == path.read_text(encoding="utf-8")
 

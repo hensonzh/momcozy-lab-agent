@@ -1,6 +1,6 @@
 # 对话与跟进评测
 
-适用对象：CozyMate 当前系统提示词与唯一的 `app/agent/skills/lactation/SKILL.md`。本次仅调整对话、Skill 和评测；日程写入、记录读写、提醒及自动回访仍未接入智能体。
+适用对象：CozyMate 当前系统提示词，以及 `app/agent/skills/lactation/SKILL.md` 路由和 `references/*.md` 专题方案。本次仅调整对话、Skill 和评测；日程写入、记录读写、提醒及自动回访仍未接入智能体。
 
 ## 行为契约
 
@@ -19,17 +19,17 @@
 | 一次性问题 | `conversation_simple_answer_no_management` | 直接回答后结束，不引出管理需求 |
 | 历史缺失 | `conversation_missing_history` | 全新会话不假装记得旧方案或已读取业务记录 |
 
-共 41 个行为场景，其中 9 个为多轮。每个多轮场景的 `turns` 只包含用户输入；必须等待当轮真实回复后，才向同一 thread 发送下一条，不能把数组一次拼成用户消息，也不能补写预设 assistant 回复。场景里“隔了一天”验证用户明确报告时间变化时的接续，不等于真实跨日时钟、后台调度或通知已验收。
+共 59 个行为场景，其中 13 个为多轮。每个多轮场景的 `turns` 只包含用户输入；必须等待当轮真实回复后，才向同一 thread 发送下一条，不能把数组一次拼成用户消息，也不能补写预设 assistant 回复。场景里“隔了一天”验证用户明确报告时间变化时的接续，不等于真实跨日时钟、后台调度或通知已验收。
 
 ## 测试集结构
 
 使用现有 `evals/behavior/v1/scenarios.json`，保留 `momcozy.behavior_eval_suite.v1` 与旧单轮场景兼容。多轮增加可选字段 `turn_expectations`，数量必须等于 `turns`；每项使用现有 `StructuralExpectation` 契约，最后一项必须与 `structural_expectation` 一致。`quality_rubric` 评审整段对话，各条目明确关注哪些轮次。
 
-这些短场景从全新测试 thread 开始，首轮需要时加载当前 Skill；之后当前内容指纹的正文仍可见，不能重复加载。长历史压缩后重新加载属于现有上下文测试范围，不由这些短场景代替。
+这些短场景从全新测试 thread 开始，首轮需要时先加载当前 Skill 路由，再加载与主诉匹配的 reference；之后对应内容指纹的正文仍可见时不能重复加载。长历史压缩后重新加载属于现有上下文测试范围，不由这些短场景代替。
 
 ## 执行与回放
 
-1. 使用隔离测试用户和全新 thread，不填入真实妈妈或宝宝数据。记录使用的模型、主提示词哈希和 Skill 内容哈希；加载唯一源文件的当前内容。
+1. 使用隔离测试用户和全新 thread，不填入真实妈妈或宝宝数据。记录使用的模型、主提示词哈希，以及实际加载的 Skill/reference 内容哈希。
 2. 按 `turns` 顺序通过现有 Run API 发起真实对话，等待每轮结束，收集所有 Run ID。紧急轮也保留独立 Run 及安全事件。
 3. `momcozy.behavior_eval_run_map.v1` 的 `runs` 字段支持原来的单个 UUID，以及按用户轮次排列的 UUID 数组。每个 active case 都须映射，数组长度须等于轮数；禁止空列表和重复使用 Run。
 

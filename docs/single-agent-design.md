@@ -7,20 +7,29 @@ CozyMate（`cozymate`）是唯一的 Agent，使用单条模型—工具推理�
 ## 组织与加载
 
 - `app/agent/definition.py` 定义名称与指令，`system_prompt.md` 保存基础规则。
-- `app/agent/skills/lactation/SKILL.md` 是泌乳、疼痛及跟进流程的唯一源文件，直接在此维护，不分版本目录。
-- `app/agent/skill_registry.py` 校验 Skill 并提供加载工具。
+- `app/agent/skills/lactation/SKILL.md` 只维护高频问题路由、共用工作方式与安全边界；`references/*.md` 分别维护五类问题的具体解决方案。
+- `app/agent/skill_registry.py` 校验 Skill 与 reference，并提供渐进加载工具。
 - `app/capability_catalog.py` 仅显式注册 loader，`app/bootstrap/` 注入 Runtime。
 - `app/agent_runtime/` 保留通用执行、上下文、安全、持久化与恢复内核。
 
-系统提示词只包含 Skill 简介。需要专业泌乳咨询时调用：
+系统提示词只包含 Skill 简介。需要专业泌乳咨询时先加载路由：
 
 ```json
 {"skill_id": "lactation"}
 ```
 
-loader 的 `function_call_output` 包含加载状态、名称、简介与 SHA-256，按实际顺序进入账本，正文不在工具结果中。兼容字段 `version` 自动取内容 SHA-256，无需维护数字版本。
-加载成功时，完整 Skill 以独立 `developer` 消息紧随回执持久化到当前 Run。正文不拼入开头的稳定指令，当前清单指纹对应的完整 developer 消息仍可见时不重复加载。
-恢复与后续 Run 保留当时的正文快照；它们是会话记录，不是另一份 Skill 源文件。修改唯一源文件并重启应用后加载新内容，不改写旧 Run。该 Run 被压缩时，正文一起参与摘要；压缩后不再自动恢复完整正文。普通工具结果、用户文字和历史摘要不能激活 Skill。仅回执记录须与当前内容指纹及兼容字段匹配才能补出正文。
+确定主诉后，再按 `SKILL.md` 中的枚举加载一个专题，例如：
+
+```json
+{
+  "skill_id": "lactation",
+  "reference_id": "milk-supply-assessment"
+}
+```
+
+loader 的 `momcozy.service_skill.v3` 回执包含加载状态、Skill 身份、资源类型与身份、简介及 SHA-256，按实际顺序进入账本，正文不在工具结果中。兼容字段 `version` 自动取所选文档的内容 SHA-256，无需维护数字版本。
+加载成功时，所选路由或 reference 以独立 `developer` 消息紧随回执持久化到当前 Run。正文不拼入开头的稳定指令；相同内容指纹的对应文档仍可见时不重复加载。
+恢复与后续 Run 保留当时的正文快照；它们是会话记录，不是另一份维护版本。修改源文件并重启应用后加载新内容，不改写旧 Run。该 Run 被压缩时，文档一起参与摘要；压缩后不再自动恢复完整正文。普通工具结果、用户文字和历史摘要不能激活文档。仅回执记录须与当前资源身份、内容指纹及兼容字段匹配才能补出正文。v1/v2 回执只兼容旧 Skill 文档，专题 reference 从 v3 开始。
 完整请求仍经过上下文预算检查，必要时执行 durable compaction。
 
 ## 执行边界
@@ -36,11 +45,11 @@ SDK Runner 负责模型—工具循环，自研 AgentLoop 负责租约、账本�
 紧急风险先走安全分流；未命中时由同一个 CozyMate 整合上下文并回复。
 普通健康信息与情绪支持不需要加载 Skill。所有具体限制与契约维护流程见 [tools.md](tools.md)。
 
-泌乳 Skill 按主诉选择流程：奶量综合判断分别核对生长发育、宝宝摄入、妈妈泌乳供需；疼痛主诉先澄清发生情境、风险与变化，再给下一步及必要复评。无需为单纯疼痛完成奶量问卷。设计与来源见 [lactation-assessment.md](lactation-assessment.md)。
+泌乳 Skill 先按五类高频问题分流，再只加载相关专题方案。奶量综合判断分别核对生长发育、宝宝摄入、妈妈泌乳供需；疼痛主诉先澄清发生情境、风险与变化，再给下一步及必要复评。无需为单纯疼痛完成奶量问卷。设计与来源见 [lactation-assessment.md](lactation-assessment.md)。
 
 ## 验证
 
-测试覆盖当前工具与技能目录、已删除技能拒绝、权限过滤、完整 Skill 加载、上下文预算、工具调用配对、恢复与流式消息。
+测试覆盖当前工具与技能目录、已删除技能和未知 reference 拒绝、权限过滤、路由与专题渐进加载、上下文预算、工具调用配对、恢复与流式消息。
 通用 Runtime 的业务工具和 Action 测试使用测试专用契约，不把它们注册到产品目录。
 行为评估覆盖咨询、能力边界、安全分流及多轮跟进；多轮场景逐轮使用同一测试 thread 的真实 Run，不能只映射最后一轮。真实模型评审另行执行，见 [对话与跟进评测](conversation-followup-evals.md)。
 

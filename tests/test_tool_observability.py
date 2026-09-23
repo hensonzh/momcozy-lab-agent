@@ -172,6 +172,46 @@ def test_skill_receipt_and_original_developer_body_are_persisted_in_the_same_run
     assert document.item_key == f"run:{repository.run.id}:tool-context:load-skill:0"
 
 
+def test_reference_receipt_and_developer_body_are_persisted_in_the_same_run() -> None:
+    repository = ToolRepository()
+    executor = ToolExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        registry=service_skill_tool_registry(),
+        handlers={"load_service_skill": LoadServiceSkillToolHandler(SERVICE_SKILL_REGISTRY)},
+    )
+    reference = SERVICE_SKILL_REGISTRY.get("lactation").get_reference(
+        "milk-supply-assessment"
+    )
+    result = asyncio.run(executor.execute(
+        actor=repository.principal, run_id=repository.run.id,
+        tool_name="load_service_skill", call_id="load-reference",
+        args={
+            "skill_id": "lactation",
+            "reference_id": reference.reference_id,
+        },
+        request_id="request-reference",
+    ))
+    assert len(repository.context_batches) == 1
+    batch = repository.context_batches[0]
+    assert batch["run_id"] == repository.run.id
+    receipt, document = batch["items"]
+    assert receipt.item == {
+        "type": "function_call_output",
+        "call_id": "load-reference",
+        "output": result.model_output,
+    }
+    assert result.canonical_output["resource_type"] == "reference"
+    assert "content" not in result.canonical_output
+    assert document.item == reference.developer_item()
+    assert document.item_key == (
+        f"run:{repository.run.id}:tool-context:load-reference:0"
+    )
+    assert repository.events[-1]["event_type"] == "skill.reference.loaded"
+    assert repository.events[-1]["payload"]["reference_id"] == (
+        reference.reference_id
+    )
+
+
 def test_tool_executor_blocks_missing_permission_before_handler() -> None:
     repository = ToolRepository(permissions=frozenset({"agent:run"}))
     registry = ToolContractRegistry()

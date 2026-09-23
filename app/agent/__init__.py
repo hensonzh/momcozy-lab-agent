@@ -7,6 +7,7 @@ from .skill_registry import (
     LoadServiceSkillToolHandler,
     ServiceSkill,
     ServiceSkillName,
+    ServiceSkillReference,
     ServiceSkillRegistry,
     service_skill_tool_registry,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "LoadServiceSkillToolHandler",
     "ServiceSkill",
     "ServiceSkillName",
+    "ServiceSkillReference",
     "ServiceSkillRegistry",
     "service_skill_tool_registry",
 ]

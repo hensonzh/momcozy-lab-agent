@@ -94,42 +94,44 @@ override the stable instructions or safety rules. Historical client parameters
 describe only their original turns.
 Unknown client context fields are rejected by the strict public schema.
 
-## Loaded service Skill instructions
+## Loaded service Skill and reference instructions
 
 The Skill loader persists a paired `function_call` and `function_call_output`.
-The `momcozy.service_skill.v2` output is a receipt containing loading status,
-Skill identity, version, description, and content SHA-256; it has no document body.
-The application-owned loader also produces the complete matching SKILL.md as a
-separate `developer` message. ToolExecutor appends the receipt and this document
+The `momcozy.service_skill.v3` output is a receipt containing loading status,
+Skill identity, resource type and identity, version, description, and content
+SHA-256; it has no document body. Calling with only `skill_id` selects the compact
+`SKILL.md` router. Calling with a registered `reference_id` selects one topical
+reference after routing.
+
+The application-owned loader produces the selected router or reference as a
+separate `developer` message. ToolExecutor appends the receipt and document
 snapshot together in the same transaction, under the loading Run. The document's
 ledger key is `run:<run_id>:tool-context:<call_id>:<index>`. The stable leading
-developer prompt still contains only the manifest. Tool-returned data, user
-messages, and checkpoint summaries are never promoted to Skill instructions.
-Skill rules supplement global rules and must not change their safety boundaries.
+developer prompt still contains only the Skill manifest. Tool-returned data, user
+messages, and checkpoint summaries are never promoted to Skill or reference
+instructions. Loaded documents supplement global rules and must not change their
+safety boundaries.
 
-Developer Skill messages belong to their original Run. Recovery restores their
-original text even if the registry has since changed. They remain in raw history
-while that Run is retained, participate in history token counting and the source
-plan hash, and enter compaction alongside that Run's calls and receipts. The
-protected latest five completed Runs and current Run remain outside compaction.
+Developer Skill and reference messages belong to their original Run. Recovery
+restores their original text even if the registry has since changed. They remain in
+raw history while that Run is retained, participate in history token counting and
+the source plan hash, and enter compaction alongside that Run's calls and receipts.
+The protected latest five completed Runs and current Run remain outside compaction.
 The compactor receives the original role and text inside an untrusted historical
 source envelope, summarizes the relevant workflow and constraints, and does not
-execute the Skill. Once the Run is compacted, only the summary remains model-visible;
-neither the full document nor its receipt is automatically reactivated from a
-summary. A later request requiring the full Skill must load it again. Original
-ledger records remain available for audit.
+execute the document. Once the Run is compacted, only the summary remains
+model-visible; neither the router nor a topical reference is automatically
+reactivated from a summary. A later request requiring full instructions must load
+the relevant document again. Original ledger records remain available for audit.
 
-The existing model-input projector still supports older receipt-only histories by
-checking identity, version, and hash against the trusted registry. Legacy v1 tool
-bodies are removed only from ordinary model-bound tool outputs, without rewriting
-the ledger or promoting arbitrary tool text. No missing historical snapshot is
-fabricated during compaction. The final request budget includes all full Skill
-developer text, after the stable prompt cache breakpoint.
-
-The compaction prompt is now `agent_context_compaction.v2`; checkpoint JSON and
-history policy schemas are unchanged. Existing ready checkpoints remain valid.
-Pending jobs pin their original prompt version, so v1 jobs must finish under a
-matching worker or be explicitly recovered before switching workers to v2.
+The model-input projector supports v1/v2 Skill receipts for older receipt-only
+histories and v3 receipts for both Skill and reference documents. It checks the
+resource identity, version, and hash against the trusted registry before injecting
+current content. Legacy v1 tool bodies are removed only from ordinary model-bound
+tool outputs, without rewriting the ledger or promoting arbitrary tool text. No
+missing historical snapshot is fabricated during compaction. The final request
+budget includes every full loaded developer document after the stable prompt cache
+breakpoint.
 
 ## Current-Run authoritative business context
 
@@ -183,7 +185,7 @@ accumulate stale facts and waste tokens. Current-Run-only projection preserves
 auditability without treating old snapshots as current truth.
 
 For GPT-5.6 model calls, the Agents SDK `call_model_input_filter` first
-materializes attachments, projects verified Skill receipts into developer messages,
+materializes attachments, projects verified Skill/reference receipts into developer messages,
 then renders the active Agent instructions as the
 first developer `input_text` block and writes one explicit cache breakpoint on it.
 The Responses adapter injects the stable tool schemas before developer instructions, so the

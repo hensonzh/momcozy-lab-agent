@@ -37,9 +37,18 @@ def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:
     assert contract.input_schema["properties"]["skill_id"]["enum"] == list(
         SERVICE_SKILL_NAMES
     )
+    assert contract.input_schema["properties"]["reference_id"]["enum"] == [
+        "milk-supply-assessment",
+        "lactation-establishment-and-output-change",
+        "latch-and-nipple-pain",
+        "pumping-comfort-and-output",
+        "breast-fullness-and-inflammatory-symptoms",
+    ]
     assert set(contract.output_schema["required"]) == {
         "schema_version",
         "skill_id",
+        "resource_type",
+        "resource_id",
         "version",
         "description",
         "status",

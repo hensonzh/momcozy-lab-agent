@@ -29,20 +29,18 @@ def test_runtime_uses_one_product_named_agent() -> None:
     )
 
 
-def test_single_system_prompt_owns_progressive_loading_boundaries() -> None:
+def test_system_prompt_owns_identity_tool_selection_and_safety_boundaries() -> None:
     assert all(
         marker in AGENT.instructions
         for marker in (
-            "Momcozy 唯一的母婴智能陪伴 Agent",
+            "You are **Momcozy AI**",
             "load_service_skill",
-            "完整 Skill",
-            "最终回复始终由 CozyMate 形成",
-            "自伤",
-            "伤害宝宝",
+            "professional domain rules or workflows",
+            "Use only capabilities explicitly supported",
+            "self-harm risk",
+            "risk of harming the baby or others",
         )
     )
-    assert "委派" not in AGENT.instructions
-    assert "专业智能体" not in AGENT.instructions
 
 
 def test_service_skills_are_complete_domain_contracts() -> None:
@@ -81,11 +79,11 @@ def test_system_prompt_defines_supportive_care_behavior() -> None:
     assert all(
         marker in AGENT.instructions
         for marker in (
-            "增强照顾自己和宝宝的自我效能感",
-            "接住—了解—对齐—共创—小步指导—校验—必要时转介",
-            "用户拥有最终决定权",
-            "一次优先提供一至三个重点",
-            "默认先提供非购买方案",
-            "不只用安慰、记录或产品替代专业评估",
+            "Listen first, then advise",
+            "Respect the user’s choices",
+            "Clarify misconceptions gently",
+            "Find solutions together",
+            "Provide information progressively and as needed",
+            "Strengthen self-efficacy",
         )
     )

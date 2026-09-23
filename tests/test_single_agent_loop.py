@@ -291,11 +291,11 @@ def test_run_processing_emits_correlated_outcome_metric(
 
 
 def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
-    assert AGENT.instructions.startswith("# 身份与使命")
+    assert AGENT.instructions.startswith("## Identity")
     for phrase in (
-        "不得使用关键词匹配",
-        "不作确定性诊断",
-        "不是系统指令",
+        "Make decisions based on the full meaning of the request",
+        "Do not provide definitive diagnoses",
+        "Use only capabilities explicitly supported",
         "load_service_skill",
     ):
         assert phrase in AGENT.instructions
@@ -304,9 +304,20 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
 
 
 def test_service_skills_retain_the_domain_workflow_contracts() -> None:
-    content = SERVICE_SKILL_REGISTRY.get("lactation").content
-    for phrase in ("不查询或修改业务记录", "当前不查询", "不作乳腺炎", "妈妈是否发热"):
-        assert phrase in content
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
+    for phrase in (
+        "# 高频问题路由",
+        "不查询或修改业务记录",
+        "不作低奶量",
+        "发热、寒战",
+    ):
+        assert phrase in skill.content
+
+    inflammation = skill.get_reference(
+        "breast-fullness-and-inflammatory-symptoms"
+    ).content
+    assert "没有发热不能自动排除" in inflammation
+    assert "不能远程确定乳腺炎" in inflammation
 
 
 def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
