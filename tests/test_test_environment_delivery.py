@@ -89,7 +89,14 @@ def test_test_compose_only_consumes_an_explicit_release_image_and_migrates_expli
 def test_ci_publishes_sha_tagged_runtime_only_after_eval_and_container_gates() -> None:
     workflow = CI_WORKFLOW.read_text()
 
-    assert "publish-image:" in workflow
+    assert "      - name: Push the immutable commit tag" in workflow
+    container = workflow.split("  container:\n", 1)[1]
+    prerequisites = container.split("    permissions:", 1)[0]
+    assert "      - test" in prerequisites
+    assert "      - postgres-migration" in prerequisites
+    assert "docker save" not in workflow
+    assert "docker load" not in workflow
+    assert "Download the already verified image" not in workflow
     assert "packages: write" in workflow
     assert "docker/login-action@" in workflow
     assert "docker/build-push-action@" in workflow
@@ -110,15 +117,15 @@ def test_test_delivery_is_manual_protected_serial_and_host_key_checked() -> None
     assert "workflow_dispatch:" in workflow
     assert "name: test" in workflow
     assert "group: momcozy-lab-agent-test" in workflow
-    assert "issues: read" in workflow
+    assert "issues: read" not in workflow
     assert "packages: read" in workflow
-    assert "Wait for independent test approval" in workflow
+    assert "Validate the manual release operator" in workflow
     assert "TEST_APPROVERS" in workflow
-    assert "TEST_APPROVAL_ISSUE" in workflow
-    assert "/approve-test" in workflow
-    assert "GITHUB_TRIGGERING_ACTOR" not in workflow
+    assert "TEST_APPROVAL_ISSUE" not in workflow
+    assert "/approve-test" not in workflow
+    assert "GITHUB_TRIGGERING_ACTOR" in workflow
     assert "Ignoring self-approval" not in workflow
-    assert "needs: approve" in workflow
+    assert "needs: authorize" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "ref: main" not in workflow
     assert "timeout-minutes: 75" in workflow
@@ -465,3 +472,40 @@ def test_first_agent_deploy_migrates_empty_schema_without_querying_run_tables(
 
     assert drain_calls == []
     assert any("migrate" in command for command in runner.commands)
+
+
+@pytest.mark.parametrize(
+    ("allowlist", "actor", "rerun_actor", "allowed"),
+    [
+        ("Operator, Second", "operator", "SECOND", True),
+        ("operator", "stranger", "operator", False),
+        ("operator", "operator", "stranger", False),
+        ("operator", "oper", "oper", False),
+        ("", "operator", "operator", False),
+        ("operator,invalid!", "operator", "operator", False),
+    ],
+)
+def test_manual_release_operator_gate(
+    allowlist: str, actor: str, rerun_actor: str, allowed: bool
+) -> None:
+    script = _literal_run_blocks(DELIVERY_WORKFLOW.read_text())[0]
+    result = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "TEST_APPROVERS": allowlist,
+             "GITHUB_ACTOR": actor, "GITHUB_TRIGGERING_ACTOR": rerun_actor},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is allowed, result.stderr
+
+
+def test_agent_drain_includes_confirmation_runs_and_blocked_context_heads() -> None:
+    runner = FailingReadinessRunner()
+    with pytest.raises(RuntimeError, match="active Agent Runtime work count"):
+        test_release._active_work_count("postgres-1", runner)  # type: ignore[arg-type]
+    sql = runner.commands[0][-1]
+    assert "'waiting_for_confirmation'" in sql
+    assert "agent_thread_context_heads" in sql
+    assert "'compacting', 'blocked'" in sql
+    assert "'queued', 'retry_wait', 'running'" in sql

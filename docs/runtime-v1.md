@@ -108,6 +108,28 @@ as canonical reconciliation after Redis loss or expiry.
 Redis remains disposable: transient entries expire after ten minutes, while a
 completed response and all terminal state remain recoverable from PostgreSQL.
 
+## Owner-scoped conversation recovery
+
+`GET /v1/agent/threads/{thread_id}/history` is the durable read boundary used
+by Flutter to restore the current conversation and page backward within it.
+The authenticated principal supplies owner scope; a missing, deleted, or
+foreign thread returns the same `404 not_found` response before messages are
+read.
+
+Pages contain completed user and assistant messages in chronological order.
+`limit` is bounded to 1–50, and `before_sequence` is an exclusive backward
+cursor. `next_before_sequence` is present only when an older page exists. The
+response includes only the bounded run/message lifecycle events needed to
+reconstruct visible assistant state; provider requests, Tool payloads, and
+other internal events are not exposed. Reading history has no model call or
+write-side effect. PostgreSQL remains authoritative; Flutter keeps a
+user-scoped recovery cache of the rendered transcript keyed by durable message
+identity, plus draft and attachment references, the current run cursor, and
+pagination state. On each entry Flutter refreshes the current thread, or
+discovers the latest owned thread when none is selected, then positions the
+transcript at its latest content. In-thread backward pagination remains
+available without creating a new Agent run.
+
 ## Model provider boundary
 
 Runtime orchestration consumes the non-secret `agent.model_provider.v1`

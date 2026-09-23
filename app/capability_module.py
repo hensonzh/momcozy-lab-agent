@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
     from app.agent_runtime.tools import ToolContract, ToolContractRegistry
     from app.agent_runtime.tools.handlers import ToolHandler
+    from app.rednote.service import RedNoteSearchService
     from app.infrastructure.product_backend import ProductBackendClient
 
 
@@ -19,6 +20,7 @@ class CapabilityDependencies:
     repository: RuntimeLedgerRepository
     product_backend: ProductBackendClient
     action_proposer: ActionProposer
+    rednote_service: RedNoteSearchService
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Callable
 import re
 from typing import Any, Protocol
 
@@ -144,6 +145,9 @@ class ToolCatalog:
 class RuntimeDefinition:
     agent: AgentDefinition
     tools: ToolCatalog
+    model_input_projector: Callable[
+        [tuple[dict[str, Any], ...]], tuple[dict[str, Any], ...]
+    ] | None = None
 
     def __post_init__(self) -> None:
         if not self.agent.name.strip():

@@ -17,6 +17,7 @@ from app.agent_runtime.tools import (
 from app.agent_runtime.tools.executor import ToolExecutor
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
+from app.agent import SERVICE_SKILL_REGISTRY, LoadServiceSkillToolHandler, service_skill_tool_registry
 
 
 def test_tool_executor_emits_correlated_outcome_metric(
@@ -147,6 +148,30 @@ def test_tool_executor_persists_canonical_output_but_bounds_model_ledger() -> No
     assert "x" * 1_000 not in str(ledger_output)
 
 
+def test_skill_receipt_and_original_developer_body_are_persisted_in_the_same_run() -> None:
+    repository = ToolRepository()
+    executor = ToolExecutor(
+        repository=cast(RuntimeLedgerRepository, repository),
+        registry=service_skill_tool_registry(),
+        handlers={"load_service_skill": LoadServiceSkillToolHandler(SERVICE_SKILL_REGISTRY)},
+    )
+    result = asyncio.run(executor.execute(
+        actor=repository.principal, run_id=repository.run.id,
+        tool_name="load_service_skill", call_id="load-skill",
+        args={"skill_id": "lactation"}, request_id="request-skill",
+    ))
+    assert len(repository.context_batches) == 1
+    batch = repository.context_batches[0]
+    assert batch["run_id"] == repository.run.id
+    receipt, document = batch["items"]
+    assert receipt.item == {
+        "type": "function_call_output", "call_id": "load-skill", "output": result.model_output,
+    }
+    assert "content" not in result.canonical_output
+    assert document.item == SERVICE_SKILL_REGISTRY.get("lactation").developer_item()
+    assert document.item_key == f"run:{repository.run.id}:tool-context:load-skill:0"
+
+
 def test_tool_executor_blocks_missing_permission_before_handler() -> None:
     repository = ToolRepository(permissions=frozenset({"agent:run"}))
     registry = ToolContractRegistry()
@@ -242,6 +267,7 @@ class ToolRepository:
         )
         self.tool_outputs: list[dict[str, Any]] = []
         self.context_items: list[Any] = []
+        self.context_batches: list[dict[str, Any]] = []
         self.started_tool_calls: list[dict[str, Any]] = []
         self.blocked_tool_calls: list[str] = []
         self.events: list[dict[str, Any]] = []
@@ -289,5 +315,6 @@ class ToolRepository:
         return SimpleNamespace(id=uuid4())
 
     async def append_context_items(self, **kwargs: Any) -> None:
+        self.context_batches.append(kwargs)
         self.context_items.extend(kwargs["items"])
         return None

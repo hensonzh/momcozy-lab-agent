@@ -18,6 +18,7 @@ from app.capability_catalog import (
     TOOL_NAMESPACE_DEFINITIONS,
 )
 from app.agent_runtime.tools import ToolHandlerContext
+from app.agent.skill_registry import ServiceSkillRegistry
 from app.auth import RuntimePrincipal
 from app.bootstrap import RUNTIME_DEFINITION, TOOL_CATALOG
 
@@ -61,7 +62,7 @@ def test_stable_prompt_defines_current_run_business_context_trust_boundary() -> 
     assert "字符串字段" in AGENT.instructions
 
 
-def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> None:
+def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
     result = LoadServiceSkillToolHandler(
         registry=SERVICE_SKILL_REGISTRY
@@ -87,29 +88,45 @@ def test_load_service_skill_returns_complete_skill_as_normal_tool_output() -> No
 
     output = result.canonical_output
     assert output == {
-        "schema_version": "momcozy.service_skill.v1",
+        "schema_version": "momcozy.service_skill.v2",
+        "status": "loaded",
         "skill_id": "lactation",
         "version": skill.version,
         "description": skill.description,
-        "content": skill.content,
         "content_sha256": hashlib.sha256(
             skill.content.encode("utf-8")
         ).hexdigest(),
     }
-    assert output["content"].startswith("---\n")
-    skill_path = (
-        Path(__file__).resolve().parents[1]
-        / "app"
-        / "agent"
-        / "skills"
-        / "lactation"
-        / "v1"
-        / "SKILL.md"
-    )
-    assert output["content"] == skill_path.read_text(encoding="utf-8")
-    assert "# 角色与使命" in output["content"]
-    assert "# 奶量分析" in output["content"]
+    assert "content" not in output
+    assert result.developer_instructions == (skill.developer_item()["content"],)
 
     function_output = result.to_function_call_output()
     assert isinstance(function_output, str)
     assert json.loads(function_output) == output
+
+
+def test_lactation_skill_loads_the_single_source_file() -> None:
+    path = Path(__file__).parents[1] / "app/agent/skills/lactation/SKILL.md"
+    assert SERVICE_SKILL_REGISTRY.get("lactation").content == path.read_text(encoding="utf-8")
+
+
+def test_editing_the_same_skill_file_invalidates_old_receipts(tmp_path: Path) -> None:
+    path = tmp_path / "lactation/SKILL.md"
+    path.parent.mkdir()
+    path.write_text("---\nname: lactation\ndescription: test\n---\nOriginal instructions.\n", encoding="utf-8")
+    original = ServiceSkillRegistry(skills_root=tmp_path).get("lactation")
+    history = (
+        {"type": "function_call", "name": LOAD_SERVICE_SKILL_TOOL_NAME, "call_id": "loaded",
+         "arguments": json.dumps({"skill_id": "lactation"})},
+        {"type": "function_call_output", "call_id": "loaded", "output": json.dumps(original.to_tool_output())},
+        original.developer_item(),
+    )
+    path.write_text(path.read_text(encoding="utf-8").replace("Original", "Updated"), encoding="utf-8")
+    registry = ServiceSkillRegistry(skills_root=tmp_path)
+    updated = registry.get("lactation")
+
+    assert updated.content != original.content
+    assert updated.content_sha256 != original.content_sha256
+    assert updated.version == updated.content_sha256
+    assert registry.project_model_input(history) == history
+    assert updated.developer_item() not in registry.project_model_input(history)

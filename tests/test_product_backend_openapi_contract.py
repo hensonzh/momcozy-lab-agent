@@ -95,29 +95,8 @@ def _response_schema(
 def test_contracts_are_discovered_from_the_runtime_product_client() -> None:
     contracts = discover_product_backend_client_contracts()
 
-    assert len(contracts) == 8
-    assert len({(contract.method, contract.path) for contract in contracts}) == 8
-
-    profile_update = next(
-        contract
-        for contract in contracts
-        if contract.path == "/v1/internal/agent/actions/profile.update/apply"
-    )
-    assert profile_update.method == "POST"
-    assert profile_update.requires_idempotency_key is True
-    assert profile_update.request_fields == {
-        "actor_user_id",
-        "action_id",
-        "run_id",
-        "action_type",
-        "payload",
-    }
-    assert profile_update.response_fields >= {
-        "status",
-        "action_id",
-        "resource_type",
-        "resource_id",
-    }
+    assert len(contracts) == 2
+    assert len({(contract.method, contract.path) for contract in contracts}) == 2
 
     file_resolve = next(
         contract
@@ -140,7 +119,7 @@ def test_pinned_product_openapi_satisfies_the_runtime_client_contract() -> None:
 
 def test_checker_rejects_missing_runtime_token_permissions() -> None:
     schema = _compatible_openapi()
-    schema["x-momcozy-runtime-token-permissions"] = ["agent:run"]
+    schema["x-momcozy-runtime-token-permissions"] = []
 
     errors = check_openapi_contract(schema)
 
@@ -149,7 +128,7 @@ def test_checker_rejects_missing_runtime_token_permissions() -> None:
             "OpenAPI document: Runtime token permission contract is missing"
         )
         and "profile:read" in error
-        and "records:write" in error
+        and "agent:run" in error
         for error in errors
     )
 
@@ -193,19 +172,15 @@ def test_checker_reports_missing_http_method_with_endpoint_context() -> None:
 def test_checker_reports_missing_service_and_idempotency_headers() -> None:
     schema = deepcopy(_compatible_openapi())
     operation = schema["paths"][
-        "/v1/internal/agent/actions/profile.update/apply"
+        "/v1/internal/agent/files/resolve"
     ]["post"]
     operation["parameters"] = []
 
     errors = check_openapi_contract(schema)
 
     assert (
-        "POST /v1/internal/agent/actions/profile.update/apply: "
+        "POST /v1/internal/agent/files/resolve: "
         "required header contract X-Service-Key is missing"
-    ) in errors
-    assert (
-        "POST /v1/internal/agent/actions/profile.update/apply: "
-        "required header contract Idempotency-Key is missing"
     ) in errors
 
 
@@ -334,27 +309,6 @@ def test_checker_rejects_product_added_required_query_parameter() -> None:
     )
 
 
-def test_checker_rejects_product_request_constraint_narrowing() -> None:
-    schema = _compatible_openapi()
-    operation = _operation(
-        schema,
-        path="/v1/internal/agent/plans/current",
-        method="GET",
-    )
-    limit_parameter = next(
-        parameter
-        for parameter in operation["parameters"]
-        if parameter.get("in") == "query" and parameter.get("name") == "limit"
-    )
-    limit_parameter["schema"]["maximum"] = 4
-
-    errors = check_openapi_contract(schema)
-
-    assert any(
-        "GET /v1/internal/agent/plans/current: request.limit" in error
-        and "maximum" in error
-        for error in errors
-    )
 
 
 def test_checker_rejects_product_response_type_drift() -> None:
@@ -480,4 +434,4 @@ def test_cli_accepts_an_explicit_openapi_path(
     exit_code = main(["--openapi-path", str(openapi_path)])
 
     assert exit_code == 0
-    assert "8 Product Backend endpoint contracts are compatible" in capsys.readouterr().out
+    assert "2 Product Backend endpoint contracts are compatible" in capsys.readouterr().out

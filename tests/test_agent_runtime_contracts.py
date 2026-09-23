@@ -32,7 +32,7 @@ def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:
     contract = service_skill_tool_registry().get(
         LOAD_SERVICE_SKILL_TOOL_NAME
     )
-    assert contract.model_output_max_bytes is None
+    assert contract.model_output_max_bytes == 16 * 1024
     assert contract.input_schema["required"] == ["skill_id"]
     assert contract.input_schema["properties"]["skill_id"]["enum"] == list(
         SERVICE_SKILL_NAMES
@@ -42,7 +42,7 @@ def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:
         "skill_id",
         "version",
         "description",
-        "content",
+        "status",
         "content_sha256",
     }
 

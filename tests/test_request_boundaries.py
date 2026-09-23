@@ -220,7 +220,7 @@ def test_bounded_json_measures_utf8_bytes_not_character_count() -> None:
             {
                 "type": "form_submission",
                 "artifact_id": "21cd854e-dc29-4a5d-ae32-f9ac53618ddd",
-                "form_id": "hospital_bag_intake",
+                "form_id": "test_intake",
                 "values": {"value": "x" * 5000},
             },
         ),

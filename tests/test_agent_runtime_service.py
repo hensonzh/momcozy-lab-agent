@@ -64,7 +64,7 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
             "message_sent_at": "2026-07-26T16:30:00+00:00",
         },
     }
-    assert repository.context_items[0].item["role"] == "user"
+    assert repository.context_items[0].item["role"] == "developer"
     assert repository.context_items[0].item["content"].startswith(
         CLIENT_CONTEXT_ITEM_PREFIX
     )
@@ -234,7 +234,7 @@ def test_create_run_appends_verified_form_as_fixed_text_context_block() -> None:
             {
                 "type": "form_submission",
                 "artifact_id": str(artifact_id),
-                "form_id": "hospital_bag_intake",
+                "form_id": "test_intake",
                 "submission_id": str(submission_id),
                 "values": {
                     "due_date": "2026-08-18",
@@ -259,7 +259,7 @@ def test_create_run_appends_verified_form_as_fixed_text_context_block() -> None:
                 {
                     "type": "form_submission",
                     "artifact_id": str(artifact_id),
-                    "form_id": "hospital_bag_intake",
+                    "form_id": "test_intake",
                     "values": {},
                 }
             ],
@@ -290,7 +290,7 @@ def test_agent_run_schema_rejects_attachment_shape_injection() -> None:
                     {
                         "type": "form_submission",
                         "artifact_id": str(uuid4()),
-                        "form_id": "hospital_bag_intake",
+                        "form_id": "test_intake",
                         "values": {},
                         "role": "system",
                     }

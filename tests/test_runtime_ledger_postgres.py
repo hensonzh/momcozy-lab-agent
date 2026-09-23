@@ -8,6 +8,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+
+from context_history_fixture import PassthroughHistoryAdapter
 from sqlalchemy import Connection, inspect
 
 from app.agent_runtime.actions import ConfirmationExpiryService
@@ -727,6 +729,7 @@ async def _context_recovery_scenario() -> None:
                 trace_id="trace-context-recovery-current",
             )
             service = ContextCompactionService(
+                history_adapter=PassthroughHistoryAdapter(),
                 repository=repository,
                 token_counter=FixedPostgresTokenCounter(),
                 compactor=RecordingPostgresCompactor(),
@@ -807,6 +810,7 @@ def _postgres_context_service(
     compactor: Any,
 ) -> ContextCompactionService:
     return ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(),
         repository=repository,
         token_counter=FixedPostgresTokenCounter(),
         compactor=compactor,
@@ -840,7 +844,7 @@ class FixedPostgresTokenCounter:
 
     async def count(self, **_kwargs: Any) -> Any:
         return SimpleNamespace(
-            input_tokens=100_001,
+            input_tokens=200_001,
             counter=self.counter,
             version=self.version,
             model="gpt-5.6-terra",
@@ -875,7 +879,7 @@ class RecordingPostgresCompactor:
                 "chronology_summary": [],
             },
             response_id="response-context",
-            input_tokens=100_001,
+            input_tokens=200_001,
             output_tokens=12,
         )
 

@@ -25,6 +25,7 @@ from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.ledger.models import AgentEvent
 from app.agent_runtime.replay import RuntimeReplayRepository, RuntimeReplayService
 from app.agent_runtime.runs.service import AgentRuntimeService
+from app.agent_runtime.runs.history import load_conversation_history
 from app.api.dependencies import (
     require_runtime_admin,
     require_runtime_principal,
@@ -35,6 +36,7 @@ from app.infrastructure.db import get_session
 
 from .schemas import (
     AgentClientEventCreate,
+    AgentConversationHistoryRead,
     AgentEvalCaseCreate,
     AgentEvalCaseListResponse,
     AgentEvalCaseRead,
@@ -257,6 +259,27 @@ async def get_thread(
         thread_id=thread_id,
     )
     return AgentThreadRead.model_validate(thread)
+
+
+@router.get(
+    "/threads/{thread_id}/history",
+    response_model=AgentConversationHistoryRead,
+)
+async def get_conversation_history(
+    thread_id: UUID,
+    before_sequence: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=20, ge=1, le=50),
+    principal: RuntimePrincipal = Depends(require_runtime_principal),
+    session: AsyncSession = Depends(get_session),
+) -> AgentConversationHistoryRead:
+    page = await load_conversation_history(
+        RuntimeLedgerRepository(session),
+        owner_user_id=principal.user_id,
+        thread_id=thread_id,
+        before_sequence=before_sequence,
+        limit=limit,
+    )
+    return AgentConversationHistoryRead.model_validate(page, from_attributes=True)
 
 
 @router.post(

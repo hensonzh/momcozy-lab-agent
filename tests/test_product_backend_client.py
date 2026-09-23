@@ -8,15 +8,12 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic import ValidationError
 
 from app.core.errors import DependencyError
 from app.infrastructure.product_backend import (
     ProductBackendClient,
     ProfileReadRequest,
     ProfileReadResponse,
-    ProfileUpdateApplyRequest,
-    ProfileUpdateApplyResponse,
 )
 
 
@@ -79,83 +76,8 @@ def test_profile_client_rejects_malformed_success_response() -> None:
     assert exc_info.value.retryable is False
 
 
-def test_profile_update_request_rejects_unknown_fields() -> None:
-    with pytest.raises(ValidationError):
-        ProfileUpdateApplyRequest.model_validate(
-            {
-                "actor_user_id": str(uuid4()),
-                "action_id": str(uuid4()),
-                "run_id": str(uuid4()),
-                "action_type": "profile.update",
-                "payload": {
-                    "mother": {"unsupported": "value"},
-                    "reference_date": "2026-07-26",
-                },
-            }
-        )
 
 
-def test_profile_update_client_preserves_action_idempotency_and_returns_typed_response() -> None:
-    actor_user_id = uuid4()
-    action_id = uuid4()
-    run_id = uuid4()
-    captured_headers: httpx.Headers | None = None
-    captured_body: bytes | None = None
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal captured_body, captured_headers
-        captured_headers = request.headers
-        captured_body = request.content
-        return httpx.Response(
-            200,
-            json={
-                "status": "applied",
-                "action_id": str(action_id),
-                "resource_type": "profile",
-                "resource_id": str(actor_user_id),
-                "details": {},
-                "application_events": [],
-            },
-        )
-
-    async def run() -> ProfileUpdateApplyResponse:
-        async with httpx.AsyncClient(
-            base_url="https://product.test",
-            transport=httpx.MockTransport(handler),
-        ) as http_client:
-            return await ProductBackendClient(
-                http_client=http_client,
-                service_key="runtime-service-key",
-            ).apply_profile_update(
-                command=ProfileUpdateApplyRequest.model_validate(
-                    {
-                        "actor_user_id": actor_user_id,
-                        "action_id": action_id,
-                        "run_id": run_id,
-                        "action_type": "profile.update",
-                        "payload": {
-                            "mother": {"preferred_name": "Mai"},
-                            "reference_date": "2026-07-26",
-                        },
-                    }
-                ),
-                idempotency_key=f"agent-action:{action_id}",
-                request_id="req-profile-write",
-            )
-
-    result = asyncio.run(run())
-
-    assert isinstance(result, ProfileUpdateApplyResponse)
-    assert result.status == "applied"
-    assert result.action_id == action_id
-    assert captured_headers is not None
-    assert captured_headers["idempotency-key"] == f"agent-action:{action_id}"
-    assert captured_body is not None
-    body = captured_body.decode("utf-8")
-    assert f'"action_id":"{action_id}"' in body
-    assert f'"run_id":"{run_id}"' in body
-    assert '"action_type":"profile.update"' in body
-    assert '"reference_date":"2026-07-26"' in body
 
 
 @pytest.mark.parametrize("dependency_status", (401, 403))

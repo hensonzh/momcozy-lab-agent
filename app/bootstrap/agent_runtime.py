@@ -27,6 +27,7 @@ from app.agent_runtime.runtime_metadata import (
 from app.agent_runtime.tools import ToolContractRegistry
 from app.agent_runtime.tools.handlers import ToolHandler
 from app.agent import AGENT
+from app.agent.skill_registry import SERVICE_SKILL_REGISTRY
 from app.capability_catalog import (
     CAPABILITY_MODULES,
     EAGER_TOOL_NAMES,
@@ -37,6 +38,8 @@ from app.capability_module import (
     CapabilityDependencies,
 )
 from app.infrastructure.product_backend import ProductBackendClient
+from app.core.settings import get_settings
+from app.rednote.service import RedNoteSearchService, build_rednote_service
 
 
 TOOL_CATALOG = ToolCatalog(
@@ -46,6 +49,7 @@ TOOL_CATALOG = ToolCatalog(
 RUNTIME_DEFINITION = RuntimeDefinition(
     agent=AGENT,
     tools=TOOL_CATALOG,
+    model_input_projector=SERVICE_SKILL_REGISTRY.project_model_input,
 )
 
 
@@ -162,11 +166,13 @@ def build_runtime_tool_handlers(
     repository: RuntimeLedgerRepository,
     client: ProductBackendClient,
     action_service: RuntimeActionService,
+    rednote_service: RedNoteSearchService | None = None,
 ) -> dict[str, ToolHandler]:
     dependencies = CapabilityDependencies(
         repository=repository,
         product_backend=client,
         action_proposer=action_service,
+        rednote_service=rednote_service or build_rednote_service(get_settings()),
     )
     handlers: dict[str, ToolHandler] = {}
     for module in CAPABILITY_MODULES:

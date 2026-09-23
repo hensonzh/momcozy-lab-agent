@@ -153,8 +153,8 @@
         "omitted_count": 0,
         "sources": [
           {
-            "id": "mother_diary:synthetic:1",
-            "kind": "mother_diary",
+            "id": "dialogue:synthetic:1",
+            "kind": "dialogue",
             "recorded_at": "2026-09-08T10:00:00Z",
             "content": "用户自述：今天感觉有点紧张。我希望先听一个简短建议。",
             "truncated": false
@@ -168,7 +168,7 @@
             "text": "用户自述有点紧张。",
             "evidence": [
               {
-                "source_id": "mother_diary:synthetic:1",
+                "source_id": "dialogue:synthetic:1",
                 "quote": "今天感觉有点紧张"
               }
             ]

@@ -36,10 +36,24 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
     assert suite.replay_contract_version == "agent_run_replay.v1"
     assert {case.id for case in suite.cases} == {
+        "rednote_postpartum_experience",
+        "rednote_pumping_experience",
+        "rednote_medical_diagnosis",
+        "rednote_emergency",
+        "rednote_opt_out",
+        "rednote_out_of_scope",
         "general_health_answer",
         "diary_capability_unavailable",
         "prenatal_planning_capability_unavailable",
         "lactation_skill_workflow",
+        "lactation_three_dimension_assessment",
+        "lactation_unknown_direct_intake",
+        "lactation_exclusive_pumping_balance",
+        "lactation_partial_pumping_window",
+        "lactation_twins_separate_intake",
+        "lactation_preterm_growth_context",
+        "lactation_newborn_weight_loss",
+        "lactation_high_output_discomfort",
         "lactation_pumping_record_drilldown",
         "lactation_infant_feeding_focus",
         "device_skill_workflow",
@@ -53,9 +67,38 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         "infant_harm_crisis",
         "prompt_injection",
         "unauthorized_profile_request",
+        "conversation_vague_pain_guidance",
+        "conversation_pain_correction",
+        "conversation_action_followup_agreement",
+        "conversation_missed_followup",
+        "conversation_pain_emergency",
+        "conversation_pain_outcome_not_volume",
+        "conversation_supply_uncertainty_and_goal",
+        "conversation_return_and_resolution",
+        "conversation_simple_answer_no_management",
+        "conversation_missing_history",
+        "lactation_guidance_adequacy_reassurance",
+        "lactation_guidance_postfeed_volume",
+        "lactation_guidance_early_establishment",
+        "lactation_guidance_early_intake_risk",
+        "lactation_guidance_supply_change",
+        "lactation_guidance_mixed_goal",
+        "lactation_guidance_preterm_plan",
+        "lactation_guidance_latch_action",
+        "lactation_guidance_pain_persists",
+        "lactation_guidance_white_spot",
+        "lactation_guidance_tongue_tie",
+        "lactation_guidance_pump_fit",
+        "lactation_guidance_pump_output_change",
+        "lactation_guidance_engorgement",
+        "lactation_guidance_breast_worsening",
+        "lactation_guidance_persistent_lump",
+        "lactation_guidance_high_supply",
+        "lactation_guidance_plan_boundary",
     }
     assert all(case.quality_rubric is not None for case in suite.cases)
-    assert KNOWN_TOOL_NAMES == frozenset(TOOL_CATALOG.tool_names)
+    assert frozenset(TOOL_CATALOG.tool_names) <= KNOWN_TOOL_NAMES
+    assert all(set(case.structural_expectation.required_tools) <= set(TOOL_CATALOG.tool_names) for case in suite.cases)
 
 
 def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> None:
@@ -165,9 +208,9 @@ def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_ev
     case_payload["structural_expectation"] = {
         "terminal_status": "completed",
         "responding_agent": "cozymate",
-        "exact_loaded_skills": ["lactation", "device"],
-        "required_tools": ["devices_guidance_manage"],
-        "forbidden_tools": ["profile_update"],
+        "exact_loaded_skills": [],
+        "required_tools": [],
+        "forbidden_tools": ["load_service_skill"],
         "forbid_actions": True,
         "require_final_response_event": True,
     }
@@ -216,7 +259,6 @@ def test_structural_engine_checks_exact_loaded_skills_tools_actions_and_final_ev
     assertions = {failure.assertion for failure in result.failures}
     assert assertions >= {
         "skill.exact_loaded_skills",
-        "tool.required",
         "tool.forbidden",
         "action.none",
     }
@@ -528,7 +570,7 @@ def _suite_payload() -> dict[str, Any]:
                     "responding_agent": "cozymate",
                     "exact_loaded_skills": [],
                     "required_tools": [],
-                    "forbidden_tools": ["profile_update"],
+                    "forbidden_tools": ["load_service_skill"],
                     "forbid_actions": True,
                     "require_final_response_event": True,
                 },
@@ -598,7 +640,7 @@ def _skill_event(skill_id: str, tool_call_id: str) -> dict[str, Any]:
         "type": "skill.loaded",
         "payload": {
             "skill_id": skill_id,
-            "version": "v1",
+            "version": "v2",
             "content_sha256": "a" * 64,
             "tool_call_id": tool_call_id,
         },

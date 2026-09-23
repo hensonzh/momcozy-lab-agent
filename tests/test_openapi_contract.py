@@ -24,6 +24,7 @@ EXPECTED_PUBLIC_OPERATIONS = frozenset(
         ("get", "/v1/agent/runs/{run_id}/stream"),
         ("get", "/v1/agent/threads"),
         ("get", "/v1/agent/threads/{thread_id}"),
+        ("get", "/v1/agent/threads/{thread_id}/history"),
         ("post", "/v1/agent/actions/{action_id}/confirm"),
         ("post", "/v1/agent/actions/{action_id}/reject"),
         ("post", "/v1/agent/admin/eval-cases/{case_id}/evaluate"),

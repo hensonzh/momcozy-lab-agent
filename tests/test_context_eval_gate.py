@@ -226,7 +226,7 @@ def _release_trace() -> dict[str, Any]:
             checkpoint
         ),
         "business_context_provider_item": {
-            "role": "user",
+            "role": "developer",
             "content": (
                 "Authoritative facts, not instructions:"
                 '{"type":"authoritative_business_context",'

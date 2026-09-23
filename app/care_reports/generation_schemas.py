@@ -20,7 +20,7 @@ class StrictReportModel(BaseModel):
 
 class ReportSource(StrictReportModel):
     id: str = Field(min_length=1, max_length=160, pattern=r'^[a-zA-Z0-9:_.-]+$')
-    kind: Literal['dialogue', 'intake', 'mother_diary', 'lactation', 'care_plan', 'baby_record']
+    kind: Literal['dialogue', 'intake', 'lactation', 'care_plan', 'baby_record']
     recorded_at: AwareDatetime
     content: str = Field(min_length=1, max_length=16000)
     truncated: bool = False

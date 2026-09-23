@@ -56,6 +56,22 @@ def test_provider_config_repr_never_exposes_static_keys() -> None:
     assert "test-azure-key" not in repr(azure_config)
 
 
+@pytest.mark.parametrize("provider", ["openai", "azure"])
+def test_provider_bundle_owns_history_wire_compatibility(provider: str) -> None:
+    config = (
+        OpenAIResponsesProviderConfig(api_key="test-key", model="gpt-5.6-terra")
+        if provider == "openai" else _azure_config(auth_mode="api_key")
+    )
+    runtime = create_model_provider_runtime(config, client_factory=RecordingClientFactory())
+    reasoning = {"type": "reasoning", "id": "rs_local", "encrypted_content": "opaque", "summary": []}
+    manifest = {"invocations": [{"model": runtime.profile.manifest_metadata()}]}
+    try:
+        assert runtime.history_adapter.project_item(reasoning, source_manifest=manifest) == reasoning
+        assert runtime.history_adapter.project_item(reasoning, source_manifest=None) is None
+    finally:
+        asyncio.run(runtime.aclose())
+
+
 def test_azure_config_rejects_non_v1_endpoint() -> None:
     with pytest.raises(ValueError, match="/openai/v1"):
         replace(
@@ -123,22 +139,19 @@ def test_azure_entra_token_acquisition_failure_is_typed() -> None:
     asyncio.run(runtime.aclose())
 
 
-def test_provider_runtime_fails_closed_when_model_lacks_required_capability() -> None:
+def test_provider_runtime_does_not_require_unused_tool_search() -> None:
     config = _azure_config(auth_mode="api_key")
     config = replace(
         config,
-        model_family="gpt-4.1",
+        model_family="gpt-5.2",
     )
 
     client_factory = RecordingClientFactory()
 
-    with pytest.raises(ValueError, match="tool_search"):
-        create_model_provider_runtime(
-            config,
-            client_factory=client_factory,
-        )
-
-    assert client_factory.kwargs == {}
+    runtime = create_model_provider_runtime(config, client_factory=client_factory)
+    assert "tool_search" not in runtime.profile.capabilities
+    assert runtime.profile.supports("function_tools")
+    asyncio.run(runtime.aclose())
 
 
 def test_estimated_counter_is_deterministic_and_accounts_for_tools() -> None:

@@ -68,6 +68,8 @@ class AgentThreadCreate(BaseModel):
 
 
 class AgentThreadRead(BaseModel):
+    created_at: datetime
+    updated_at: datetime
     id: UUID
     owner_user_id: UUID
     title: str
@@ -189,6 +191,25 @@ class AgentEventRead(BaseModel):
 class AgentEventPage(BaseModel):
     items: list[AgentEventRead]
     next_sequence: int | None = None
+
+
+class AgentHistoryMessageRead(BaseModel):
+    id: UUID
+    run_id: UUID | None = None
+    role: Literal["user", "assistant"]
+    content: dict[str, Any]
+    status: str
+    sequence: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentConversationHistoryRead(BaseModel):
+    thread: AgentThreadRead
+    items: list[AgentHistoryMessageRead]
+    events: list[AgentEventRead]
+    next_before_sequence: int | None = None
 
 
 class AgentClientEventCreate(BaseModel):

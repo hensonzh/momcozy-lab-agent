@@ -36,7 +36,6 @@ def test_single_system_prompt_owns_progressive_loading_boundaries() -> None:
             "Momcozy 唯一的母婴智能陪伴 Agent",
             "load_service_skill",
             "完整 Skill",
-            "tool_search",
             "最终回复始终由 CozyMate 形成",
             "自伤",
             "伤害宝宝",
@@ -46,19 +45,7 @@ def test_single_system_prompt_owns_progressive_loading_boundaries() -> None:
     assert "专业智能体" not in AGENT.instructions
 
 
-def test_versioned_service_skills_are_complete_domain_contracts() -> None:
-    expected_tools = {
-        "lactation": (
-            "get_lactation_summary",
-            "get_feeding_summary",
-            "get_growth_summary",
-            "schedule_timeline_mutate",
-        ),
-        "device": (
-            "devices_guidance_manage",
-            "pump_models_read",
-        ),
-    }
+def test_service_skills_are_complete_domain_contracts() -> None:
     assert tuple(
         skill.skill_id for skill in SERVICE_SKILL_REGISTRY.list()
     ) == SERVICE_SKILL_NAMES
@@ -70,8 +57,6 @@ def test_versioned_service_skills_are_complete_domain_contracts() -> None:
         assert "# 工具与事实" in skill.content
         assert "# 安全边界" in skill.content
         assert "# 回复标准" in skill.content
-        for tool_name in expected_tools[skill.skill_id]:
-            assert f"`{tool_name}`" in skill.content
 
 
 def test_agent_package_has_canonical_single_agent_files() -> None:
@@ -88,6 +73,19 @@ def test_agent_package_has_canonical_single_agent_files() -> None:
         path.relative_to(agent_root / "skills").as_posix()
         for path in (agent_root / "skills").rglob("SKILL.md")
     } == {
-        "lactation/v1/SKILL.md",
-        "device/v1/SKILL.md",
+        "lactation/SKILL.md",
     }
+
+
+def test_system_prompt_defines_supportive_care_behavior() -> None:
+    assert all(
+        marker in AGENT.instructions
+        for marker in (
+            "增强照顾自己和宝宝的自我效能感",
+            "接住—了解—对齐—共创—小步指导—校验—必要时转介",
+            "用户拥有最终决定权",
+            "一次优先提供一至三个重点",
+            "默认先提供非购买方案",
+            "不只用安慰、记录或产品替代专业评估",
+        )
+    )

@@ -12,33 +12,6 @@ from app.capability_module import (
     CapabilityModule,
     ToolNamespaceDefinition,
 )
-from app.capabilities.conversation_history_image.module import (
-    CAPABILITY_MODULE as CONVERSATION_HISTORY_IMAGE_CAPABILITY,
-)
-from app.capabilities.device_guidance.module import (
-    CAPABILITY_MODULE as DEVICE_GUIDANCE_CAPABILITY,
-)
-from app.capabilities.ibclc.module import (
-    CAPABILITY_MODULE as IBCLC_CAPABILITY,
-)
-from app.capabilities.lactation_analysis.module import (
-    CAPABILITY_MODULE as LACTATION_ANALYSIS_CAPABILITY,
-)
-from app.capabilities.plans.module import (
-    CAPABILITY_MODULE as PLANS_CAPABILITY,
-)
-from app.capabilities.profile.module import (
-    CAPABILITY_MODULE as PROFILE_CAPABILITY,
-)
-from app.capabilities.pump_models.module import (
-    CAPABILITY_MODULE as PUMP_MODELS_CAPABILITY,
-)
-from app.capabilities.support_ticket.module import (
-    CAPABILITY_MODULE as SUPPORT_TICKET_CAPABILITY,
-)
-from app.capabilities.timeline.module import (
-    CAPABILITY_MODULE as TIMELINE_CAPABILITY,
-)
 
 
 def _build_service_skill_handlers(
@@ -59,18 +32,7 @@ SERVICE_SKILL_CAPABILITY = CapabilityModule(
     handler_factory=_build_service_skill_handlers,
 )
 
-CAPABILITY_MODULES = (
-    SERVICE_SKILL_CAPABILITY,
-    PROFILE_CAPABILITY,
-    PLANS_CAPABILITY,
-    TIMELINE_CAPABILITY,
-    CONVERSATION_HISTORY_IMAGE_CAPABILITY,
-    LACTATION_ANALYSIS_CAPABILITY,
-    IBCLC_CAPABILITY,
-    DEVICE_GUIDANCE_CAPABILITY,
-    PUMP_MODELS_CAPABILITY,
-    SUPPORT_TICKET_CAPABILITY,
-)
+CAPABILITY_MODULES = (SERVICE_SKILL_CAPABILITY,)
 
 
 def _assemble_catalog() -> tuple[

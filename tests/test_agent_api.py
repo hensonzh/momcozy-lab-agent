@@ -302,6 +302,8 @@ class FakeAgentService:
             title="Milk",
             status="active",
             metadata_json={"source": "flutter"},
+            created_at=now,
+            updated_at=now,
         )
         self.run = SimpleNamespace(
             id=self.run_id,

@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 import logging
+import json
 from typing import Any
 
 import pytest
@@ -48,6 +49,7 @@ from app.bootstrap import (
     build_runtime_tool_registry,
 )
 from app.core.errors import ApiError
+from app.agent import SERVICE_SKILL_REGISTRY
 
 
 def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
@@ -57,9 +59,8 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
                 ScriptedTurn.calls(
                     ScriptedToolCall(
                         call_id="profile-call",
-                        name="profile_read",
-                        namespace="profile",
-                        arguments={"infant_scope": "all"},
+                        name="load_service_skill",
+                        arguments={"skill_id": "lactation"},
                     )
                 ),
                 ScriptedTurn.final("资料已经读取。"),
@@ -84,9 +85,9 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
     assert port.tool_calls == [
         (
             "cozymate",
-            "profile_read",
+            "load_service_skill",
             "profile-call",
-            {"infant_scope": "all"},
+            {"skill_id": "lactation"},
         )
     ]
     assert [request.agent_name for request in model.requests] == [
@@ -95,7 +96,7 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
     ]
     assert {
         tool.name for tool in model.requests[0].tools
-    } >= {"load_service_skill", "tool_search", "profile_read"}
+    } >= {"load_service_skill"}
     assert any(
         item.get("type") == "function_call_output"
         and item.get("call_id") == "profile-call"
@@ -193,7 +194,7 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     )
     assert "https://assets.test/image" in str(budget_input[1])
     assert "internal-asset" not in str(budget_input)
-    assert any(tool.get("type") == "tool_search" for tool in budget_tools)
+    assert not any(tool.get("type") == "tool_search" for tool in budget_tools)
     assert any(
         tool.get("type") == "function"
         and tool.get("name") == "load_service_skill"
@@ -374,12 +375,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         tool
         for tool in request["tools"]
         if tool["type"] == "tool_search"
-    ] == [
-        {
-            "type": "tool_search",
-            "execution": "server",
-        }
-    ]
+    ] == []
     eager_function_tools = {
         tool["name"]: tool
         for tool in request["tools"]
@@ -391,22 +387,35 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         for tool in request["tools"]
         if tool["type"] == "namespace"
     }
-    assert set(namespaces) == {
-        "profile",
-        "planning",
-        "attachments",
-        "lactation",
-        "device",
-    }
-    assert {
-        tool["name"]
-        for tool in namespaces["profile"]["tools"]
-    } == {"profile_read", "profile_update"}
-    assert all(
-        tool["defer_loading"] is True
-        for namespace in namespaces.values()
-        for tool in namespace["tools"]
-    )
+    assert namespaces == {}
+
+
+def test_responses_wire_keeps_loaded_skill_in_a_separate_developer_message() -> None:
+    skill = SERVICE_SKILL_REGISTRY.get("lactation")
+    client = RecordingOpenAIClient()
+    port = RecordingExecutionPort()
+    engine = _engine(OpenAIResponsesModel(
+        model="gpt-5.6-terra", openai_client=client,  # type: ignore[arg-type]
+    ))
+    asyncio.run(engine.execute(
+        input_items=(
+            {"type": "function_call", "name": "load_service_skill", "call_id": "loaded",
+             "arguments": '{"skill_id":"lactation"}'},
+            {"type": "function_call_output", "call_id": "loaded",
+             "output": json.dumps(skill.to_tool_output())},
+            {"role": "user", "content": "继续咨询。"},
+        ),
+        port=port,
+        authorization_permissions=_all_tool_permissions(),
+    ))
+    wire_items = client.responses.kwargs["input"]
+    assert wire_items[0]["role"] == "developer"
+    assert skill.content not in str(wire_items[0])
+    assert wire_items[2]["type"] == "function_call_output"
+    assert "content" not in json.loads(wire_items[2]["output"])
+    assert wire_items[3] == skill.developer_item()
+    assert wire_items[4]["role"] == "user"
+    assert port.model_budget_requests[0][0][3] == wire_items[3]
 
 
 def test_azure_openai_profile_drives_request_and_manifest_metadata() -> None:

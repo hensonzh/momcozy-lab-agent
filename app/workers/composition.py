@@ -38,8 +38,8 @@ from app.agent_runtime.runs import (
 from app.agent_runtime.runs.controls import AgentRunControls
 from app.agent_runtime.tools import (
     ToolExecutor,
-    TrustedToolArgumentsProvider,
 )
+from app.rednote.service import build_rednote_service
 from app.core.settings import get_settings
 from app.infrastructure.model_provider import model_provider_config
 from app.infrastructure.db import create_db_engine, create_session_factory
@@ -154,6 +154,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     repository=repository,
                     token_counter=provider_runtime.token_counter,
                     compactor=provider_runtime.compactor,
+                    history_adapter=provider_runtime.history_adapter,
                     model_input_resolver=resolver,
                     model=provider_runtime.profile.model,
                     provider_identity=(
@@ -201,6 +202,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     repository=repository,
                     client=product_client,
                     action_service=action_service,
+                    rednote_service=build_rednote_service(settings),
                 )
                 action_types = set(build_product_action_applicators(product_client))
                 validate_runtime_composition(
@@ -228,12 +230,6 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                         tool_executor=executor,
                         runtime=RUNTIME_DEFINITION,
                         transient_delta_publisher=transient_stream,
-                        trusted_arguments_provider=(
-                            TrustedToolArgumentsProvider(
-                                repository=repository,
-                                product_client=product_client,
-                            )
-                        ),
                         context_coordinator=context_coordinator(
                             repository,
                             attachments,

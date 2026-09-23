@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import json
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -28,29 +28,9 @@ TerminalStatus = Literal["completed", "failed", "cancelled", "expired"]
 ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
 ReleaseStatus = Literal["passed", "failed", "review_required"]
 
-KNOWN_TOOL_NAMES = frozenset(
-    {
-        "conversation_history_image_read",
-        "devices_guidance_manage",
-        "ibclc_consult_card_create",
-        "load_service_skill",
-        "get_feeding_records",
-        "get_feeding_summary",
-        "get_growth_records",
-        "get_growth_summary",
-        "get_lactation_records",
-        "get_lactation_summary",
-        "plan_mutate",
-        "plan_read",
-        "profile_read",
-        "profile_update",
-        "pump_models_read",
-        "schedule_timeline_mutate",
-        "schedule_timeline_read",
-        "support_ticket_draft_create",
-    }
-)
-SERVICE_SKILL_NAMES = frozenset({"lactation", "device"})
+# Includes dormant tools so evals can explicitly forbid their invocation.
+KNOWN_TOOL_NAMES = frozenset({"load_service_skill", "search_rednote_posts"})
+SERVICE_SKILL_NAMES = frozenset({"lactation"})
 
 
 class _StrictModel(BaseModel):
@@ -130,6 +110,7 @@ class BehaviorEvalCase(_StrictModel):
     tags: tuple[str, ...] = Field(min_length=1)
     turns: tuple[BehaviorTurn, ...] = Field(min_length=1)
     structural_expectation: StructuralExpectation
+    turn_expectations: tuple[StructuralExpectation, ...] = ()
     quality_rubric: QualityRubric | None
 
     @field_validator("tags")
@@ -146,6 +127,11 @@ class BehaviorEvalCase(_StrictModel):
     def require_active_case_rubric(self) -> BehaviorEvalCase:
         if self.status == "active" and self.quality_rubric is None:
             raise ValueError("active behavior cases require a quality rubric")
+        if len(self.turns) > 1 or self.turn_expectations:
+            if len(self.turn_expectations) != len(self.turns):
+                raise ValueError("conversation expectations must cover every turn")
+            if self.turn_expectations[-1] != self.structural_expectation:
+                raise ValueError("final turn expectation must match structural_expectation")
         return self
 
 
@@ -174,15 +160,27 @@ class BehaviorEvalSuite(_StrictModel):
 
 class BehaviorRunMap(_StrictModel):
     schema_version: BehaviorRunMapSchemaVersion
-    runs: dict[str, UUID] = Field(min_length=1)
+    runs: dict[str, UUID | tuple[UUID, ...]] = Field(min_length=1)
 
     @field_validator("runs")
     @classmethod
-    def validate_case_ids(cls, value: dict[str, UUID]) -> dict[str, UUID]:
-        for case_id in value:
+    def validate_case_ids(cls, value: dict[str, UUID | tuple[UUID, ...]]) -> dict[str, UUID | tuple[UUID, ...]]:
+        seen: set[UUID] = set()
+        for case_id, mapped in value.items():
             if not case_id or not case_id.replace("_", "").isalnum():
                 raise ValueError(f"invalid case id in run map: {case_id}")
+            run_ids = (mapped,) if isinstance(mapped, UUID) else mapped
+            if not run_ids or len(set(run_ids)) != len(run_ids) or seen.intersection(run_ids):
+                raise ValueError("run map requires non-empty, distinct runs for every case and turn")
+            seen.update(run_ids)
         return value
+
+    def run_ids_for(self, case: BehaviorEvalCase) -> tuple[UUID, ...]:
+        mapped = self.runs[case.id]
+        run_ids = (mapped,) if isinstance(mapped, UUID) else mapped
+        if len(run_ids) != len(case.turns):
+            raise ValueError(f"case {case.id} requires {len(case.turns)} turns, got {len(run_ids)} runs")
+        return run_ids
 
 
 class JudgeDecision(_StrictModel):
@@ -239,10 +237,15 @@ class BehaviorEvalResult:
     release_status: ReleaseStatus
     failures: tuple[BehaviorEvalFailure, ...]
     judge_decision: JudgeDecision | None
+    prior_run_ids: tuple[UUID, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["run_id"] = str(self.run_id)
+        if self.prior_run_ids:
+            payload["prior_run_ids"] = [str(run_id) for run_id in self.prior_run_ids]
+        else:
+            payload.pop("prior_run_ids")
         if self.judge_decision is not None:
             payload["judge_decision"] = self.judge_decision.model_dump(mode="json")
         return payload
@@ -261,8 +264,24 @@ async def evaluate_behavior_case(
     case: BehaviorEvalCase,
     observed: ObservedReplay,
     judge: BehaviorJudge | None = None,
+    prior_runs: tuple[ObservedReplay, ...] = (),
 ) -> BehaviorEvalResult:
-    failures = tuple(_evaluate_structure(case=case, observed=observed))
+    runs = (*prior_runs, observed)
+    if len(runs) != len(case.turns):
+        raise ValueError("behavior evaluation requires a persisted run for every turn")
+    collected: list[BehaviorEvalFailure] = []
+    if len(runs) > 1:
+        collected.extend(_evaluate_conversation(case=case, runs=runs))
+    for index, turn_run in enumerate(runs):
+        turn_case = case.model_copy(update={
+            "structural_expectation": case.turn_expectations[index] if case.turn_expectations else case.structural_expectation,
+        })
+        turn_failures = _evaluate_structure(case=turn_case, observed=turn_run)
+        collected.extend(
+            replace(failure, assertion=f"turn.{index + 1}.{failure.assertion}") if len(runs) > 1 else failure
+            for failure in turn_failures
+        )
+    failures = tuple(collected)
     structural_pass = not failures
     rubric = case.quality_rubric
     judge_decision: JudgeDecision | None = None
@@ -289,7 +308,73 @@ async def evaluate_behavior_case(
         release_status=release_status,
         failures=failures,
         judge_decision=judge_decision,
+        prior_run_ids=tuple(run.run_id for run in prior_runs),
     )
+
+
+def _evaluate_conversation(
+    *, case: BehaviorEvalCase, runs: tuple[ObservedReplay, ...],
+) -> list[BehaviorEvalFailure]:
+    failures: list[BehaviorEvalFailure] = []
+    first_thread = runs[0].bundle.get("thread", {})
+    if not isinstance(first_thread, dict):
+        first_thread = {}
+    thread_id, owner_id = first_thread.get("id"), first_thread.get("owner_user_id")
+    run_ids = [str(run.run_id) for run in runs]
+    if len(set(run_ids)) != len(run_ids):
+        _failure(failures, category="conversation_mismatch", assertion="conversation.distinct_runs",
+                 expected="one distinct run per turn", observed=run_ids)
+    for index, observed in enumerate(runs):
+        bundle = observed.bundle
+        run, thread = bundle.get("run"), bundle.get("thread")
+        if (not isinstance(thread_id, str) or not thread_id or not isinstance(owner_id, str) or not owner_id
+                or not isinstance(run, dict) or not isinstance(thread, dict)
+                or run.get("thread_id") != thread_id or thread.get("id") != thread_id
+                or run.get("actor_user_id") != owner_id or thread.get("owner_user_id") != owner_id):
+            _failure(failures, category="conversation_mismatch", assertion=f"turn.{index + 1}.conversation.owner_thread",
+                     expected="all turns belong to the same persisted owner and thread", observed=str(observed.run_id))
+
+        messages = bundle.get("messages")
+        if not isinstance(messages, list) or any(not isinstance(message, dict) for message in messages):
+            messages = []
+        users = [message for message in messages if message.get("role") == "user"]
+        expected_turns = case.turns[:index + 1]
+        prefix_matches = len(users) == len(expected_turns)
+        if prefix_matches:
+            prefix_matches = all(
+                message.get("run_id") == run_ids[position]
+                and isinstance(message.get("content"), dict)
+                and message["content"].get("text") == turn.content
+                for position, (message, turn) in enumerate(zip(users, expected_turns, strict=True))
+            )
+        sequences = [message.get("sequence") for message in messages]
+        ordered = bool(sequences) and all(type(sequence) is int for sequence in sequences)
+        if ordered:
+            ordered = all(left < right for left, right in zip(sequences, sequences[1:], strict=False))
+        if not prefix_matches or not ordered:
+            _failure(failures, category="conversation_mismatch", assertion=f"turn.{index + 1}.conversation.input_history",
+                     expected="exact ordered user turns in a fresh test thread, with visible content",
+                     observed={"run_id": str(observed.run_id), "user_message_count": len(users)})
+
+        # A later successful response cannot stand in for an earlier missing response.
+        for position, expected_run_id in enumerate(run_ids[:index + 1]):
+            user_sequence = users[position].get("sequence") if position < len(users) else None
+            next_user_sequence = users[position + 1].get("sequence") if position + 1 < len(users) else None
+            response_visible = any(
+                message.get("role") == "assistant" and message.get("run_id") == expected_run_id
+                and message.get("status") == "completed"
+                and isinstance(message.get("content"), dict)
+                and isinstance(message["content"].get("text"), str) and message["content"]["text"].strip()
+                and message["content"]["text"].strip() != "[redacted]"
+                and type(user_sequence) is int and type(message.get("sequence")) is int
+                and message["sequence"] > user_sequence
+                and (next_user_sequence is None or (type(next_user_sequence) is int and message["sequence"] < next_user_sequence))
+                for message in messages
+            )
+            if not response_visible:
+                _failure(failures, category="conversation_mismatch", assertion=f"turn.{index + 1}.conversation.response_history",
+                         expected="visible completed assistant response between consecutive user turns", observed=expected_run_id)
+    return failures
 
 
 def _evaluate_structure(

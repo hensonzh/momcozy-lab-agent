@@ -9,7 +9,6 @@ from .result import (
     ToolImageOutput,
     ToolResult,
 )
-from .trusted import TrustedToolArgumentsProvider
 
 __all__ = [
     "FunctionCallOutput",
@@ -23,5 +22,4 @@ __all__ = [
     "internal_input_schema",
     "ToolImageOutput",
     "ToolResult",
-    "TrustedToolArgumentsProvider",
 ]

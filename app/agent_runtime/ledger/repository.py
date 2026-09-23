@@ -697,6 +697,68 @@ class RuntimeLedgerRepository:
         messages.reverse()
         return messages
 
+    async def list_history_page_for_owner(
+        self,
+        *,
+        thread_id: UUID,
+        owner_user_id: UUID,
+        before_sequence: int | None = None,
+        limit: int = 21,
+    ) -> list[AgentMessage]:
+        statement = (
+            select(AgentMessage)
+            .join(AgentThread, AgentThread.id == AgentMessage.thread_id)
+            .where(
+                AgentMessage.thread_id == thread_id,
+                AgentThread.owner_user_id == owner_user_id,
+                AgentThread.deleted_at.is_(None),
+                AgentMessage.role.in_(("user", "assistant")),
+                AgentMessage.status == "completed",
+            )
+        )
+        if before_sequence is not None:
+            statement = statement.where(AgentMessage.sequence < before_sequence)
+        result = await self.session.scalars(
+            statement.order_by(AgentMessage.sequence.desc()).limit(
+                min(limit, 51)
+            )
+        )
+        return list(reversed(result.all()))
+
+    async def list_history_events_for_owner(
+        self,
+        *,
+        thread_id: UUID,
+        owner_user_id: UUID,
+        run_ids: list[UUID],
+    ) -> list[AgentEvent]:
+        if not run_ids:
+            return []
+        result = await self.session.scalars(
+            select(AgentEvent)
+            .join(AgentThread, AgentThread.id == AgentEvent.thread_id)
+            .where(
+                AgentEvent.thread_id == thread_id,
+                AgentThread.owner_user_id == owner_user_id,
+                AgentThread.deleted_at.is_(None),
+                AgentEvent.run_id.in_(run_ids),
+                AgentEvent.event_type.in_(
+                    (
+                        "run.queued",
+                        "run.started",
+                        "run.completed",
+                        "run.failed",
+                        "run.cancelled",
+                        "run.expired",
+                        "run.waiting_for_confirmation",
+                        "message.completed",
+                    )
+                ),
+            )
+            .order_by(AgentEvent.run_id, AgentEvent.sequence)
+        )
+        return list(result.all())
+
     async def get_latest_user_message_for_run(
         self,
         *,
@@ -1018,6 +1080,20 @@ class RuntimeLedgerRepository:
             .order_by(AgentContextItem.sequence)
         )
         return list(result.all())
+
+    async def list_context_run_manifests(
+        self, *, thread_id: UUID, run_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]:
+        if not run_ids:
+            return {}
+        result = await self.session.execute(
+            select(AgentRun.id, AgentRun.execution_manifest).where(
+                AgentRun.thread_id == thread_id,
+                AgentRun.id.in_(run_ids),
+                AgentRun.status == "completed",
+            )
+        )
+        return {run_id: manifest for run_id, manifest in result.all()}
 
     async def set_run_context_state(
         self,

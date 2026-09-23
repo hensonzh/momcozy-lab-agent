@@ -241,6 +241,8 @@ class ResponsesAgentsExecutionEngine:
             base_url=base_url,
         )
         self.provider_profile.require_capabilities(REQUIRED_RUNTIME_PROVIDER_CAPABILITIES)
+        if self.runtime.tools.deferred_tool_names:
+            self.provider_profile.require_capabilities(frozenset({"tool_search"}))
         if self.provider_profile.model != model_name:
             raise ValueError("provider profile model does not match engine model")
         if self.provider_profile.api != "responses":
@@ -505,6 +507,8 @@ class ResponsesAgentsExecutionEngine:
         resolved = await state.port.resolve_model_input(
             input_items=raw_items,
         )
+        if state.runtime.model_input_projector is not None:
+            resolved = state.runtime.model_input_projector(resolved)
         if _contains_internal_asset_reference(resolved):
             raise ApiError(
                 code="model_asset_unresolved",

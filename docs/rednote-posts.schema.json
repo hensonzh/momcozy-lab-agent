@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "RedNotePost": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 160,
+          "minLength": 2,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 20,
+          "title": "Summary",
+          "type": "string"
+        },
+        "thumbnail": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumbnail"
+        },
+        "author": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "favorites": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Favorites"
+        },
+        "url": {
+          "maxLength": 2048,
+          "title": "Url",
+          "type": "string"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        },
+        "relevance_score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Relevance Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "title",
+        "summary",
+        "url",
+        "relevance_score"
+      ],
+      "title": "RedNotePost",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "card_type": {
+      "const": "rednote_posts",
+      "default": "rednote_posts",
+      "title": "Card Type",
+      "type": "string"
+    },
+    "title": {
+      "const": "参考帖子",
+      "default": "参考帖子",
+      "title": "Title",
+      "type": "string"
+    },
+    "evidence_type": {
+      "const": "community_experience",
+      "default": "community_experience",
+      "title": "Evidence Type",
+      "type": "string"
+    },
+    "posts": {
+      "items": {
+        "$ref": "#/$defs/RedNotePost"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "title": "Posts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "posts"
+  ],
+  "title": "RedNoteCard",
+  "type": "object"
+}

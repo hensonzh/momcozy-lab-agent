@@ -52,6 +52,7 @@ async def evaluate_from_runtime_database(
             "run map must contain every active case exactly once; "
             f"missing={missing}, unknown={unknown}"
         )
+    mapped_runs = {case.id: run_map.run_ids_for(case) for case in active_cases}
 
     settings = get_settings()
     settings.validate_for_startup()
@@ -64,18 +65,18 @@ async def evaluate_from_runtime_database(
                 repository=RuntimeReplayRepository(session)
             )
             for case in active_cases:
-                run_id = run_map.runs[case.id]
-                bundle = await replay_service.export_run_bundle(
-                    run_id=run_id,
-                    include_message_content=False,
-                )
+                observed_runs: list[ObservedReplay] = []
+                for run_id in mapped_runs[case.id]:
+                    bundle = await replay_service.export_run_bundle(
+                        run_id=run_id,
+                        include_message_content=len(case.turns) > 1,
+                    )
+                    observed_runs.append(ObservedReplay.from_runtime_database(run_id=run_id, bundle=bundle))
                 results.append(
                     await evaluate_behavior_case(
                         case=case,
-                        observed=ObservedReplay.from_runtime_database(
-                            run_id=run_id,
-                            bundle=bundle,
-                        ),
+                        observed=observed_runs[-1],
+                        prior_runs=tuple(observed_runs[:-1]),
                     )
                 )
     finally:

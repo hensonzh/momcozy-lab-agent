@@ -243,6 +243,45 @@
         "title": "AgentClientEventCreate",
         "type": "object"
       },
+      "AgentConversationHistoryRead": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEventRead"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentHistoryMessageRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before_sequence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before Sequence"
+          },
+          "thread": {
+            "$ref": "#/components/schemas/AgentThreadRead"
+          }
+        },
+        "required": [
+          "thread",
+          "items",
+          "events"
+        ],
+        "title": "AgentConversationHistoryRead",
+        "type": "object"
+      },
       "AgentEvalCaseCreate": {
         "additionalProperties": false,
         "properties": {
@@ -610,6 +649,63 @@
         "title": "AgentFormSubmissionAttachmentCreate",
         "type": "object"
       },
+      "AgentHistoryMessageRead": {
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "status",
+          "sequence",
+          "created_at"
+        ],
+        "title": "AgentHistoryMessageRead",
+        "type": "object"
+      },
       "AgentImageAttachmentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -911,6 +1007,11 @@
       },
       "AgentThreadRead": {
         "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -933,9 +1034,16 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
           }
         },
         "required": [
+          "created_at",
+          "updated_at",
           "id",
           "owner_user_id",
           "title",
@@ -1243,7 +1351,6 @@
             "enum": [
               "dialogue",
               "intake",
-              "mother_diary",
               "lactation",
               "care_plan",
               "baby_record"
@@ -2599,6 +2706,83 @@
           }
         ],
         "summary": "Get Thread",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/v1/agent/threads/{thread_id}/history": {
+      "get": {
+        "operationId": "get_conversation_history_v1_agent_threads__thread_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before_sequence",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Sequence"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentConversationHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Conversation History",
         "tags": [
           "agent"
         ]

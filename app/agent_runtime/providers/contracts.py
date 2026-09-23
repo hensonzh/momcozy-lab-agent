@@ -14,7 +14,6 @@ REQUIRED_RUNTIME_PROVIDER_CAPABILITIES = frozenset(
         "function_tools",
         "streaming",
         "structured_outputs",
-        "tool_search",
     }
 )
 
