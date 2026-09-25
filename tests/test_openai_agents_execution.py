@@ -382,6 +382,11 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         if tool["type"] == "function"
     }
     assert set(eager_function_tools) == {"load_service_skill", "read_topical_records"}
+    for tool in eager_function_tools.values():
+        model_schema = tool["parameters"]
+        assert "user_facing_status" in model_schema["properties"]
+        assert "user_facing_status" in model_schema["required"]
+        assert set(model_schema["properties"]["user_facing_status"]["required"]) == {"running", "success", "failure"}
     namespaces = {
         tool["name"]: tool
         for tool in request["tools"]

@@ -81,7 +81,8 @@ def test_public_openapi_surface_authentication_and_idempotency_contracts() -> No
         if method in HTTP_METHODS
     )
 
-    assert operations == EXPECTED_PUBLIC_OPERATIONS | {('post', '/v1/internal/care-reports/sources'), ('post', '/v1/internal/care-reports/generate')}
+    assert operations == EXPECTED_PUBLIC_OPERATIONS
+    assert not any(path.startswith('/v1/internal/care-reports/') for path in paths)
     assert not any(
         path.startswith("/v1/internal/agent/") for path in paths
     )
@@ -107,9 +108,7 @@ def test_public_openapi_surface_authentication_and_idempotency_contracts() -> No
 
     for method, path in operations:
         operation = _operation(document, path=path, method=method)
-        if path.startswith('/v1/internal/care-reports/'):
-            assert operation['security'] == [{'ProductReportServiceKey': []}]
-        elif path.startswith("/v1/agent/admin/"):
+        if path.startswith("/v1/agent/admin/"):
             assert operation["security"] == [
                 {"HTTPBearer": []},
                 {"RuntimeAdminServiceKey": []},

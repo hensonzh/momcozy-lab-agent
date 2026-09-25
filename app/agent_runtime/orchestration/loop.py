@@ -39,6 +39,8 @@ from app.core.observability import (
     emit_operation_metric,
 )
 
+from .user_status import split_status_arguments, validated_status
+
 from .contracts import (
     AgentExecutionEngine,
     AgentExecutionPort,
@@ -595,10 +597,18 @@ class AgentLoop:
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
-        safety_probe = self.safety_policy.evaluate(json.dumps({"tool": call.name, "arguments": call.arguments}, ensure_ascii=False))
+        business_args, candidate = split_status_arguments(call.arguments)
+        safety_probe = self.safety_policy.evaluate(json.dumps({"tool": call.name, "arguments": business_args}, ensure_ascii=False))
         if safety_probe.decision in {"block", "escalate"}:
             await self._record_safety_decision(run=run, decision=safety_probe, event_type="safety.tool")
             return await self._append_tool_error(run=run, call=call, code="safety_guardrail_blocked")
+        status = validated_status(
+            candidate,
+            tool_name=call.name,
+            safety_policy=self.safety_policy,
+        )
+        if status is not None:
+            await self._tool_status(run, call_id=call.call_id, status=status, outcome="running")
         principal = self._runtime_principal(run)
         try:
             async with self._persistence_lock:
@@ -613,13 +623,15 @@ class AgentLoop:
                     run_id=run.id,
                     tool_name=call.name,
                     call_id=call.call_id,
-                    args=dict(call.arguments),
+                    args=business_args,
                     trusted_args=trusted_args,
                     request_id=run.request_id,
                     as_of_date=as_of_date,
                 )
                 await self._checkpoint_unlocked()
         except ApiError as exc:
+            if status is not None:
+                await self._tool_status(run, call_id=call.call_id, status=status, outcome="failure")
             if exc.details.get("fatal") is True:
                 raise
             return await self._append_tool_error(
@@ -627,6 +639,9 @@ class AgentLoop:
                 call=call,
                 code=exc.code,
             )
+        if status is not None:
+            outcome = "failure" if execution.canonical_output.get("ok") is False else "success"
+            await self._tool_status(run, call_id=call.call_id, status=status, outcome=outcome)
         output_item = {
             "type": "function_call_output",
             "call_id": call.call_id,
@@ -652,6 +667,27 @@ class AgentLoop:
                 await self._checkpoint_unlocked(expected_statuses=("waiting_for_confirmation",))
             raise _WaitingForConfirmation
         return output_item
+
+    async def _tool_status(
+        self,
+        run: AgentRun,
+        *,
+        call_id: str,
+        status: dict[str, str],
+        outcome: str,
+    ) -> None:
+        async with self._persistence_lock:
+            await self.repository.append_event(
+                run_id=run.id,
+                event_type="run.progress",
+                payload={
+                    "phase": "tool_status",
+                    "call_id": call_id,
+                    "outcome": outcome,
+                    "user_facing_status": status,
+                },
+            )
+            await self._checkpoint_unlocked()
 
     async def _append_tool_error(
         self,

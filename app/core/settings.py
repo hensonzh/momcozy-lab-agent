@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from ipaddress import ip_address
 from urllib.parse import urlparse
@@ -69,7 +69,6 @@ class Settings:
     agent_run_owner_active_ttl_seconds: int = 2_100
     product_backend_base_url: str = "http://localhost:8000"
     product_backend_service_key: str = ""
-    care_report_service_key: str = field(default='', repr=False)
     product_backend_timeout_seconds: float = 5.0
     runtime_output_store_bucket: str = ""
     runtime_output_store_prefix: str = "agent-runtime"
@@ -179,7 +178,6 @@ class Settings:
                 "PRODUCT_BACKEND_SERVICE_KEY",
                 cls.product_backend_service_key,
             ),
-            care_report_service_key=_env('CARE_REPORT_SERVICE_KEY', cls.care_report_service_key),
             product_backend_timeout_seconds=_env_float(
                 "PRODUCT_BACKEND_TIMEOUT_SECONDS",
                 cls.product_backend_timeout_seconds,
@@ -503,11 +501,6 @@ class Settings:
             errors.append("AUTH_JWKS_KID_MISS_COOLDOWN_SECONDS must be positive")
         if self.product_backend_service_key and len(self.product_backend_service_key.encode("utf-8")) < 32:
             errors.append("PRODUCT_BACKEND_SERVICE_KEY must be at least 32 bytes")
-        if self.care_report_service_key:
-            if len(self.care_report_service_key.encode('utf-8')) < 32 or _is_placeholder_secret(self.care_report_service_key):
-                errors.append('CARE_REPORT_SERVICE_KEY requires a non-placeholder secret of at least 32 bytes')
-            if self.care_report_service_key in {self.product_backend_service_key, self.runtime_admin_service_key}:
-                errors.append('CARE_REPORT_SERVICE_KEY must be distinct from Product Backend and operator credentials')
         if _is_placeholder_secret(self.product_backend_service_key):
             errors.append(
                 "PRODUCT_BACKEND_SERVICE_KEY must not use a placeholder value"

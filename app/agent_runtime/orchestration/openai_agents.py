@@ -69,6 +69,8 @@ from app.agent_runtime.runtime_metadata import (
 )
 from app.core.observability import emit_operation_metric
 
+from .user_status import model_tool_schema
+
 from .contracts import (
     AgentDefinition,
     AgentExecutionPort,
@@ -489,7 +491,7 @@ class ResponsesAgentsExecutionEngine:
         return FunctionTool(
             name=contract.name,
             description=contract.description,
-            params_json_schema=deepcopy(contract.input_schema),
+            params_json_schema=model_tool_schema(contract.input_schema, tool_name=contract.name),
             on_invoke_tool=invoke,
             strict_json_schema=False,
             timeout_seconds=None,
