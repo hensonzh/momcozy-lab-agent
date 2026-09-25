@@ -38,8 +38,6 @@ from app.capability_module import (
     CapabilityDependencies,
 )
 from app.infrastructure.product_backend import ProductBackendClient
-from app.core.settings import get_settings
-from app.rednote.service import RedNoteSearchService, build_rednote_service
 
 
 TOOL_CATALOG = ToolCatalog(
@@ -166,13 +164,11 @@ def build_runtime_tool_handlers(
     repository: RuntimeLedgerRepository,
     client: ProductBackendClient,
     action_service: RuntimeActionService,
-    rednote_service: RedNoteSearchService | None = None,
 ) -> dict[str, ToolHandler]:
     dependencies = CapabilityDependencies(
         repository=repository,
         product_backend=client,
         action_proposer=action_service,
-        rednote_service=rednote_service or build_rednote_service(get_settings()),
     )
     handlers: dict[str, ToolHandler] = {}
     for module in CAPABILITY_MODULES:

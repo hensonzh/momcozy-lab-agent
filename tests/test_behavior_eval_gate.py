@@ -36,12 +36,6 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
     assert suite.replay_contract_version == "agent_run_replay.v1"
     assert {case.id for case in suite.cases} == {
-        "rednote_postpartum_experience",
-        "rednote_pumping_experience",
-        "rednote_medical_diagnosis",
-        "rednote_emergency",
-        "rednote_opt_out",
-        "rednote_out_of_scope",
         "general_health_answer",
         "diary_capability_unavailable",
         "prenatal_planning_capability_unavailable",

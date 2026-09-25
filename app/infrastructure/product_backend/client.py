@@ -13,6 +13,8 @@ from .contracts import (
     AgentFileResolveResponse,
     ProfileReadRequest,
     ProfileReadResponse,
+    TopicalRecordsReadRequest,
+    TopicalRecordsReadResponse,
 )
 
 
@@ -68,6 +70,7 @@ class ProductBackendClient:
         params: dict[str, str] = {
             "actor_user_id": str(query.actor_user_id),
             "infant_scope": query.infant_scope,
+            "timezone": query.timezone,
         }
         if query.as_of_date is not None:
             params["as_of_date"] = query.as_of_date.isoformat()
@@ -78,6 +81,30 @@ class ProductBackendClient:
             params=params,
             request_id=request_id,
         )
+
+
+    async def read_topical_records(
+        self, *, query: TopicalRecordsReadRequest, request_id: str,
+    ) -> TopicalRecordsReadResponse:
+        params: dict[str, str | int] = {
+            "actor_user_id": str(query.actor_user_id),
+            "topic": query.topic,
+            "start_date": query.start_date.isoformat(),
+            "end_date": query.end_date.isoformat(),
+            "timezone": query.timezone,
+            "limit": query.limit,
+        }
+        if query.infant_id is not None:
+            params["infant_id"] = str(query.infant_id)
+        result = await self._request_model(
+            "GET", "/v1/internal/agent/records", response_model=TopicalRecordsReadResponse,
+            params=params, request_id=request_id,
+        )
+        if (result.topic != query.topic or result.infant_id != query.infant_id
+            or result.start_date != query.start_date or result.end_date != query.end_date
+            or result.timezone != query.timezone or len(result.items) > query.limit):
+            raise _invalid_response()
+        return result
 
 
     async def resolve_agent_file(

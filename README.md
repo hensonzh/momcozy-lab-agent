@@ -212,7 +212,3 @@ The Context Pipeline v1 200k-token contract, typed low-trust checkpoints,
 next-Run generation gate, audited dead-letter recovery, and durable hard-limit
 resume are defined in
 [context-compaction.md](docs/context-compaction.md).
-
-## RedNote 社区检索
-
-保留 `search_rednote_posts` 实现和 App 原帖卡片，但当前未注册到 Runtime，工具定义不进入模型请求，主提示词与泌乳 Skill 中的检索指引已移除。配置、接口及历史验收记录见 [接入说明](docs/rednote-retrieval.md)。

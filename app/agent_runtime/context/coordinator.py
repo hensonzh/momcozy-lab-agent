@@ -63,7 +63,7 @@ class RuntimeContextCoordinator:
                 current_records.append(record)
             else:
                 history.append(record)
-        return [*history, *current_snapshots, *current_records]
+        return [*current_snapshots, *history, *current_records]
 
     async def recover_context_overflow(self, *, run: Any) -> bool:
         return await self.compaction.recover_context_overflow(run=run)

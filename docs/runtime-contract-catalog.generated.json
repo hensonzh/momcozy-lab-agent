@@ -5,13 +5,13 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "a950eb7cb571b1f3e8e9c9b936a6dd1ba62c7f1eb210a38a830da0602d549f7c"
   },
-  "catalog_sha256": "4cbf030e850836ce035907db22c714653374a21a2ef755cf99707b48d7874c3d",
+  "catalog_sha256": "917144b7a598eed474f79ae5d78599bf938a1793f0ec221e594461c256c104ba",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
     "auth_token_version": 1,
     "authorization_context_schema_version": "agent.authorization_context.v1",
-    "business_context_schema_version": "agent.authoritative_business_context.v1",
+    "business_context_schema_version": "agent.authoritative_business_context.v2",
     "client_context_schema_version": "client_context.v1",
     "context_checkpoint_schema_version": "agent_context_checkpoint.v1",
     "context_compaction_prompt_version": "agent_context_compaction.v2",
@@ -156,9 +156,524 @@
         ],
         "schema_version": "agent.tool_contract.v1",
         "timeout_seconds": 5
+      },
+      {
+        "action_types": [],
+        "description": "Read bounded, owner-scoped recorded entries for one care topic. Use when feeding, pumping, diaper, pain, or growth history is needed.",
+        "domain": "records",
+        "input_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "end_date": {
+              "description": "Last local calendar date (inclusive); maximum 30 days total.",
+              "format": "date",
+              "title": "End Date",
+              "type": "string"
+            },
+            "infant_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Current baby UUID for feeding, diaper, or growth; omit for maternal topics.",
+              "title": "Infant Id"
+            },
+            "limit": {
+              "default": 20,
+              "description": "Maximum recorded entries to return, up to 20.",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "start_date": {
+              "description": "First local calendar date (inclusive), YYYY-MM-DD.",
+              "format": "date",
+              "title": "Start Date",
+              "type": "string"
+            },
+            "topic": {
+              "description": "Which recorded topic to read.",
+              "enum": [
+                "feeding",
+                "pumping",
+                "diaper",
+                "pain",
+                "growth"
+              ],
+              "title": "Topic",
+              "type": "string"
+            }
+          },
+          "required": [
+            "topic",
+            "start_date",
+            "end_date"
+          ],
+          "title": "ModelReadArgs",
+          "type": "object"
+        },
+        "internal_input_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "end_date": {
+              "description": "Last local calendar date (inclusive); maximum 30 days total.",
+              "format": "date",
+              "title": "End Date",
+              "type": "string"
+            },
+            "infant_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Current baby UUID for feeding, diaper, or growth; omit for maternal topics.",
+              "title": "Infant Id"
+            },
+            "limit": {
+              "default": 20,
+              "description": "Maximum recorded entries to return, up to 20.",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "start_date": {
+              "description": "First local calendar date (inclusive), YYYY-MM-DD.",
+              "format": "date",
+              "title": "Start Date",
+              "type": "string"
+            },
+            "timezone": {
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            },
+            "topic": {
+              "description": "Which recorded topic to read.",
+              "enum": [
+                "feeding",
+                "pumping",
+                "diaper",
+                "pain",
+                "growth"
+              ],
+              "title": "Topic",
+              "type": "string"
+            }
+          },
+          "required": [
+            "topic",
+            "start_date",
+            "end_date",
+            "timezone"
+          ],
+          "title": "ExecutionArgs",
+          "type": "object"
+        },
+        "model_output_max_bytes": 24576,
+        "name": "read_topical_records",
+        "operation": "read",
+        "output_schema": {
+          "$defs": {
+            "TopicalRecord": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Color"
+                },
+                "consistency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Consistency"
+                },
+                "diaper_kind": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Diaper Kind"
+                },
+                "duration_minutes": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Duration Minutes"
+                },
+                "head_circumference_cm": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Head Circumference Cm"
+                },
+                "height_cm": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Height Cm"
+                },
+                "impact": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Impact"
+                },
+                "kind": {
+                  "enum": [
+                    "feeding",
+                    "pumping",
+                    "diaper",
+                    "pain",
+                    "growth"
+                  ],
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "method": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Method"
+                },
+                "metric": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Metric"
+                },
+                "occurred_at": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Occurred At"
+                },
+                "pain_score": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Pain Score"
+                },
+                "phase": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Phase"
+                },
+                "record_type": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "event",
+                        "daily_summary"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Record Type"
+                },
+                "recorded_on": {
+                  "anyOf": [
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Recorded On"
+                },
+                "side": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Side"
+                },
+                "signs": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Signs"
+                },
+                "source": {
+                  "enum": [
+                    "baby_records",
+                    "feeding_records",
+                    "pumping_records",
+                    "mother_observations",
+                    "growth_records"
+                  ],
+                  "title": "Source",
+                  "type": "string"
+                },
+                "stool_count": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Stool Count"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Value"
+                },
+                "volume_ml": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Volume Ml"
+                },
+                "weight_kg": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Weight Kg"
+                },
+                "wet_count": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Wet Count"
+                }
+              },
+              "required": [
+                "source",
+                "kind"
+              ],
+              "title": "TopicalRecord",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "coverage": {
+              "const": "recorded_entries_only",
+              "default": "recorded_entries_only",
+              "title": "Coverage",
+              "type": "string"
+            },
+            "end_date": {
+              "format": "date",
+              "title": "End Date",
+              "type": "string"
+            },
+            "has_more": {
+              "title": "Has More",
+              "type": "boolean"
+            },
+            "infant_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Infant Id"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/TopicalRecord"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "start_date": {
+              "format": "date",
+              "title": "Start Date",
+              "type": "string"
+            },
+            "timezone": {
+              "title": "Timezone",
+              "type": "string"
+            },
+            "topic": {
+              "enum": [
+                "feeding",
+                "pumping",
+                "diaper",
+                "pain",
+                "growth"
+              ],
+              "title": "Topic",
+              "type": "string"
+            }
+          },
+          "required": [
+            "topic",
+            "infant_id",
+            "start_date",
+            "end_date",
+            "timezone",
+            "items",
+            "has_more"
+          ],
+          "title": "TopicalRecordsReadResponse",
+          "type": "object"
+        },
+        "owner_scope": "actor",
+        "required_permissions": [
+          "records:read"
+        ],
+        "retry_policy": "safe_read",
+        "safe_arg_fields": [
+          "end_date",
+          "limit",
+          "start_date",
+          "topic"
+        ],
+        "safe_output_fields": [
+          "coverage",
+          "has_more",
+          "topic"
+        ],
+        "schema_version": "agent.tool_contract.v1",
+        "timeout_seconds": 30
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "68c57a26d7a0557f4874225d566c029f680d00f34790e887288d86a43cbf3049"
+    "sha256": "655eb642cf4285f85bffcf81317e86410ced52e8e783bf23dce9409a8b5bf5cf"
   }
 }

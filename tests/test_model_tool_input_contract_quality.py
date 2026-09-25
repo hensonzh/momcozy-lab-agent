@@ -70,19 +70,20 @@ def test_every_model_visible_input_property_has_a_clear_description() -> None:
 def test_tool_descriptions_follow_what_then_when_structure() -> None:
     invalid: list[str] = []
     for contract in default_tool_registry().list():
-        sentences = [
-            sentence.strip()
-            for sentence in contract.description.split("。")
-            if sentence.strip()
-        ]
-        if (
-            len(sentences) < 2
-            or sentences[0].startswith("当")
-            or "时使用" in sentences[0]
-            or not sentences[1].startswith("当")
-            or not sentences[1].endswith("时使用")
-            or len(contract.description) > 140
-        ):
+        description = contract.description
+        if "。" in description:
+            sentences = [part.strip() for part in description.split("。") if part.strip()]
+            valid = (
+                len(sentences) >= 2
+                and not sentences[0].startswith("当")
+                and "时使用" not in sentences[0]
+                and sentences[1].startswith("当")
+                and sentences[1].endswith("时使用")
+            )
+        else:
+            sentences = [part.strip() for part in description.split(".") if part.strip()]
+            valid = len(sentences) >= 2 and not sentences[0].lower().startswith("use when") and sentences[1].lower().startswith("use when")
+        if not valid or len(description) > 140:
             invalid.append(contract.name)
     assert invalid == []
 
@@ -139,6 +140,7 @@ def test_single_operation_tools_do_not_repeat_the_operation_name() -> None:
         {"skill_id": "unknown"},
         {"skill_id": "lactation", "user_id": "other"},
         {"skill_id": "lactation", "reference_id": "unknown"},
+        {"skill_id": "lactation", "reference_id": "milk_supply_assessment"},
         {"skill_id": "lactation", "reference_id": "../../system_prompt"},
         {},
     ],

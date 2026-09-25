@@ -45,7 +45,7 @@ def test_single_agent_uses_product_identity_and_global_tool_catalog() -> None:
     assert not hasattr(AGENT, "tool_names")
     assert RUNTIME_DEFINITION.agent is AGENT
     assert RUNTIME_DEFINITION.tools is TOOL_CATALOG
-    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME,)
+    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME, "read_topical_records")
     assert TOOL_CATALOG.eager_tool_names == EAGER_TOOL_NAMES
     assert TOOL_CATALOG.deferred_tool_names == frozenset(
         NAMESPACED_TOOL_NAMES

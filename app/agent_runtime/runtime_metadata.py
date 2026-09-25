@@ -20,7 +20,7 @@ ActionPolicySchemaVersion: TypeAlias = Literal["agent.action_policy.v1"]
 BehaviorSuiteSchemaVersion: TypeAlias = Literal["momcozy.behavior_eval_suite.v1"]
 BehaviorRunMapSchemaVersion: TypeAlias = Literal["momcozy.behavior_eval_run_map.v1"]
 ContextEvalSchemaVersion: TypeAlias = Literal["agent_context_eval_suite.v1"]
-BusinessContextSchemaVersion: TypeAlias = Literal["agent.authoritative_business_context.v1"]
+BusinessContextSchemaVersion: TypeAlias = Literal["agent.authoritative_business_context.v2"]
 ReplaySchemaVersion: TypeAlias = Literal["agent_run_replay.v1"]
 ResponseQualityRubricVersion: TypeAlias = Literal["momcozy.response_quality.v1"]
 ModelProviderContractVersion: TypeAlias = Literal["agent.model_provider.v1"]
@@ -44,7 +44,7 @@ TEXT_STREAM_SCHEMA_VERSION: Final = "append-only.v1"
 AUTHORIZATION_CONTEXT_SCHEMA_VERSION: Final = "agent.authorization_context.v1"
 AUTH_TOKEN_VERSION: Final = 1
 CLIENT_CONTEXT_SCHEMA_VERSION: Final = "client_context.v1"
-BUSINESS_CONTEXT_SCHEMA_VERSION: Final[BusinessContextSchemaVersion] = "agent.authoritative_business_context.v1"
+BUSINESS_CONTEXT_SCHEMA_VERSION: Final[BusinessContextSchemaVersion] = "agent.authoritative_business_context.v2"
 BUSINESS_CONTEXT_ITEM_KEY_PREFIX: Final = "business-context:"
 
 CONTEXT_PLAN_SCHEMA_VERSION: Final = "agent_context_plan.v2"

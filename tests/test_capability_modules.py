@@ -15,7 +15,7 @@ from app.capability_module import (
 )
 
 
-EXPECTED_MODULE_NAMES = ("service_skill",)
+EXPECTED_MODULE_NAMES = ("service_skill", "topical_records")
 
 def test_capability_modules_are_the_single_runtime_composition_source() -> None:
     assert tuple(module.name for module in CAPABILITY_MODULES) == (
@@ -46,7 +46,6 @@ def test_each_capability_owns_matching_contracts_handlers_and_actions() -> None:
         repository=cast(Any, SimpleNamespace()),
         product_backend=cast(Any, SimpleNamespace()),
         action_proposer=cast(Any, SimpleNamespace()),
-        rednote_service=cast(Any, SimpleNamespace()),
     )
 
     for module in CAPABILITY_MODULES:
@@ -73,4 +72,4 @@ def test_each_capability_owns_matching_contracts_handlers_and_actions() -> None:
 def test_consultation_catalog_has_no_deferred_tools() -> None:
     assert TOOL_NAMESPACE_DEFINITIONS == ()
     assert NAMESPACED_TOOL_NAMES == ()
-    assert EAGER_TOOL_NAMES == ("load_service_skill",)
+    assert EAGER_TOOL_NAMES == ("load_service_skill", "read_topical_records")

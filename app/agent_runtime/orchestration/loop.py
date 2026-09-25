@@ -13,6 +13,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from app.agent_runtime.context import (
     context_as_of_date,
+    context_timezone,
     is_business_context_item,
 )
 from app.agent_runtime.ledger import AgentRun, ContextItemAppend
@@ -579,8 +580,6 @@ class AgentLoop:
         as_of_date: date | None,
     ) -> dict[str, Any]:
         await self._ensure_active(run)
-        if call.name == "search_rednote_posts" and self._response_policy in {"restricted_medical", "general_medical"}:
-            return await self._append_tool_error(run=run, call=call, code="community_search_medical_restricted")
         safety_probe = self.safety_policy.evaluate(json.dumps({"tool": call.name, "arguments": call.arguments}, ensure_ascii=False))
         if safety_probe.decision in {"block", "escalate"}:
             await self._record_safety_decision(run=run, decision=safety_probe, event_type="safety.tool")
@@ -588,12 +587,19 @@ class AgentLoop:
         principal = self._runtime_principal(run)
         try:
             async with self._persistence_lock:
+                trusted_args = None
+                if call.name == "read_topical_records":
+                    current_records = await self.repository.list_context_items_for_run(
+                        run_id=run.id, owner_user_id=principal.user_id,
+                    )
+                    trusted_args = {"timezone": context_timezone(current_records, run_id=run.id)}
                 execution = await self.tool_executor.execute(
                     actor=principal,
                     run_id=run.id,
                     tool_name=call.name,
                     call_id=call.call_id,
                     args=dict(call.arguments),
+                    trusted_args=trusted_args,
                     request_id=run.request_id,
                     as_of_date=as_of_date,
                 )

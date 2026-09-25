@@ -22,7 +22,7 @@ from app.agent import (
     LOAD_SERVICE_SKILL_TOOL_NAME,
     SERVICE_SKILL_REGISTRY,
 )
-from app.capability_catalog import NAMESPACED_TOOL_NAMES
+from app.capability_catalog import EAGER_TOOL_NAMES, NAMESPACED_TOOL_NAMES
 from app.bootstrap import (
     RUNTIME_DEFINITION,
     build_runtime_contract_catalog_snapshot,
@@ -78,10 +78,7 @@ def test_skill_body_is_a_separate_developer_item_after_the_load_receipt() -> Non
     assert output["content_sha256"] == skill.content_sha256
     assert len(port.model_budget_requests) == 2
     for request in model.requests:
-        assert {tool.name for tool in request.tools} == {LOAD_SERVICE_SKILL_TOOL_NAME}
-        serialized_input = json.dumps(request.input_items, ensure_ascii=False).lower()
-        for marker in ("search_rednote_posts", "rednote", "小红书"):
-            assert marker not in serialized_input
+        assert {tool.name for tool in request.tools} == set(EAGER_TOOL_NAMES)
     budget_output_item = next(
         item
         for item in port.model_budget_requests[1][0]
@@ -180,10 +177,7 @@ def test_single_agent_exposes_eager_skill_loader_and_deferred_namespaced_tools()
         for tool in tools
         if isinstance(tool, FunctionTool)
     }
-    assert set(function_tools) == {
-        LOAD_SERVICE_SKILL_TOOL_NAME,
-        *NAMESPACED_TOOL_NAMES,
-    }
+    assert set(function_tools) == {*EAGER_TOOL_NAMES, *NAMESPACED_TOOL_NAMES}
     loader = function_tools[LOAD_SERVICE_SKILL_TOOL_NAME]
     assert loader.defer_loading is False
     assert loader._tool_namespace is None

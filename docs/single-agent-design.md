@@ -52,5 +52,3 @@ SDK Runner 负责模型—工具循环，自研 AgentLoop 负责租约、账本�
 测试覆盖当前工具与技能目录、已删除技能和未知 reference 拒绝、权限过滤、路由与专题渐进加载、上下文预算、工具调用配对、恢复与流式消息。
 通用 Runtime 的业务工具和 Action 测试使用测试专用契约，不把它们注册到产品目录。
 行为评估覆盖咨询、能力边界、安全分流及多轮跟进；多轮场景逐轮使用同一测试 thread 的真实 Run，不能只映射最后一轮。真实模型评审另行执行，见 [对话与跟进评测](conversation-followup-evals.md)。
-
-RedNote 实现保留但未注册，工具定义不进入模型请求，相关提示词已移除。其数据授权状态、Provider 替换边界、选择规则与引用事件见 [rednote-retrieval.md](rednote-retrieval.md)。

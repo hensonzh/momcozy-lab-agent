@@ -69,9 +69,6 @@ class Settings:
     product_backend_base_url: str = "http://localhost:8000"
     product_backend_service_key: str = ""
     care_report_service_key: str = field(default='', repr=False)
-    rednote_gateway_url: str = ""
-    rednote_gateway_token: str = field(default="", repr=False)
-    rednote_authorization_reference: str = ""
     product_backend_timeout_seconds: float = 5.0
     runtime_output_store_bucket: str = ""
     runtime_output_store_prefix: str = "agent-runtime"
@@ -182,9 +179,6 @@ class Settings:
                 cls.product_backend_service_key,
             ),
             care_report_service_key=_env('CARE_REPORT_SERVICE_KEY', cls.care_report_service_key),
-            rednote_gateway_url=_env("REDNOTE_GATEWAY_URL", cls.rednote_gateway_url),
-            rednote_gateway_token=_env("REDNOTE_GATEWAY_TOKEN", cls.rednote_gateway_token),
-            rednote_authorization_reference=_env("REDNOTE_AUTHORIZATION_REFERENCE", cls.rednote_authorization_reference),
             product_backend_timeout_seconds=_env_float(
                 "PRODUCT_BACKEND_TIMEOUT_SECONDS",
                 cls.product_backend_timeout_seconds,

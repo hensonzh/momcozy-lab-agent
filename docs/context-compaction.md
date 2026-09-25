@@ -143,13 +143,25 @@ validated authorization context, never from model or client input.
 
 Runtime persists one idempotent
 `business-context:<run_id>:core` item with schema
-`agent.authoritative_business_context.v1`. The deliberately small projection
-contains the preferred name, postpartum days, current feeding mode, current
-infant IDs/names/ages/prematurity, and missing/data-quality codes. Dates,
-measurements, history, plans, records, and other full business payloads remain
-behind owner-scoped read Tools. The item records `source`, `owner_scope`,
-`as_of_date`, and `loaded_at`, and its schema version is copied into Runtime
-metadata and every model execution manifest.
+`agent.authoritative_business_context.v2`. Its bounded projection contains
+maternal identity and birth/feeding background, the user's voluntary personal
+context and current (not ended) concerns, each confirmed current-delivery baby's
+profile, and **one latest valid growth entry per baby** with measurement date,
+source, and measured values only. The `baby_records` source supplies a local
+`recorded_on` date without a fabricated time; legacy `growth_records` supplies
+an exact `measured_at`. Other metrics in that same entry remain null, never
+backfilled from a different day. No daily observations or full history are
+injected by default. The item records `source`, `owner_scope`, `as_of_date`,
+and `loaded_at`, and its schema version appears in Runtime metadata and model
+execution manifests. The v2 projection applies to new Runs. An already
+persisted v1 snapshot is not rewritten during resume or Replay; completed-Run
+snapshots of either version are excluded from later model input and compaction.
+
+The profile read receives the validated client IANA timezone for the current
+Run (UTC when absent). Backend uses local midnight after `as_of_date` as the
+exclusive UTC cutoff for legacy growth timestamps, and the same timezone to
+compare and report legacy measurement dates against date-only App records.
+Both infants are processed independently; exact `measured_at` stays unchanged.
 
 The provider projection is a separate `developer` message with an
 `authoritative_business_context` data envelope. Backend provenance makes its
@@ -159,20 +171,25 @@ or another value. Within the Run, a later Tool or Action result supersedes the
 initial snapshot.
 
 The stable leading prompt remains a `developer` message and does not contain
-these dynamic values. The snapshot is inserted after checkpoint/history and before the current
-Run's `client_context` and user message. It is usable by every model turn in
-that Run, but it is not ordinary conversation history:
+dynamic values. The request order is stable prompt, current-Run business
+snapshot, selected historical conversation/checkpoint, current client context
+and user message, then any on-demand Tool results. Previous-Run business
+snapshots are excluded from both future model projection and compaction; the
+original ledger records remain durable for privileged, redacted Replay.
+User-editable text inside the snapshot is data, not instructions.
 
-- although names and identity fields are relatively stable, postpartum days,
-  infant ages, feeding mode, missing-field state, and data-quality state are
-  time-varying, so the snapshot remains one current-Run unit rather than being
-  moved ahead of historical context or split into cache-oriented fragments;
-
-- completed-Run business snapshots are excluded from future model projection;
-- they are also excluded from compaction input, so checkpoints cannot preserve
-  stale copies;
-- the original ledger items remain durable and are available to privileged,
-  redacted Replay for audit and exact reconstruction of the source Run.
+`read_topical_records` is the separate, `records:read`-gated read path for
+recorded feeding, pumping, diaper, pain, and longitudinal growth entries. The
+Runtime inserts the actor from frozen Run authorization and the current Run's
+validated client timezone (UTC if absent). The Backend additionally verifies
+current-delivery baby scope, enforces a 30-calendar-day/20-entry limit, and
+returns only allowlisted fields with source and `has_more`. Diaper event
+entries and daily-status counts have distinct `record_type` values; they must
+not be added together because they may overlap. It never includes
+free-text notes or image originals. `coverage=recorded_entries_only` means
+missing records do not prove that an event did not happen. Account secrets,
+unrelated private data, image originals, and complete history are never
+automatically injected.
 
 The developer roles apply to newly created context items. Existing persisted
 user-role items are not rewritten or promoted during replay. Historical

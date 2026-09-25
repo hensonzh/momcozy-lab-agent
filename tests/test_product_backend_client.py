@@ -55,7 +55,7 @@ def test_profile_client_sends_service_actor_and_returns_typed_response() -> None
     assert captured_method == "GET"
     assert captured_url == (
         "https://product.test/v1/internal/agent/profile"
-        f"?actor_user_id={actor_user_id}&infant_scope=all&as_of_date=2026-07-26"
+        f"?actor_user_id={actor_user_id}&infant_scope=all&timezone=UTC&as_of_date=2026-07-26"
     )
     assert captured_headers is not None
     assert captured_headers["x-service-key"] == "runtime-service-key"
@@ -74,6 +74,25 @@ def test_profile_client_rejects_malformed_success_response() -> None:
     assert exc_info.value.code == "product_backend_invalid_response"
     assert exc_info.value.status == 502
     assert exc_info.value.retryable is False
+
+
+def test_profile_client_sends_iana_timezone_and_rejects_invalid_timezone() -> None:
+    from pydantic import ValidationError
+
+    actor = uuid4()
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["timezone"] == "Asia/Shanghai"
+        return httpx.Response(200, json=_profile_response(infant_scope="current_delivery"))
+
+    async def run() -> None:
+        async with httpx.AsyncClient(base_url="https://product.test",
+                                     transport=httpx.MockTransport(handler)) as http_client:
+            await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").read_profile(
+                query=ProfileReadRequest(actor_user_id=actor, timezone="Asia/Shanghai"), request_id="req-profile")
+
+    asyncio.run(run())
+    with pytest.raises(ValidationError):
+        ProfileReadRequest(actor_user_id=actor, timezone="Invalid/Zone")
 
 
 

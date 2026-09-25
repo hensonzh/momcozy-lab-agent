@@ -4,6 +4,8 @@ from .contracts import (
     AgentFileResolveResponse,
     ProfileReadRequest,
     ProfileReadResponse,
+    TopicalRecordsReadRequest,
+    TopicalRecordsReadResponse,
 )
 
 __all__ = [
@@ -12,4 +14,6 @@ __all__ = [
     "ProductBackendClient",
     "ProfileReadRequest",
     "ProfileReadResponse",
+    "TopicalRecordsReadRequest",
+    "TopicalRecordsReadResponse",
 ]

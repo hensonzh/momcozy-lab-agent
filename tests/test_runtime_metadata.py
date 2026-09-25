@@ -101,7 +101,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "behavior_report": "momcozy.behavior_eval_report.v1",
         "behavior_run_map": "momcozy.behavior_eval_run_map.v1",
         "behavior_suite": "momcozy.behavior_eval_suite.v1",
-        "business_context": "agent.authoritative_business_context.v1",
+        "business_context": "agent.authoritative_business_context.v2",
         "client_context": "client_context.v1",
         "compaction_prompt": "agent_context_compaction.v2",
         "context_checkpoint": "agent_context_checkpoint.v1",

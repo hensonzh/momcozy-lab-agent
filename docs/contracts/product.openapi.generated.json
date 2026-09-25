@@ -91,6 +91,39 @@
         "title": "AccountStatus",
         "type": "string"
       },
+      "ActiveConcernContextOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "issues": {
+            "items": {
+              "enum": [
+                "comfort",
+                "feeding",
+                "intake",
+                "supply",
+                "work",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Issues",
+            "type": "array"
+          },
+          "note": {
+            "maxLength": 200,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issues",
+          "note"
+        ],
+        "title": "ActiveConcernContextOutput",
+        "type": "object"
+      },
       "AgentFileResolveRequest": {
         "additionalProperties": false,
         "properties": {
@@ -676,6 +709,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Output",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -699,6 +733,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Output"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -736,6 +773,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -759,6 +797,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -792,6 +833,7 @@
           "observation": {
             "discriminator": {
               "mapping": {
+                "daily_status": "#/components/schemas/DailyStatusObservation",
                 "development": "#/components/schemas/DevelopmentObservation-Input",
                 "diaper": "#/components/schemas/DiaperObservation",
                 "feeding": "#/components/schemas/FeedingObservation",
@@ -815,6 +857,9 @@
               },
               {
                 "$ref": "#/components/schemas/DevelopmentObservation-Input"
+              },
+              {
+                "$ref": "#/components/schemas/DailyStatusObservation"
               }
             ],
             "title": "Observation"
@@ -1364,6 +1409,55 @@
         "title": "ClientServiceRead",
         "type": "object"
       },
+      "Concern": {
+        "additionalProperties": false,
+        "properties": {
+          "ended": {
+            "default": false,
+            "title": "Ended",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "enum": [
+                "comfort",
+                "feeding",
+                "intake",
+                "supply",
+                "work",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Issues",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Note",
+            "type": "string"
+          },
+          "reminder": {
+            "default": true,
+            "title": "Reminder",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "issues"
+        ],
+        "title": "Concern",
+        "type": "object"
+      },
       "ConsentListRead": {
         "properties": {
           "items": {
@@ -1578,6 +1672,117 @@
           "end_reason"
         ],
         "title": "ConsultationRead",
+        "type": "object"
+      },
+      "DailyStatusObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yellow",
+                  "yellow_brown",
+                  "green",
+                  "brown",
+                  "black",
+                  "red",
+                  "pale",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "consistency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "watery",
+                  "loose",
+                  "pasty",
+                  "formed",
+                  "hard",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency"
+          },
+          "kind": {
+            "const": "daily_status",
+            "title": "Kind",
+            "type": "string"
+          },
+          "mental_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "active",
+                  "crying",
+                  "drowsy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mental State"
+          },
+          "recorded_on": {
+            "format": "date",
+            "title": "Recorded On",
+            "type": "string"
+          },
+          "stool_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Count"
+          },
+          "timezone": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "wet_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wet Count"
+          }
+        },
+        "required": [
+          "recorded_on",
+          "timezone",
+          "kind"
+        ],
+        "title": "DailyStatusObservation",
         "type": "object"
       },
       "DevelopmentObservation-Input": {
@@ -2517,6 +2722,22 @@
             "title": "Kind",
             "type": "string"
           },
+          "measurement_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "home",
+                  "clinic",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Source"
+          },
           "metric": {
             "enum": [
               "weight",
@@ -2561,6 +2782,22 @@
             "const": "growth",
             "title": "Kind",
             "type": "string"
+          },
+          "measurement_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "home",
+                  "clinic",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Source"
           },
           "metric": {
             "enum": [
@@ -3375,7 +3612,7 @@
       },
       "LactationDataQualityIssueOutput": {
         "additionalProperties": false,
-        "description": "\u4e0d\u963b\u65ad\u8bfb\u53d6\u3001\u4f46\u5206\u6790\u65f6\u9700\u8981\u8c28\u614e\u5904\u7406\u7684\u6570\u636e\u8d28\u91cf\u95ee\u9898\u3002",
+        "description": "Nonblocking data quality issue that requires care during analysis.",
         "properties": {
           "birth_order": {
             "anyOf": [
@@ -3388,11 +3625,11 @@
                 "type": "null"
               }
             ],
-            "description": "\u95ee\u9898\u5c5e\u4e8e\u67d0\u4e2a\u5b9d\u5b9d\u65f6\u4e3a\u5176\u51fa\u751f\u987a\u5e8f\uff1b\u5c5e\u4e8e\u5988\u5988\u6216\u5f53\u524d\u5b9d\u5b9d\u96c6\u5408\u65f6\u4e3a null\u3002",
+            "description": "Birth order of the affected baby; null for maternal or whole-set issues.",
             "title": "Birth Order"
           },
           "code": {
-            "description": "\u7a33\u5b9a\u3001\u53ef\u673a\u8bfb\u7684\u6570\u636e\u8d28\u91cf\u4ee3\u7801\uff1bcurrent_infants_not_selected=\u591a\u5b9d\u5b9d\u6863\u6848\u5c1a\u672a\u6807\u8bb0\u672c\u6b21\u5206\u5a29\u5b9d\u5b9d\uff0cactual_delivery_date_is_in_future=\u5b9e\u9645\u5206\u5a29\u65e5\u671f\u5728\u672a\u6765\uff0cinfant_birth_date_mismatch=\u5b9d\u5b9d\u51fa\u751f\u65e5\u671f\u4e0e\u5988\u5988\u5b9e\u9645\u5206\u5a29\u65e5\u671f\u4e0d\u4e00\u81f4\uff0cinfant_birth_date_is_in_future=\u5b9d\u5b9d\u51fa\u751f\u65e5\u671f\u5728\u672a\u6765\u3002",
+            "description": "Stable machine-readable quality code: current_infants_not_selected for a multiple-baby delivery without current babies selected, actual_delivery_date_is_in_future for a future delivery date, infant_birth_date_mismatch for differing baby and maternal delivery dates, or infant_birth_date_is_in_future for a future baby birth date.",
             "enum": [
               "current_infants_not_selected",
               "actual_delivery_date_is_in_future",
@@ -3412,7 +3649,7 @@
       },
       "LactationInfantContextOutput": {
         "additionalProperties": false,
-        "description": "\u4e00\u4e2a\u5b9d\u5b9d\u7684\u57fa\u7840\u4fe1\u606f\u53ca\u5176\u4e0e\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u7684\u5173\u7cfb\u3002",
+        "description": "Basic information about one baby and their relationship to the current delivery.",
         "properties": {
           "age_days": {
             "anyOf": [
@@ -3424,7 +3661,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u622a\u81f3 as_of_date \u7684\u5b8c\u6574\u65e5\u9f84\uff0c\u5355\u4f4d\u4e3a\u5929\uff0c\u51fa\u751f\u5f53\u5929\u4e3a 0\uff1b\u4f18\u5148\u7531\u5988\u5988\u5f53\u524d\u5b9e\u9645\u5206\u5a29\u65e5\u671f\u6d3e\u751f\uff0c\u7f3a\u5c11\u53ef\u7528\u65e5\u671f\u6216\u65e5\u671f\u5728\u672a\u6765\u65f6\u4e3a null\u3002",
+            "description": "Completed age in days as of as_of_date; birth date is day 0. Prefer the mother\u2019s actual delivery date; null when no usable date exists or it is in the future.",
             "title": "Age Days"
           },
           "age_months": {
@@ -3437,7 +3674,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u622a\u81f3 as_of_date \u5df2\u5b8c\u6210\u7684\u5b8c\u6574\u65e5\u5386\u6708\u9f84\uff0c\u5355\u4f4d\u4e3a\u6708\uff0c\u4e0d\u6309\u5929\u6570\u9664\u4ee5 30\uff1b\u4f18\u5148\u7531\u5988\u5988\u5f53\u524d\u5b9e\u9645\u5206\u5a29\u65e5\u671f\u6d3e\u751f\uff0c\u7f3a\u5c11\u53ef\u7528\u65e5\u671f\u6216\u65e5\u671f\u5728\u672a\u6765\u65f6\u4e3a null\u3002",
+            "description": "Completed calendar months of age as of as_of_date, not days divided by 30. Prefer the mother\u2019s actual delivery date; null when no usable date exists or it is in the future.",
             "title": "Age Months"
           },
           "birth_date": {
@@ -3450,7 +3687,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5b9d\u5b9d\u5b9e\u9645\u51fa\u751f\u65e5\u671f\uff0c\u683c\u5f0f\u4e3a YYYY-MM-DD\uff1b\u672a\u767b\u8bb0\u65f6\u4e3a null\u3002",
+            "description": "Actual birth date of the baby in YYYY-MM-DD format; null when unrecorded.",
             "title": "Birth Date"
           },
           "birth_order": {
@@ -3464,7 +3701,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5b9d\u5b9d\u5c5e\u4e8e\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u65f6\uff0c\u4e3a\u591a\u5b9d\u5b9d\u5206\u5a29\u4e2d\u7684\u51fa\u751f\u987a\u5e8f\uff0c\u4ece 1 \u5f00\u59cb\uff1b\u4e0d\u5c5e\u4e8e\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u65f6\u4e3a null\u3002",
+            "description": "Birth order starting at 1 for babies from the current delivery; null for other babies.",
             "title": "Birth Order"
           },
           "feeding_mode": {
@@ -3479,13 +3716,13 @@
             "type": "string"
           },
           "infant_id": {
-            "description": "\u5b9d\u5b9d\u6863\u6848\u7684\u7a33\u5b9a UUID\uff1b\u66f4\u65b0\u6307\u5b9a\u5b9d\u5b9d\u8d44\u6599\u6216 current_infants \u5173\u7cfb\u65f6\u5fc5\u987b\u4f7f\u7528\u8be5\u503c\u3002",
+            "description": "Stable baby profile UUID; required to update this baby\u2019s profile or the current_infants relationship.",
             "format": "uuid",
             "title": "Infant Id",
             "type": "string"
           },
           "is_current_delivery": {
-            "description": "\u662f\u5426\u5c5e\u4e8e\u5988\u5988\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\uff1b\u5976\u91cf\u5206\u6790\u53ea\u4f7f\u7528 true \u7684\u5b9d\u5b9d\u3002",
+            "description": "Whether this baby belongs to the mother\u2019s current delivery; milk supply analysis uses only true values.",
             "title": "Is Current Delivery",
             "type": "boolean"
           },
@@ -3498,17 +3735,17 @@
                 "type": "null"
               }
             ],
-            "description": "\u5b9d\u5b9d\u6700\u8fd1\u4e00\u6761\u6709\u6548\u8eab\u9ad8\u3001\u4f53\u91cd\u6216\u5934\u56f4\u6d4b\u91cf\uff1b\u6ca1\u6709\u6709\u6548\u751f\u957f\u8bb0\u5f55\u65f6\u4e3a null\u3002"
+            "description": "Latest valid length, weight, or head circumference measurement; null when no valid growth record exists."
           },
           "name": {
-            "description": "\u5b9d\u5b9d\u6863\u6848\u4e2d\u767b\u8bb0\u7684\u59d3\u540d\u6216\u79f0\u547c\u3002",
+            "description": "Name or nickname recorded in the baby profile.",
             "maxLength": 120,
             "minLength": 1,
             "title": "Name",
             "type": "string"
           },
           "sex": {
-            "description": "\u5b9d\u5b9d\u51fa\u751f\u65f6\u767b\u8bb0\u7684\u6027\u522b\uff1bfemale=\u5973\uff0cmale=\u7537\uff0cunspecified=\u672a\u6307\u5b9a\uff0c\u4ec5\u7528\u4e8e\u9009\u62e9\u751f\u957f\u53c2\u8003\u3002",
+            "description": "Sex recorded at birth: female, male, or unspecified; used only to select growth references.",
             "enum": [
               "female",
               "male",
@@ -3551,7 +3788,7 @@
       },
       "LactationMissingFieldOutput": {
         "additionalProperties": false,
-        "description": "\u5976\u91cf\u5206\u6790\u6240\u9700\u4f46\u5f53\u524d\u4e0d\u53ef\u7528\u7684\u5b57\u6bb5\u3002",
+        "description": "Profile fields needed for milk supply assessment that are currently unavailable.",
         "properties": {
           "birth_order": {
             "anyOf": [
@@ -3564,11 +3801,11 @@
                 "type": "null"
               }
             ],
-            "description": "\u7f3a\u5931\u9879\u5c5e\u4e8e\u67d0\u4e2a\u5b9d\u5b9d\u65f6\u4e3a\u5176\u51fa\u751f\u987a\u5e8f\uff1b\u5c5e\u4e8e\u5988\u5988\u6216\u6574\u4e2a\u5f53\u524d\u5b9d\u5b9d\u96c6\u5408\u65f6\u4e3a null\u3002",
+            "description": "Birth order of the affected baby; null for maternal fields or the current baby set as a whole.",
             "title": "Birth Order"
           },
           "code": {
-            "description": "\u7a33\u5b9a\u3001\u53ef\u673a\u8bfb\u7684\u7f3a\u5931\u5b57\u6bb5\u4ee3\u7801\uff1bmother_* \u8868\u793a\u5988\u5988\u5b57\u6bb5\uff0ccurrent_baby_profiles_missing \u8868\u793a\u6ca1\u6709\u53ef\u8bfb\u53d6\u7684\u5f53\u524d\u5b9d\u5b9d\u6863\u6848\uff0cinfant_* \u8868\u793a birth_order \u6307\u5b9a\u5b9d\u5b9d\u7684\u5b57\u6bb5\u3002",
+            "description": "Stable machine-readable missing-field code: mother_* for maternal fields, current_baby_profiles_missing when no current baby profile can be read, infant_* for a baby identified by birth_order.",
             "enum": [
               "mother_age_missing",
               "mother_delivery_count_missing",
@@ -3596,7 +3833,7 @@
       },
       "LactationMotherContextOutput": {
         "additionalProperties": false,
-        "description": "\u5f71\u54cd\u5f53\u524d\u5976\u91cf\u5206\u6790\u7684\u5988\u5988\u4fa7\u7d27\u51d1\u57fa\u7840\u4fe1\u606f\u3002",
+        "description": "Compact maternal profile information relevant to the current milk supply assessment.",
         "properties": {
           "actual_delivery_date": {
             "anyOf": [
@@ -3608,7 +3845,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5f53\u524d\u8fd9\u6b21\u5b9e\u9645\u5206\u5a29\u65e5\u671f\uff0c\u683c\u5f0f\u4e3a YYYY-MM-DD\uff1b\u672a\u767b\u8bb0\u65f6\u4e3a null\u3002",
+            "description": "Actual date of the current birth, formatted YYYY-MM-DD; null when unrecorded.",
             "title": "Actual Delivery Date"
           },
           "age": {
@@ -3622,7 +3859,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5988\u5988\u767b\u8bb0\u7684\u5f53\u524d\u5468\u5c81\uff0c\u5355\u4f4d\u4e3a\u5c81\uff1b\u672a\u77e5\u6216\u672a\u767b\u8bb0\u65f6\u4e3a null\uff0c\u4e0d\u7531\u5206\u5a29\u65e5\u671f\u63a8\u7b97\u3002",
+            "description": "Mother\u2019s current age in completed years; null when unknown or unrecorded. Not inferred from delivery date.",
             "title": "Age"
           },
           "current_delivery_method": {
@@ -3641,7 +3878,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u65b9\u5f0f\uff1bvaginal=\u9634\u9053\u5206\u5a29\uff0ccesarean=\u5256\u5bab\u4ea7\uff0cassisted_vaginal=\u52a9\u4ea7\u9634\u9053\u5206\u5a29\uff0cother=\u5176\u4ed6\uff0cunknown=\u5df2\u660e\u786e\u8bb0\u5f55\u4e3a\u672a\u77e5\uff1b\u672a\u767b\u8bb0\u65f6\u4e3a null\u3002",
+            "description": "Delivery method for the current birth: vaginal, cesarean, assisted_vaginal, other, or explicitly recorded as unknown; null when unrecorded.",
             "title": "Current Delivery Method"
           },
           "current_feeding_mode": {
@@ -3660,7 +3897,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5f53\u524d\u5582\u517b\u6a21\u5f0f\uff1bexclusive_breastfeeding=\u7eaf\u4eb2\u5582\u6bcd\u4e73\uff0cexpressed_milk_feeding=\u74f6\u5582\u6324\u51fa\u6bcd\u4e73\uff0cmixed_feeding=\u6df7\u5408\u5582\u517b\uff0cformula_feeding=\u914d\u65b9\u5976\u5582\u517b\uff0cunknown=\u5df2\u660e\u786e\u8bb0\u5f55\u4e3a\u672a\u77e5\uff1b\u672a\u767b\u8bb0\u65f6\u4e3a null\u3002",
+            "description": "Current feeding mode: exclusive_breastfeeding, expressed_milk_feeding, mixed_feeding, formula_feeding, or explicitly recorded as unknown; null when unrecorded.",
             "title": "Current Feeding Mode"
           },
           "delivery_count": {
@@ -3674,7 +3911,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u622a\u81f3\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u7684\u7d2f\u8ba1\u5206\u5a29\u6b21\u6570\uff1b\u4e0d\u662f\u598a\u5a20\u6b21\u6570\uff0c\u4e5f\u4e0d\u662f\u672c\u6b21\u51fa\u751f\u7684\u5b9d\u5b9d\u6570\u91cf\uff1b\u672a\u77e5\u65f6\u4e3a null\u3002",
+            "description": "Total number of deliveries through this birth, not pregnancies or babies born this time; null when unknown.",
             "title": "Delivery Count"
           },
           "has_cesarean_history": {
@@ -3686,8 +3923,11 @@
                 "type": "null"
               }
             ],
-            "description": "\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u4ee5\u524d\u6216\u672c\u6b21\u662f\u5426\u66fe\u53d1\u751f\u8fc7\u5256\u5bab\u4ea7\uff1btrue=\u6709\uff0cfalse=\u6ca1\u6709\uff0c\u5c1a\u672a\u786e\u8ba4\u65f6\u4e3a null\u3002",
+            "description": "Whether a cesarean occurred previously or during this delivery; true or false when confirmed, null otherwise.",
             "title": "Has Cesarean History"
+          },
+          "personal_context": {
+            "$ref": "#/components/schemas/PersonalContextOutput"
           },
           "postpartum_days": {
             "anyOf": [
@@ -3699,7 +3939,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u622a\u81f3 as_of_date \u7684\u4ea7\u540e\u5b8c\u6574\u65e5\u5386\u5929\u6570\uff0c\u5355\u4f4d\u4e3a\u5929\uff0c\u5206\u5a29\u5f53\u5929\u4e3a 0\uff1b\u7531 actual_delivery_date \u6d3e\u751f\uff0c\u65e5\u671f\u7f3a\u5931\u6216\u665a\u4e8e as_of_date \u65f6\u4e3a null\u3002",
+            "description": "Completed calendar days since delivery as of as_of_date; day of delivery is 0. Derived from actual_delivery_date; null when missing or after as_of_date.",
             "title": "Postpartum Days"
           },
           "preferred_name": {
@@ -3712,7 +3952,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u5988\u5988\u767b\u8bb0\u7684\u79f0\u547c\uff1b\u672a\u767b\u8bb0\u65f6\u4e3a null\u3002",
+            "description": "Mother\u2019s preferred name; null when not recorded.",
             "title": "Preferred Name"
           }
         },
@@ -3837,7 +4077,7 @@
       },
       "LatestInfantMeasurementOutput": {
         "additionalProperties": false,
-        "description": "\u5b9d\u5b9d\u6700\u8fd1\u4e00\u6761\u6709\u6548\u751f\u957f\u6d4b\u91cf\u8bb0\u5f55\uff1b\u4e0d\u662f\u5386\u53f2\u8d8b\u52bf\u3002",
+        "description": "Latest valid growth measurement for this baby, not a historical trend.",
         "properties": {
           "head_circumference_cm": {
             "anyOf": [
@@ -3849,7 +4089,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u6700\u8fd1\u4e00\u6b21\u6d4b\u91cf\u4e2d\u7684\u5934\u56f4\uff0c\u5355\u4f4d\u4e3a cm\uff1b\u8be5\u6b21\u8bb0\u5f55\u672a\u6d4b\u5934\u56f4\u65f6\u4e3a null\u3002",
+            "description": "Head circumference from the latest measurement, in cm; null if that record has none.",
             "title": "Head Circumference Cm"
           },
           "height_cm": {
@@ -3862,13 +4102,35 @@
                 "type": "null"
               }
             ],
-            "description": "\u6700\u8fd1\u4e00\u6b21\u6d4b\u91cf\u4e2d\u7684\u8eab\u957f\u6216\u8eab\u9ad8\uff0c\u5355\u4f4d\u4e3a cm\uff1b\u8be5\u6b21\u8bb0\u5f55\u672a\u6d4b\u8eab\u957f\u6216\u8eab\u9ad8\u65f6\u4e3a null\u3002",
+            "description": "Length or height from the latest measurement, in cm; null if that record has neither.",
             "title": "Height Cm"
           },
           "measured_at": {
-            "description": "\u6700\u8fd1\u4e00\u6b21\u6709\u6548\u751f\u957f\u8bb0\u5f55\u7684\u6d4b\u91cf\u65f6\u95f4\uff0c\u4e3a\u5e26\u65f6\u533a\u504f\u79fb\u7684 ISO 8601 \u65e5\u671f\u65f6\u95f4\u3002",
-            "format": "date-time",
-            "title": "Measured At",
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Legacy timezone-aware measurement time; null for newer date-only records. Do not infer midnight.",
+            "title": "Measured At"
+          },
+          "recorded_on": {
+            "description": "Measurement date; derived from the timestamp for legacy records, date-only for newer App records.",
+            "format": "date",
+            "title": "Recorded On",
+            "type": "string"
+          },
+          "source": {
+            "description": "Record source; do not combine metrics across sources or measurement dates.",
+            "enum": [
+              "baby_records",
+              "growth_records"
+            ],
+            "title": "Source",
             "type": "string"
           },
           "weight_kg": {
@@ -3881,7 +4143,7 @@
                 "type": "null"
               }
             ],
-            "description": "\u6700\u8fd1\u4e00\u6b21\u6d4b\u91cf\u4e2d\u7684\u4f53\u91cd\uff0c\u5355\u4f4d\u4e3a kg\uff1b\u8be5\u6b21\u8bb0\u5f55\u672a\u6d4b\u4f53\u91cd\u65f6\u4e3a null\u3002",
+            "description": "Weight from the latest measurement, in kg; null if that record has no weight.",
             "title": "Weight Kg"
           }
         },
@@ -3889,7 +4151,9 @@
           "weight_kg",
           "height_cm",
           "head_circumference_cm",
-          "measured_at"
+          "recorded_on",
+          "measured_at",
+          "source"
         ],
         "title": "LatestInfantMeasurementOutput",
         "type": "object"
@@ -3990,16 +4254,16 @@
       },
       "MaternalBabyProfileReadOutput": {
         "additionalProperties": false,
-        "description": "profile_read \u8fd4\u56de\u7ed9\u6a21\u578b\u7684\u7d27\u51d1\u5988\u5988\u4e0e\u5b9d\u5b9d\u57fa\u7840\u8d44\u6599\u3002",
+        "description": "Compact maternal and baby profile returned by profile_read to the model.",
         "properties": {
           "as_of_date": {
-            "description": "\u53ef\u4fe1\u8fd0\u884c\u65f6\u63d0\u4f9b\u7684\u672c\u5730\u57fa\u51c6\u65e5\u671f\uff0c\u683c\u5f0f\u4e3a YYYY-MM-DD\uff1b\u6240\u6709\u4ea7\u540e\u5929\u6570\u548c\u5b9d\u5b9d\u5e74\u9f84\u5747\u4ee5\u6b64\u65e5\u671f\u6d3e\u751f\u3002",
+            "description": "Trusted local reference date from the runtime in YYYY-MM-DD format; all postpartum days and baby ages are derived from it.",
             "format": "date",
             "title": "As Of Date",
             "type": "string"
           },
           "data_quality_issues": {
-            "description": "\u5df2\u53d1\u73b0\u4f46\u4e0d\u963b\u65ad\u8bfb\u53d6\u7684\u6570\u636e\u8d28\u91cf\u95ee\u9898\uff1b\u7a7a\u6570\u7ec4\u8868\u793a\u672a\u53d1\u73b0\u5df2\u77e5\u95ee\u9898\u3002",
+            "description": "Nonblocking quality issues found; empty when no known issues are present.",
             "items": {
               "$ref": "#/components/schemas/LactationDataQualityIssueOutput"
             },
@@ -4007,7 +4271,7 @@
             "type": "array"
           },
           "infant_scope": {
-            "description": "\u672c\u6b21\u8fd4\u56de\u7684\u5b9d\u5b9d\u8303\u56f4\uff1bcurrent_delivery=\u4ec5\u5f53\u524d\u8fd9\u6b21\u5206\u5a29\u5b9d\u5b9d\uff0call=\u5f53\u524d\u7528\u6237\u5168\u90e8\u5b9d\u5b9d\u3002\u5976\u91cf\u5206\u6790\u5fc5\u987b\u4f7f\u7528 current_delivery\u3002",
+            "description": "Scope of babies returned: current_delivery for babies from this delivery, all for every baby in the user\u2019s profile. Milk supply analysis must use current_delivery.",
             "enum": [
               "current_delivery",
               "all"
@@ -4016,7 +4280,7 @@
             "type": "string"
           },
           "infants": {
-            "description": "\u7b26\u5408 infant_scope \u7684\u5b9d\u5b9d\u5217\u8868\uff1bcurrent_delivery \u6309 birth_order \u5347\u5e8f\uff0call \u6309\u6863\u6848\u521b\u5efa\u987a\u5e8f\u8fd4\u56de\u3002",
+            "description": "Babies matching infant_scope, ordered by birth_order for current_delivery and by profile creation for all.",
             "items": {
               "$ref": "#/components/schemas/LactationInfantContextOutput"
             },
@@ -4024,7 +4288,7 @@
             "type": "array"
           },
           "missing_fields": {
-            "description": "\u5f53\u524d\u4e0a\u4e0b\u6587\u4e2d\u4e0d\u53ef\u7528\u7684\u5173\u952e\u5b57\u6bb5\uff1b\u4f7f\u7528\u7a33\u5b9a code\uff0c\u4e0d\u89e3\u6790\u5c55\u793a\u6587\u672c\u3002",
+            "description": "Key fields unavailable in this context. Use stable codes, not display text.",
             "items": {
               "$ref": "#/components/schemas/LactationMissingFieldOutput"
             },
@@ -4033,7 +4297,7 @@
           },
           "mother": {
             "$ref": "#/components/schemas/LactationMotherContextOutput",
-            "description": "\u5f71\u54cd\u5f53\u524d\u5976\u91cf\u5206\u6790\u7684\u5988\u5988\u4fa7\u57fa\u7840\u4fe1\u606f\u3002"
+            "description": "Maternal profile information relevant to the current milk supply assessment."
           }
         },
         "required": [
@@ -4239,6 +4503,200 @@
           }
         },
         "title": "MaternalLactationProfileUpdate",
+        "type": "object"
+      },
+      "MeProfilePatch": {
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "actual_delivery_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Delivery Date"
+          },
+          "additional_context": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Context"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 70.0,
+                "minimum": 12.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "baby_count": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baby Count"
+          },
+          "caregivers": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "partner",
+                    "family",
+                    "professional",
+                    "self"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregivers"
+          },
+          "current_delivery_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vaginal",
+                  "cesarean"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Delivery Method"
+          },
+          "delivery_count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Count"
+          },
+          "feeding_methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "direct",
+                    "expressed",
+                    "formula"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Methods"
+          },
+          "feeding_preference": {
+            "anyOf": [
+              {
+                "enum": [
+                  "breast",
+                  "formula",
+                  "mixed",
+                  "undecided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Preference"
+          },
+          "gestation_days": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Days"
+          },
+          "gestation_weeks": {
+            "anyOf": [
+              {
+                "maximum": 45.0,
+                "minimum": 20.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Weeks"
+          },
+          "preferred_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Name"
+          },
+          "return_to_work_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To Work Date"
+          }
+        },
+        "title": "MeProfilePatch",
         "type": "object"
       },
       "MilkTrendDayRead": {
@@ -4863,6 +5321,219 @@
         "title": "NursingObservation",
         "type": "object"
       },
+      "Observation": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "$ref": "#/components/schemas/ObservationFields"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "energy",
+              "sleep",
+              "mood",
+              "pain",
+              "latch",
+              "storage",
+              "pump",
+              "bottle"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "occurred_at",
+          "value"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "ObservationFields": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u6dfb\u52a0\u4e00\u888b",
+                  "\u53d6\u7528\u4e00\u888b"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "canonical_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Record Id"
+          },
+          "carer": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carer"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "feeding_record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Record Id"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u53ef\u4ee5\u7ee7\u7eed\u5582",
+                  "\u9700\u8981\u6682\u505c",
+                  "\u65e0\u6cd5\u7ee7\u7eed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "pain": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pain"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u521a\u5f00\u59cb\u542b\u5976\u65f6",
+                  "\u5582\u5976\u8fc7\u7a0b\u4e2d",
+                  "\u5582\u5976\u540e",
+                  "\u6cf5\u5976\u65f6"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u5de6\u4fa7",
+                  "\u53f3\u4fa7",
+                  "\u4e24\u4fa7"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "swallow": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u6709",
+                  "\u6ca1\u6709",
+                  "\u4e0d\u786e\u5b9a"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swallow"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          }
+        },
+        "title": "ObservationFields",
+        "type": "object"
+      },
       "OrderWrite": {
         "additionalProperties": false,
         "properties": {
@@ -5020,6 +5691,149 @@
           "publication"
         ],
         "title": "PatientPlanRead",
+        "type": "object"
+      },
+      "PersonalContextOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "active_concern_count": {
+            "default": 0,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Active Concern Count",
+            "type": "integer"
+          },
+          "active_concerns": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveConcernContextOutput"
+            },
+            "maxItems": 10,
+            "title": "Active Concerns",
+            "type": "array"
+          },
+          "additional_context": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Context"
+          },
+          "baby_count": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baby Count"
+          },
+          "caregivers": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "partner",
+                    "family",
+                    "professional",
+                    "self"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregivers"
+          },
+          "feeding_methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "direct",
+                    "expressed",
+                    "formula"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Methods"
+          },
+          "feeding_preference": {
+            "anyOf": [
+              {
+                "enum": [
+                  "breast",
+                  "formula",
+                  "mixed",
+                  "undecided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeding Preference"
+          },
+          "gestation_days": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Days"
+          },
+          "gestation_weeks": {
+            "anyOf": [
+              {
+                "maximum": 45.0,
+                "minimum": 20.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Weeks"
+          },
+          "return_to_work_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To Work Date"
+          }
+        },
+        "title": "PersonalContextOutput",
         "type": "object"
       },
       "PersonalScheduleRead": {
@@ -6872,6 +7686,38 @@
         "title": "RecordDeletion",
         "type": "object"
       },
+      "RecordOrder": {
+        "additionalProperties": false,
+        "properties": {
+          "order": {
+            "items": {
+              "enum": [
+                "feed",
+                "energy",
+                "sleep",
+                "mood",
+                "pump",
+                "pain",
+                "latch",
+                "bottle",
+                "diaper",
+                "weight",
+                "storage"
+              ],
+              "type": "string"
+            },
+            "maxItems": 11,
+            "minItems": 4,
+            "title": "Order",
+            "type": "array"
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "title": "RecordOrder",
+        "type": "object"
+      },
       "RecordVersion": {
         "additionalProperties": false,
         "properties": {
@@ -8487,6 +9333,349 @@
           "id"
         ],
         "title": "TokenUser",
+        "type": "object"
+      },
+      "TopicalRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "consistency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency"
+          },
+          "diaper_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diaper Kind"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "head_circumference_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Circumference Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "kind": {
+            "enum": [
+              "feeding",
+              "pumping",
+              "diaper",
+              "pain",
+              "growth"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "pain_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pain Score"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "event",
+                  "daily_summary"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Type"
+          },
+          "recorded_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded On"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "signs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signs"
+          },
+          "source": {
+            "enum": [
+              "baby_records",
+              "feeding_records",
+              "pumping_records",
+              "mother_observations",
+              "growth_records"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "stool_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Count"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "wet_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wet Count"
+          }
+        },
+        "required": [
+          "source",
+          "kind"
+        ],
+        "title": "TopicalRecord",
+        "type": "object"
+      },
+      "TopicalRecordsReadOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "const": "recorded_entries_only",
+            "default": "recorded_entries_only",
+            "title": "Coverage",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infant Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicalRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "topic": {
+            "enum": [
+              "feeding",
+              "pumping",
+              "diaper",
+              "pain",
+              "growth"
+            ],
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "infant_id",
+          "start_date",
+          "end_date",
+          "timezone",
+          "items",
+          "has_more"
+        ],
+        "title": "TopicalRecordsReadOutput",
         "type": "object"
       },
       "UserProfileRead": {
@@ -10517,7 +11706,8 @@
                     "sleep",
                     "diaper",
                     "growth",
-                    "development"
+                    "development",
+                    "daily_status"
                   ],
                   "type": "string"
                 },
@@ -15585,6 +16775,18 @@
             }
           },
           {
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "X-Service-Key",
             "required": false,
@@ -15624,6 +16826,143 @@
           }
         },
         "summary": "Read Agent Profile",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/records": {
+      "get": {
+        "operationId": "read_agent_topical_records_v1_internal_agent_records_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "topic",
+            "required": true,
+            "schema": {
+              "enum": [
+                "feeding",
+                "pumping",
+                "diaper",
+                "pain",
+                "growth"
+              ],
+              "title": "Topic",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Start Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": true,
+            "schema": {
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "infant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Infant Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicalRecordsReadOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Topical Records",
         "tags": [
           "internal-agent"
         ],
@@ -17472,6 +18811,306 @@
           }
         ],
         "summary": "Update My Profile",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience": {
+      "get": {
+        "operationId": "read_me_v1_profile_me_experience_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Start",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "End",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read Me V1 Profile Me Experience Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Me",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/concerns/{concern_id}": {
+      "put": {
+        "operationId": "put_concern_v1_profile_me_experience_concerns__concern_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "concern_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Concern Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Concern"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Concern"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Concern",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/order": {
+      "put": {
+        "operationId": "put_order_v1_profile_me_experience_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Order",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/profile": {
+      "patch": {
+        "operationId": "update_profile_v1_profile_me_experience_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeProfilePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Profile V1 Profile Me Experience Profile Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Profile",
+        "tags": [
+          "profile"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/profile/me-experience/records/{record_id}": {
+      "put": {
+        "operationId": "put_record_v1_profile_me_experience_records__record_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Record Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Observation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Observation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Record",
         "tags": [
           "profile"
         ],
