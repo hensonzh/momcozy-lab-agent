@@ -64,6 +64,14 @@ def test_input_guard_blocks_prompt_injection_and_masks_contact_data() -> None:
     assert masked.masked_text == "请联系我 138****5678 或 t***@example.com"
 
 
+def test_multilingual_output_allowed_but_retired_brand_still_blocked() -> None:
+    policy = RuntimeSafetyPolicy()
+    assert policy.evaluate_output_rules("乳房有些痛，先观察有无发热。").decision == "allow"
+    assert policy.evaluate_output_rules("안녕하세요").decision == "allow"
+    decision = policy.evaluate_output_rules("Contact Cozymate for help.")
+    assert (decision.decision, decision.category) == ("block", "retired_brand")
+
+
 def test_response_policy_and_output_rule_are_structured() -> None:
     policy = RuntimeSafetyPolicy()
     assert policy.evaluate("我乳房红痛还发烧，是乳腺炎吗？").response_policy == "restricted_medical"

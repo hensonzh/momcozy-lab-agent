@@ -26,7 +26,7 @@ from app.agent_runtime.safety import (
     RuntimeSafetyDecision,
     RuntimeSafetyPolicy,
     sanitize_model_input,
-    violates_english_app_output,
+    violates_retired_brand_output,
 )
 from app.agent_runtime.runtime_metadata import TEXT_STREAM_SCHEMA_VERSION
 from app.agent_runtime.tools import (
@@ -142,7 +142,7 @@ class AgentLoop:
         self._stream_content = bytearray()
         self._stream_candidate = ""
         self._stream_pending = ""
-        self._stream_language_violation = False
+        self._stream_brand_violation = False
         self._run_id: UUID | None = None
         self._lease_token: UUID | None = None
         self._lease_guard: Callable[[], Awaitable[None]] | None = None
@@ -240,7 +240,7 @@ class AgentLoop:
         self._stream_content = bytearray()
         self._stream_candidate = ""
         self._stream_pending = ""
-        self._stream_language_violation = False
+        self._stream_brand_violation = False
         self._stream_replacement = False
         try:
             await self._start(run)
@@ -296,7 +296,7 @@ class AgentLoop:
                 )
             await self._ensure_active(run)
             output_decision = self.safety_policy.evaluate_output_rules(answer.text)
-            if self._stream_language_violation and output_decision.decision != "block":
+            if self._stream_brand_violation and output_decision.decision != "block":
                 output_decision = self.safety_policy.evaluate_output_rules(self._stream_candidate)
             if output_decision.decision != "block" and self._stream_pending:
                 await self._publish_delta(run, answer.agent, self._stream_pending)
@@ -794,11 +794,11 @@ class AgentLoop:
         agent_name: str,
     ) -> Any:
         async def on_delta(delta: str) -> None:
-            if not delta or self._stream_language_violation:
+            if not delta or self._stream_brand_violation:
                 return
             self._stream_candidate += delta
-            if violates_english_app_output(self._stream_candidate):
-                self._stream_language_violation = True
+            if violates_retired_brand_output(self._stream_candidate):
+                self._stream_brand_violation = True
                 return
             self._stream_pending += delta
             brand_prefix = _BRAND_PREFIX_SUFFIX.search(self._stream_pending)

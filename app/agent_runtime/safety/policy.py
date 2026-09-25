@@ -24,7 +24,7 @@ SafetyCategory = Literal[
     "harmful_instruction",
     "external_content_injection",
     "resource_abuse",
-    "output_language",
+    "retired_brand",
 ]
 SafetySeverity = Literal["none", "high", "critical"]
 ResponsePolicy = Literal["non_health", "general_health", "personalized_health", "general_medical", "restricted_medical"]
@@ -68,10 +68,10 @@ class RuntimeSafetyPolicy:
         normalized = _normalize(text)
         if not normalized:
             return RuntimeSafetyDecision.allow()
-        if violates_english_app_output(text):
+        if violates_retired_brand_output(text):
             return RuntimeSafetyDecision(
-                "block", "output_language", "high", "output_language.v1",
-                "I couldn't complete that response in English. Please try asking again.",
+                "block", "retired_brand", "high", "retired_brand.v1",
+                "That response used an outdated name. Please ask Momcozy AI again.",
             )
         for pattern, category in _OUTPUT_BLOCK_RULES:
             if re.search(pattern, normalized):
@@ -86,11 +86,11 @@ class RuntimeSafetyPolicy:
         return RuntimeSafetyDecision.allow(masked_text=masked if masked != text else None)
 
 
-_NON_ENGLISH_OR_RETIRED_BRAND = re.compile(r"[\u3400-\u9fff\U00020000-\U000323af\u3040-\u30ff\u31f0-\u31ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0900-\u097f]|cozy[\s-]*mate", re.I)
+_RETIRED_BRAND = re.compile(r"cozy[\s-]*mate", re.I)
 
 
-def violates_english_app_output(text: str) -> bool:
-    return _NON_ENGLISH_OR_RETIRED_BRAND.search(text) is not None
+def violates_retired_brand_output(text: str) -> bool:
+    return _RETIRED_BRAND.search(text) is not None
 
 
 def classify_response_policy(text: str) -> ResponsePolicy:

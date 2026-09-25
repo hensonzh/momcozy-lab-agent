@@ -3,7 +3,7 @@ from .policy import (
     RuntimeSafetyDecision,
     RuntimeSafetyPolicy,
     sanitize_model_input,
-    violates_english_app_output,
+    violates_retired_brand_output,
 )
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     "RuntimeSafetyDecision",
     "RuntimeSafetyPolicy",
     "sanitize_model_input",
-    "violates_english_app_output",
+    "violates_retired_brand_output",
 ]
