@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -25,6 +26,7 @@ from app.agent_runtime.safety import (
     RuntimeSafetyDecision,
     RuntimeSafetyPolicy,
     sanitize_model_input,
+    violates_english_app_output,
 )
 from app.agent_runtime.runtime_metadata import TEXT_STREAM_SCHEMA_VERSION
 from app.agent_runtime.tools import (
@@ -47,6 +49,8 @@ from .contracts import (
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", "expired"})
 LOGGER = logging.getLogger("agent_runtime.loop")
 RUN_LOGGER = logging.getLogger("agent_runtime.run")
+# Hold a possible brand prefix until the next chunk proves it is safe to show.
+_BRAND_PREFIX_SUFFIX = re.compile(r"(?:c|co|coz|cozy[\s-]*(?:m|ma|mat)?)$", re.I)
 
 
 @dataclass(frozen=True)
@@ -136,6 +140,9 @@ class AgentLoop:
         self._message_id: UUID | None = None
         self._stream_segment_count = 0
         self._stream_content = bytearray()
+        self._stream_candidate = ""
+        self._stream_pending = ""
+        self._stream_language_violation = False
         self._run_id: UUID | None = None
         self._lease_token: UUID | None = None
         self._lease_guard: Callable[[], Awaitable[None]] | None = None
@@ -231,6 +238,9 @@ class AgentLoop:
         )
         self._stream_segment_count = 0
         self._stream_content = bytearray()
+        self._stream_candidate = ""
+        self._stream_pending = ""
+        self._stream_language_violation = False
         self._stream_replacement = False
         try:
             await self._start(run)
@@ -247,7 +257,7 @@ class AgentLoop:
             await self._progress(
                 run,
                 phase="agent.started",
-                label="正在理解你的需求…",
+                label="Understanding your request…",
                 agent_name=self.runtime.agent.name,
             )
             context_records = await self._context_records(run)
@@ -286,6 +296,11 @@ class AgentLoop:
                 )
             await self._ensure_active(run)
             output_decision = self.safety_policy.evaluate_output_rules(answer.text)
+            if self._stream_language_violation and output_decision.decision != "block":
+                output_decision = self.safety_policy.evaluate_output_rules(self._stream_candidate)
+            if output_decision.decision != "block" and self._stream_pending:
+                await self._publish_delta(run, answer.agent, self._stream_pending)
+                self._stream_pending = ""
             if output_decision.decision == "block":
                 self._stream_replacement = True
                 await self._record_safety_decision(run=run, decision=output_decision, event_type="safety.output")
@@ -779,37 +794,49 @@ class AgentLoop:
         agent_name: str,
     ) -> Any:
         async def on_delta(delta: str) -> None:
-            if not delta:
+            if not delta or self._stream_language_violation:
                 return
-            assert self._message_id is not None
-            segment_index = self._stream_segment_count
-            self._stream_segment_count += 1
-            self._stream_content.extend(delta.encode("utf-8"))
-            prefix_utf8_bytes = len(self._stream_content)
-            prefix_sha256 = hashlib.sha256(self._stream_content).hexdigest()
-            publisher = self.transient_delta_publisher
-            if publisher is None:
+            self._stream_candidate += delta
+            if violates_english_app_output(self._stream_candidate):
+                self._stream_language_violation = True
                 return
-            try:
-                await publisher.publish_text_delta(
-                    run_id=run.id,
-                    thread_id=run.thread_id,
-                    message_id=self._message_id,
-                    agent_name=agent_name,
-                    delta=delta,
-                    stream_schema_version=TEXT_STREAM_SCHEMA_VERSION,
-                    segment_index=segment_index,
-                    prefix_utf8_bytes=prefix_utf8_bytes,
-                    prefix_sha256=prefix_sha256,
-                )
-            except Exception:
-                LOGGER.warning(
-                    "Transient delta publish failed; continuing durable run.",
-                    exc_info=True,
-                    extra={"run_id": str(run.id)},
-                )
+            self._stream_pending += delta
+            brand_prefix = _BRAND_PREFIX_SUFFIX.search(self._stream_pending)
+            safe = self._stream_pending[:brand_prefix.start()] if brand_prefix else self._stream_pending
+            if safe:
+                self._stream_pending = self._stream_pending[len(safe):]
+                await self._publish_delta(run, agent_name, safe)
 
         return on_delta
+
+    async def _publish_delta(self, run: AgentRun, agent_name: str, delta: str) -> None:
+        assert self._message_id is not None
+        segment_index = self._stream_segment_count
+        self._stream_segment_count += 1
+        self._stream_content.extend(delta.encode("utf-8"))
+        prefix_utf8_bytes = len(self._stream_content)
+        prefix_sha256 = hashlib.sha256(self._stream_content).hexdigest()
+        publisher = self.transient_delta_publisher
+        if publisher is None:
+            return
+        try:
+            await publisher.publish_text_delta(
+                run_id=run.id,
+                thread_id=run.thread_id,
+                message_id=self._message_id,
+                agent_name=agent_name,
+                delta=delta,
+                stream_schema_version=TEXT_STREAM_SCHEMA_VERSION,
+                segment_index=segment_index,
+                prefix_utf8_bytes=prefix_utf8_bytes,
+                prefix_sha256=prefix_sha256,
+            )
+        except Exception:
+            LOGGER.warning(
+                "Transient delta publish failed; continuing durable run.",
+                exc_info=True,
+                extra={"run_id": str(run.id)},
+            )
 
     def _execution_manifest_handler(
         self,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 from uuid import UUID
 
 import pytest
@@ -20,11 +21,14 @@ from app.core.errors import ApiError
 
 
 REFERENCE_IDS = (
-    "milk-supply-assessment",
-    "lactation-establishment-and-output-change",
+    "breast-symptoms",
+    "infant-growth-assessment",
+    "infant-intake-assessment",
     "latch-and-nipple-pain",
-    "pumping-comfort-and-output",
-    "breast-fullness-and-inflammatory-symptoms",
+    "milk-supply-assessment",
+    "milk-supply-management",
+    "pumping-support",
+    "return-to-work-feeding",
 )
 
 
@@ -48,21 +52,47 @@ def _context(*, args: dict[str, str], call_id: str = "load-lactation") -> ToolHa
     )
 
 
-def test_lactation_skill_is_a_compact_router_over_five_references() -> None:
+def test_lactation_skill_is_a_compact_router_over_eight_references() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
 
     assert tuple(reference.reference_id for reference in skill.references) == REFERENCE_IDS
     assert len(skill.content.encode("utf-8")) < 12_000
-    assert "# 高频问题路由" in skill.content
-    assert "reference_id" in skill.content
-    assert "# 指导方案" not in skill.content
+    assert "## Reference Files" in skill.content
+    assert all(
+        f"`{reference.reference_id}.md`" in skill.content
+        for reference in skill.references
+    )
     assert all(reference.content not in skill.content for reference in skill.references)
     for reference in skill.references:
+        frontmatter = reference.content.split("\n---\n", maxsplit=1)[0]
         assert reference.content.startswith("---\n")
-        assert "# 适用问题" in reference.content
-        assert "# 解决方案" in reference.content
-        assert "# 复评与转介" in reference.content
-        assert "# 依据与适用范围" in reference.content
+        assert f"name: {reference.reference_id}" in frontmatter
+        assert "\norder:" not in frontmatter
+        assert "description:" in frontmatter
+        assert "# " in reference.content
+        assert "## " in reference.content
+
+
+def test_reference_cross_links_use_existing_kebab_case_filenames() -> None:
+    skill_root = Path(__file__).parents[1] / "app/agent/skills/lactation"
+    reference_root = skill_root / "references"
+    documents = [
+        skill_root / "SKILL.md",
+        *sorted(reference_root.glob("*.md")),
+    ]
+
+    for document in documents:
+        for filename in re.findall(
+            r"`([^`]+\.md)`",
+            document.read_text(encoding="utf-8"),
+        ):
+            assert re.fullmatch(
+                r"[a-z0-9]+(?:-[a-z0-9]+)*\.md",
+                filename,
+            ), f"{document} contains a non-kebab-case reference: {filename}"
+            assert (reference_root / filename).is_file(), (
+                f"{document} references a missing file: {filename}"
+            )
 
 
 def test_skill_loader_can_load_one_fingerprinted_reference() -> None:
@@ -159,6 +189,23 @@ def test_legacy_skill_receipts_still_rehydrate_the_router(
     )
 
 
+def test_reference_names_must_use_lowercase_kebab_case(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "lactation"
+    references_dir = skill_dir / "references"
+    references_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: lactation\ndescription: router\n---\n# Router\nLoad a reference.\n",
+        encoding="utf-8",
+    )
+    (references_dir / "invalid_name.md").write_text(
+        "---\nname: invalid_name\ndescription: invalid\n---\n# Topic\nBody.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="kebab-case"):
+        ServiceSkillRegistry(skills_root=tmp_path).get("lactation")
+
+
 def test_reference_receipt_rehydrates_only_matching_registry_content(tmp_path: Path) -> None:
     skill_dir = tmp_path / "lactation"
     references_dir = skill_dir / "references"
@@ -169,7 +216,7 @@ def test_reference_receipt_rehydrates_only_matching_registry_content(tmp_path: P
     )
     reference_path = references_dir / "milk-supply-assessment.md"
     reference_path.write_text(
-        "---\nname: milk-supply-assessment\norder: 1\ndescription: assessment\n---\n# 适用问题\nA\n# 解决方案\nOriginal\n# 复评与转介\nB\n# 依据与适用范围\nC\n",
+        "---\nname: milk-supply-assessment\ndescription: assessment\n---\n# Topic\nOriginal\n",
         encoding="utf-8",
     )
     original_registry = ServiceSkillRegistry(skills_root=tmp_path)

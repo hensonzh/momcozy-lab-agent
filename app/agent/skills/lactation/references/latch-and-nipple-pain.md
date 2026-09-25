@@ -1,50 +1,91 @@
 ---
 name: latch-and-nipple-pain
-order: 3
-description: 为含乳困难、反复掉乳、亲喂疼痛、乳头破损或颜色变化提供渐进评估、低风险调整和专业转介边界。
+description: Assess latch difficulties and nipple pain during direct breastfeeding using the user's account and feeding signs she can observe herself. Load for difficulty latching, repeatedly slipping off the breast, breastfeeding pain, nipple damage, or distortion; consider whether latch, nipple injury, sucking effectiveness, or another cause needs professional evaluation.
 ---
 
-# 适用问题
+# Latch and Nipple Pain
 
-用于疼痛主要发生在宝宝含乳或亲喂过程中，以及含不住、反复滑脱、乳头变形、破损、出血、白点或怀疑舌系带。目标是改善舒适度和有效吃奶，不凭文字、照片或单一表现远程确定病因。
+Assess latch difficulties and nipple pain during direct breastfeeding. Help the user understand possible causes, try safe adjustments without intimate images, and recognize when professional evaluation is needed.
 
-# 解决方案
+## Assessment Framework
 
-## 1. 渐进定位
+Do not assume pain during breastfeeding is normal, and do not identify its cause from pain intensity alone.
 
-先核对是否有发热、寒战、明显红肿、疼痛加重或全身不适。没有已知紧急信号且描述模糊时，只问最影响下一步的一项，例如疼痛主要发生在含上时、整段喂养，还是结束后也持续。
+Use the user's account to consider:
 
-按需要了解：哪侧和部位、何时开始、比之前更轻还是更重、是否影响吃奶或休息、是否破损/出血/变色、是否反复掉乳、是否能听到吞咽。用户不必使用数字评分，也不必一次回答完整症状清单。
+1. **Direct breastfeeding**
+   - Whether the baby latches readily or repeatedly slips off and has to latch again;
+   - Whether the baby continues feeding and swallowing;
+   - Whether pain occurs mainly at the initial latch or persists throughout the feed.
 
-疼痛妨碍宝宝有效吃奶时，再结合 `milk-supply-assessment` 核对摄入和水合信号。妈妈能忍、宝宝吃奶次数多或一次吸出量，不能证明喂养有效。
+2. **Nipple signs**
+   - Whether the nipple appears markedly flattened, distorted, blanched, broken, or bleeding after a feed, or remains painful;
+   - Whether symptoms affect one side or both;
+   - Whether they have always been present, are new, or are worsening.
 
-## 2. 当下可尝试的动作
+3. **Feeding effectiveness**
+   - Whether feeding seems notably difficult or takes unusually long;
+   - Whether the mother worries that the baby is not transferring milk effectively;
+   - Whether she also has concerns about milk supply or infant intake.
 
-母婴状态稳定且姿势或含接值得调整时，在下一次宝宝出现觅食信号时：
+Based on the available information, characterize the situation as:
 
-- 妈妈背部和手臂有支撑，宝宝身体贴近并面向妈妈，头与身体大致成一直线。
-- 让宝宝鼻子对着乳头，等待张大嘴后把宝宝靠近乳房，下巴先贴近；不要按压后脑或强塞乳头。
-- 根据现场观察或专业人员已教的方法调整，不宣称仅凭文字已经确认含接正确。
-- 含上后持续夹痛时，可用清洁手指从嘴角轻轻解除吸附，再尝试含接；不要直接拉扯乳头。
-- 仍疼、宝宝无法有效吃奶或妈妈不愿继续尝试时，停止反复操作，安排舒适可行的移乳与宝宝摄入保障，并尽早取得专业支持。
+- **Possible latch or sucking difficulty**
+- **Possible nipple irritation or injury**
+- **Possible other cause requiring further assessment**
+- **Insufficient information to tell at present**
 
-## 3. 常见边界
+Ask only for information that could change the assessment; do not require a full description of every aspect of a feed at once.
 
-- 每次亲喂都疼、乳头破损/出血，或调整后仍未改善：尽早请助产士、IBCLC 等观察一次完整喂养；有感染或其他医疗线索时联系医生。持续疼痛不是必须忍耐的适应过程。
-- 白点、喂后发白/变色或持续灼痛：这些不能远程确定堵塞、感染或血管痉挛。不要针挑、挤压白点或自行按真菌感染治疗。
-- 怀疑舌系带：先看功能、疼痛和乳汁转移，保留专业评估方向；不根据外观或照片决定诊断、手术或术后操作。
-- 保持手和接触用品清洁，避免刺激性清洁、摩擦和自行涂用不明药物；不把乳汁、药膏或护罩设成所有人的通用疗法。
+## Service Decisions
 
-# 复评与转介
+**The goal is to reduce pain and injury while improving effective feeding, not to require the mother to breastfeed through pain.**
 
-- 在下一次自然喂养或专业人员调整后，比较疼痛是否更轻、是否仍掉乳以及宝宝能否有效吃奶；无需每次计数吞咽。
-- 疼痛减轻但仍持续、伤口未改善、每次都疼或摄入受影响时，继续专业求助，不宣布痊愈。
-- 发热、明显红肿、异常分泌物、症状加重或全身不适时联系医生；宝宝出现少尿、精神差、难以唤醒或持续拒奶时按严重程度联系儿科或急诊。
-- 舒适有效且用户不再困扰时可以结束，不要求固定天数打卡。
+Choose the next step according to the assessment:
 
-# 依据与适用范围
+- **Possible latch difficulty**
+  → Describe basic adjustments the user can try, such as bringing the baby's body closer and waiting for a wide-open mouth before latching; observe whether pain and swallowing improve afterward.
 
-维护核对日期：2026-09-23。本 reference 提供低风险姿势和求助边界，不替代面对面喂养观察或医疗诊断。
+- **Clear nipple irritation or injury**
+  → Prioritize reducing further friction and injury while looking for the cause of pain; advise professional evaluation if symptoms persist or worsen.
 
-- [NHS 姿势与含接](https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/breastfeeding/positioning-and-attachment/)
-- [NHS 乳头疼痛与破损](https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/breastfeeding-problems/sore-nipples/)
+- **Significant pain whose cause cannot be identified from text**
+  → Do not repeatedly guess at a specific latch problem. Recommend an in-person or live video assessment by an IBCLC or another appropriate professional.
+
+- **Concern that the baby is not getting enough**
+  → Load `infant-intake-assessment.md` as needed; do not infer intake from feeding duration alone.
+
+- **Concern about low supply**
+  → Load `milk-supply-assessment.md` as needed; do not equate breastfeeding pain with low supply.
+
+Consider whether the mother wants to continue direct breastfeeding, her current pain burden, and her feeding goals. Do not present continuing direct breastfeeding as the only option.
+
+## Images and Privacy Boundary
+
+Do not request, encourage, or rely on photos or videos of the breasts, nipples, or other intimate areas to make this assessment.
+
+Assess latch and nipple pain mainly from:
+
+- The user's written description;
+- When pain occurs and how it changes;
+- Nipple changes she can observe herself;
+- The baby's feeding, swallowing, and slipping off the breast;
+- Changes before and after adjustments.
+
+If these details do not allow a reliable assessment, explain that limitation and recommend further evaluation by an IBCLC, clinician, or another appropriate professional.
+
+## Response Guidance
+
+Center the response on three questions:
+
+1. **What kind of problem seems most likely at present?**
+2. **What is safe to try now?**
+3. **When is further professional assessment needed?**
+
+Prioritize one to three important suggestions at a time. Do not mechanically present a complete latch tutorial or ask the mother to feed through pain.
+
+## Safety and Behavior
+
+- For marked breast redness, fever, severe pain, progressive worsening, or another safety concern, follow the shared safety guidelines first.
+- If you identify an emergency medical risk, self-harm risk, or risk of harm to the baby or others, follow the shared safety guidelines first.
+- Follow the shared behavioral guidelines throughout the service.

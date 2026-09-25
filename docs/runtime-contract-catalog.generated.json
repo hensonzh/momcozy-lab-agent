@@ -5,7 +5,7 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "a950eb7cb571b1f3e8e9c9b936a6dd1ba62c7f1eb210a38a830da0602d549f7c"
   },
-  "catalog_sha256": "917144b7a598eed474f79ae5d78599bf938a1793f0ec221e594461c256c104ba",
+  "catalog_sha256": "0b669727139466763cc35f0ddd4d1417ec7ce19f10be8924de6415bb332ae9b9",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -43,24 +43,27 @@
     "items": [
       {
         "action_types": [],
-        "description": "渐进加载服务 Skill 或按路由选定的专题参考，返回加载状态与内容指纹。当当前请求需要泌乳专业规则且匹配正文尚未进入上下文时使用。",
+        "description": "Load a lactation Skill or routed reference; return its status and content fingerprint. Use when relevant guidance is not yet in context.",
         "domain": "runtime",
         "input_schema": {
           "additionalProperties": false,
           "properties": {
             "reference_id": {
-              "description": "可选专题参考标识。省略时加载 SKILL.md；仅在已按 Skill 路由确定当前问题后传入。",
+              "description": "Optional reference identifier. Omit to load SKILL.md; provide only after the Skill has routed the current issue.",
               "enum": [
-                "milk-supply-assessment",
-                "lactation-establishment-and-output-change",
+                "breast-symptoms",
+                "infant-growth-assessment",
+                "infant-intake-assessment",
                 "latch-and-nipple-pain",
-                "pumping-comfort-and-output",
-                "breast-fullness-and-inflammatory-symptoms"
+                "milk-supply-assessment",
+                "milk-supply-management",
+                "pumping-support",
+                "return-to-work-feeding"
               ],
               "type": "string"
             },
             "skill_id": {
-              "description": "要加载的服务 Skill 标识。",
+              "description": "Identifier of the service Skill to load.",
               "enum": [
                 "lactation"
               ],
@@ -90,11 +93,14 @@
             "resource_id": {
               "enum": [
                 "lactation",
-                "milk-supply-assessment",
-                "lactation-establishment-and-output-change",
+                "breast-symptoms",
+                "infant-growth-assessment",
+                "infant-intake-assessment",
                 "latch-and-nipple-pain",
-                "pumping-comfort-and-output",
-                "breast-fullness-and-inflammatory-symptoms"
+                "milk-supply-assessment",
+                "milk-supply-management",
+                "pumping-support",
+                "return-to-work-feeding"
               ],
               "type": "string"
             },
@@ -674,6 +680,6 @@
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "655eb642cf4285f85bffcf81317e86410ced52e8e783bf23dce9409a8b5bf5cf"
+    "sha256": "f8c2c45702fbc6e00172981c83413da25b7f3bd122f01088ab17af183e9eadf7"
   }
 }

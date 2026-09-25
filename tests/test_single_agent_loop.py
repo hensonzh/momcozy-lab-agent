@@ -103,14 +103,14 @@ def test_restricted_policy_reaches_actual_model_instructions_on_each_turn() -> N
         assert "prescribe" in instructions
 
 
-@pytest.mark.parametrize("text", ["联系 13812345678", "Your api_key=sk_test_secret should be used"])
+@pytest.mark.parametrize("text", ["Contact 13812345678", "Your api_key=sk_test_secret should be used"])
 def test_guarded_final_explicitly_replaces_stream(text: str) -> None:
     repository = MemoryLedger()
     provider = ScriptedAgentModel({"cozymate": [ScriptedTurn.final(text, deltas=(text,))]})
     asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
     completed = next(event for event in repository.events if event.event_type == "message.completed")
     if "138" in text:
-        assert completed.payload["text"] == "联系 138****5678"
+        assert completed.payload["text"] == "Contact 138****5678"
     else:
         withdrawn = next(event for event in repository.events if event.event_type == "message.withdrawn")
         assert withdrawn.payload["violation_type"] == "secret"
@@ -124,8 +124,8 @@ def test_general_question_is_answered_by_the_single_agent() -> None:
         {
             "cozymate": [
                 ScriptedTurn.final(
-                    "可以先观察体温和精神状态。",
-                    deltas=("可以先观察", "体温和精神状态。"),
+                    "You can check your baby's temperature and activity.",
+                    deltas=("You can check your baby's ", "temperature and activity."),
                 )
             ],
         }
@@ -143,14 +143,14 @@ def test_general_question_is_answered_by_the_single_agent() -> None:
     }
     assert provider.requests[0].response_format is None
     assert repository.run.agent_name == "cozymate"
-    assert repository.assistant_text == "可以先观察体温和精神状态。"
+    assert repository.assistant_text == "You can check your baby's temperature and activity."
     assert repository.context_payloads[0] == {
         "role": "user",
         "content": "宝宝有点发热怎么办？",
     }
     assert repository.context_payloads[1] == {
         "role": "assistant",
-        "content": "可以先观察体温和精神状态。",
+        "content": "You can check your baby's temperature and activity.",
     }
     assert repository.event_types[-2:] == ["message.completed", "run.completed"]
     assert "message.delta" not in repository.event_types
@@ -189,7 +189,7 @@ def test_deterministic_safety_gate_completes_without_model_or_tools() -> None:
         "rule_id": "medical_emergency.v1",
         "severity": "critical",
     }
-    assert "立即" in repository.assistant_text
+    assert "emergency" in repository.assistant_text.lower()
 
 
 def test_context_window_overflow_waits_for_compaction_and_retries_current_run() -> None:
@@ -208,7 +208,7 @@ def test_context_window_overflow_waits_for_compaction_and_retries_current_run() 
     assert coordinator.prepared == [repository.run.id]
     assert coordinator.recovered == [repository.run.id]
     assert len(provider.requests) == 2
-    assert repository.assistant_text == "压缩后继续完成。"
+    assert repository.assistant_text == "Continue after compaction."
 
 
 def test_context_window_overflow_can_suspend_without_failing_run() -> None:
@@ -306,18 +306,17 @@ def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
 def test_service_skills_retain_the_domain_workflow_contracts() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
     for phrase in (
-        "# 高频问题路由",
-        "不查询或修改业务记录",
-        "不作低奶量",
-        "发热、寒战",
+        "## Reference Files",
+        "do not match a single keyword mechanically",
+        "Do not load every potentially related file at once",
+        "emergency medical risk, self-harm risk, or risk of harm to the baby or others",
     ):
         assert phrase in skill.content
 
-    inflammation = skill.get_reference(
-        "breast-fullness-and-inflammatory-symptoms"
-    ).content
-    assert "没有发热不能自动排除" in inflammation
-    assert "不能远程确定乳腺炎" in inflammation
+    breast_symptoms = skill.get_reference("breast-symptoms").content
+    assert "Do not label every lump or painful area a “blocked duct,”" in breast_symptoms
+    assert "Fever, chills" in breast_symptoms
+    assert "Avoid deep massage, forceful pressure, or repeatedly trying to pump the breast completely empty" in breast_symptoms
 
 
 def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
@@ -327,8 +326,8 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
         {
             "cozymate": [
                 ScriptedTurn.final(
-                    "你好",
-                    deltas=("你", "好"),
+                    "Hello there",
+                    deltas=("Hello", " there"),
                 )
             ]
         }
@@ -341,21 +340,21 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
         ).process(repository.run.id)
     )
 
-    assert publisher.deltas == ["你", "好"]
+    assert publisher.deltas == ["Hello", " there"]
     assert publisher.events == [
         {
-            "delta": "你",
+            "delta": "Hello",
             "stream_schema_version": "append-only.v1",
             "segment_index": 0,
-            "prefix_utf8_bytes": 3,
-            "prefix_sha256": hashlib.sha256("你".encode()).hexdigest(),
+            "prefix_utf8_bytes": 5,
+            "prefix_sha256": hashlib.sha256("Hello".encode()).hexdigest(),
         },
         {
-            "delta": "好",
+            "delta": " there",
             "stream_schema_version": "append-only.v1",
             "segment_index": 1,
-            "prefix_utf8_bytes": 6,
-            "prefix_sha256": hashlib.sha256("你好".encode()).hexdigest(),
+            "prefix_utf8_bytes": 11,
+            "prefix_sha256": hashlib.sha256("Hello there".encode()).hexdigest(),
         },
     ]
     completed_payload = next(
@@ -365,9 +364,9 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
     )
     assert completed_payload["stream_schema_version"] == "append-only.v1"
     assert completed_payload["segment_count"] == 2
-    assert completed_payload["content_utf8_bytes"] == 6
+    assert completed_payload["content_utf8_bytes"] == 11
     assert completed_payload["content_sha256"] == hashlib.sha256(
-        "你好".encode()
+        "Hello there".encode()
     ).hexdigest()
     assert "message.delta" not in repository.event_types
     control_repository = MemoryLedger()
@@ -377,7 +376,7 @@ def test_text_deltas_use_transient_publisher_without_database_commits() -> None:
             provider=ScriptedAgentModel(
                 {
                     "cozymate": [
-                        ScriptedTurn.final("你好"),
+                        ScriptedTurn.final("Hello there"),
                     ],
                 }
             ),
@@ -392,8 +391,8 @@ def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
         {
             "cozymate": [
                 ScriptedTurn.final(
-                    "最终回复仍然可用。",
-                    deltas=("最终回复", "仍然可用。"),
+                    "The final answer is still available.",
+                    deltas=("The final answer ", "is still available."),
                 )
             ]
         }
@@ -408,7 +407,7 @@ def test_transient_delta_publish_failure_does_not_fail_durable_run() -> None:
     )
 
     assert run.status == "completed"
-    assert repository.assistant_text == "最终回复仍然可用。"
+    assert repository.assistant_text == "The final answer is still available."
     assert repository.event_types[-1] == "run.completed"
 
 
@@ -521,7 +520,7 @@ def test_tool_call_and_tool_result_are_appended_in_actual_order() -> None:
 
 def test_restart_recovers_pending_tool_call_from_append_only_ledger() -> None:
     repository = MemoryLedger()
-    repository.context[0].item["content"] = "联系 13812345678"
+    repository.context[0].item["content"] = "Contact 13812345678"
     first_provider = ScriptedAgentModel(
         {
             "cozymate": [
@@ -1211,7 +1210,7 @@ class ContextOverflowThenFinalProvider(ScriptedAgentModel):
                         status=400,
                         details={"retryable": True},
                     ),
-                    ScriptedTurn.final("压缩后继续完成。"),
+                    ScriptedTurn.final("Continue after compaction."),
                 ]
             }
         )

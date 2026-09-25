@@ -1,8 +1,15 @@
-name: agent-test-delivery
+name: agent-delivery
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Deployment environment.
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
       operation:
         description: Deploy a proven main release or roll back to the previous release.
         required: true
@@ -26,7 +33,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: momcozy-lab-agent-test
+  group: momcozy-lab-agent-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -37,16 +44,16 @@ jobs:
     steps:
       - name: Validate the manual release operator
         env:
-          TEST_APPROVERS: ${{ vars.TEST_APPROVERS }}
+          RELEASE_APPROVERS: ${{ vars.RELEASE_APPROVERS }}
         run: |
           set -euo pipefail
-          IFS=',' read -r -a raw_approvers <<< "${TEST_APPROVERS}"
+          IFS=',' read -r -a raw_approvers <<< "${RELEASE_APPROVERS}"
           normalized_approvers=","
           for raw_approver in "${raw_approvers[@]}"; do
             approver="${raw_approver//[[:space:]]/}"
             approver="$(printf '%s' "${approver}" | tr '[:upper:]' '[:lower:]')"
             [[ "${approver}" =~ ^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$ ]] || {
-              echo "TEST_APPROVERS must be a comma-separated GitHub login allowlist." >&2
+              echo "RELEASE_APPROVERS must be a comma-separated GitHub login allowlist." >&2
               exit 1
             }
             normalized_approvers+="${approver},"
@@ -57,7 +64,7 @@ jobs:
           for actor in "${GITHUB_ACTOR}" "${GITHUB_TRIGGERING_ACTOR}"; do
             actor="$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')"
             [[ -n "${actor}" && "${normalized_approvers}" == *",${actor},"* ]] || {
-              echo "The manual release operator is not in TEST_APPROVERS." >&2
+              echo "The manual release operator is not in RELEASE_APPROVERS." >&2
               exit 1
             }
           done
@@ -68,18 +75,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     environment:
-      name: test
-      url: https://agent-test.lute-momcozylab.luteos.cloud:8443
+      name: ${{ inputs.environment }}
+      url: ${{ vars.PUBLIC_URL }}
     env:
       REQUESTED_OPERATION: ${{ inputs.operation }}
       REQUESTED_COMMIT_SHA: ${{ inputs.commit_sha }}
       CONFIRM_SCHEMA_COMPATIBLE: ${{ inputs.confirm_schema_compatible }}
-      TEST_RELEASE_ROOT: /opt/momcozy-lab
-      TEST_ENV_FILE: /opt/momcozy-lab/shared/agent/deploy.env
-      TEST_CA_FILE: /etc/nginx/tls/momcozy-ca/ca.pem
-      TEST_PUBLIC_URL: https://agent-test.lute-momcozylab.luteos.cloud:8443
-      PRODUCT_RELEASE_MANIFEST: /opt/momcozy-lab/current/backend/release-manifest.json
-      TEST_RELEASE_LOCK: /opt/momcozy-lab/shared/test-release.lock
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      DEPLOY_RELEASE_ROOT: ${{ vars.RELEASE_ROOT }}
+      DEPLOY_ENV_FILE: ${{ vars.SERVICE_ENV_FILE }}
+      DEPLOY_CA_FILE: ${{ vars.CA_FILE }}
+      DEPLOY_PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+      PRODUCT_RELEASE_MANIFEST: ${{ vars.RELEASE_ROOT }}/current/backend/release-manifest.json
+      DEPLOY_RELEASE_LOCK: ${{ vars.RELEASE_LOCK_PATH }}
       REMOTE_RELEASE_TOOL: /tmp/momcozy-agent-release-tool-${{ github.run_id }}-${{ github.run_attempt }}.py
       REMOTE_DOCKER_CONFIG: /tmp/momcozy-agent-docker-auth-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -89,6 +97,35 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      - name: Validate target environment configuration
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in DEPLOY_RELEASE_ROOT DEPLOY_ENV_FILE DEPLOY_CA_FILE DEPLOY_PUBLIC_URL PRODUCT_RELEASE_MANIFEST DEPLOY_RELEASE_LOCK DEPLOY_SSH_HOST DEPLOY_SSH_PORT DEPLOY_SSH_USER DEPLOY_SSH_PRIVATE_KEY DEPLOY_SSH_KNOWN_HOSTS; do
+            test -n "${!name}" || { echo "Missing environment value: ${name}" >&2; exit 1; }
+          done
+          [[ "${DEPLOY_PUBLIC_URL}" == https://* ]]
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.release import validate_release_root
+
+          environment = os.environ["DEPLOY_ENVIRONMENT"]
+          root = validate_release_root(Path(os.environ["DEPLOY_RELEASE_ROOT"]), environment)
+          expected = {
+              "DEPLOY_ENV_FILE": root / "shared" / "agent" / f"{environment}.env",
+              "DEPLOY_RELEASE_LOCK": root / "shared" / f"{environment}-release.lock",
+          }
+          for name, path in expected.items():
+              if Path(os.environ[name]).resolve() != path:
+                  raise ValueError(f"{name} must be {path}")
+          PY
+
       - name: Resolve the authoritative successful-CI image manifest
         if: inputs.operation == 'deploy'
         env:
@@ -96,7 +133,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
-          from scripts.test_release import validate_commit_sha
+          from scripts.release import validate_commit_sha
 
           validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
           PY
@@ -126,7 +163,7 @@ jobs:
           import json
           import os
           from pathlib import Path
-          from scripts.test_release import validate_commit_sha, validate_image_ref
+          from scripts.release import validate_commit_sha, validate_image_ref
 
           requested = validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
           payload = json.loads(Path(os.environ["CI_MANIFEST_PATH"]).read_text())
@@ -152,81 +189,81 @@ jobs:
 
       - name: Configure verified SSH host access
         env:
-          TEST_SSH_PRIVATE_KEY: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
-          TEST_SSH_KNOWN_HOSTS: ${{ secrets.TEST_SSH_KNOWN_HOSTS }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           install -d -m 0700 "${HOME}/.ssh"
           install -m 0600 /dev/null "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${TEST_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${TEST_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
 
       - name: Authenticate the host to GHCR with an ephemeral token
         env:
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           test -n "${GHCR_TOKEN}"
-          printf '%s' "${GHCR_TOKEN}" | ssh -p "${TEST_SSH_PORT}" \
-            "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
+          printf '%s' "${GHCR_TOKEN}" | ssh -p "${DEPLOY_SSH_PORT}" \
+            "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
             "install -d -m 0700 '${REMOTE_DOCKER_CONFIG}' && DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker login ghcr.io --username '${GHCR_USERNAME}' --password-stdin"
 
       - name: Install the trusted main release tool on the host
         env:
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          scp -P "${TEST_SSH_PORT}" scripts/test_release.py \
-            "${TEST_SSH_USER}@${TEST_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
+          scp -P "${DEPLOY_SSH_PORT}" scripts/release.py \
+            "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
 
       - name: Stage the exact commit without uncommitted files
         if: inputs.operation == 'deploy'
         env:
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           archive="${RUNNER_TEMP}/agent-${RELEASE_COMMIT_SHA}.tar.gz"
           git archive --format=tar.gz --output "${archive}" "${RELEASE_COMMIT_SHA}"
           archive_sha256="$(sha256sum "${archive}" | cut -d ' ' -f 1)"
           remote_archive="/tmp/momcozy-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
-          scp -P "${TEST_SSH_PORT}" "${archive}" \
-            "${TEST_SSH_USER}@${TEST_SSH_HOST}:${remote_archive}"
-          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
-            "python3 '${REMOTE_RELEASE_TOOL}' stage-snapshot --archive '${remote_archive}' --archive-sha256 '${archive_sha256}' --commit-sha '${RELEASE_COMMIT_SHA}' --release-root '${TEST_RELEASE_ROOT}' --attempt-id '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
+          scp -P "${DEPLOY_SSH_PORT}" "${archive}" \
+            "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}:${remote_archive}"
+          ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            "python3 '${REMOTE_RELEASE_TOOL}' stage-snapshot --environment '${DEPLOY_ENVIRONMENT}' --archive '${remote_archive}' --archive-sha256 '${archive_sha256}' --commit-sha '${RELEASE_COMMIT_SHA}' --release-root '${DEPLOY_RELEASE_ROOT}' --attempt-id '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'"
 
       - name: Deploy the immutable runtime under the host lock
         if: inputs.operation == 'deploy'
         env:
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          release_dir="${TEST_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
-          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${TEST_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' deploy --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${TEST_ENV_FILE}' --release-root '${TEST_RELEASE_ROOT}' --public-url '${TEST_PUBLIC_URL}' --ca-file '${TEST_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
+          release_dir="${DEPLOY_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
+          ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            "/usr/bin/flock --exclusive --timeout 1800 '${DEPLOY_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' deploy --environment '${DEPLOY_ENVIRONMENT}' --image-ref '${RELEASE_IMAGE_REF}' --commit-sha '${RELEASE_COMMIT_SHA}' --repo-dir '${release_dir}' --env-file '${DEPLOY_ENV_FILE}' --release-root '${DEPLOY_RELEASE_ROOT}' --public-url '${DEPLOY_PUBLIC_URL}' --ca-file '${DEPLOY_CA_FILE}' --product-manifest '${PRODUCT_RELEASE_MANIFEST}'"
 
       - name: Roll back application code without downgrading the database
         if: inputs.operation == 'rollback'
         env:
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
-            "/usr/bin/flock --exclusive --timeout 1800 '${TEST_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --env-file '${TEST_ENV_FILE}' --release-root '${TEST_RELEASE_ROOT}' --public-url '${TEST_PUBLIC_URL}' --ca-file '${TEST_CA_FILE}' --confirm-schema-compatible"
+          ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            "/usr/bin/flock --exclusive --timeout 1800 '${DEPLOY_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --environment '${DEPLOY_ENVIRONMENT}' --env-file '${DEPLOY_ENV_FILE}' --release-root '${DEPLOY_RELEASE_ROOT}' --public-url '${DEPLOY_PUBLIC_URL}' --ca-file '${DEPLOY_CA_FILE}' --confirm-schema-compatible"
 
       - name: Remove ephemeral host registry credentials
         if: always()
         env:
-          TEST_SSH_HOST: ${{ secrets.TEST_SSH_HOST }}
-          TEST_SSH_PORT: ${{ secrets.TEST_SSH_PORT }}
-          TEST_SSH_USER: ${{ secrets.TEST_SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh -p "${TEST_SSH_PORT}" "${TEST_SSH_USER}@${TEST_SSH_HOST}" \
+          ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
             "DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker logout ghcr.io >/dev/null 2>&1 || true; rm -f '${REMOTE_DOCKER_CONFIG}/config.json'; rmdir '${REMOTE_DOCKER_CONFIG}' 2>/dev/null || true" || true
 
       - name: Remove transient SSH material

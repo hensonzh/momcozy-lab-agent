@@ -1,0 +1,71 @@
+name: ${MOMCOZY_AGENT_COMPOSE_PROJECT:?Set MOMCOZY_AGENT_COMPOSE_PROJECT}
+
+x-runtime-service: &runtime-service
+  image: ${MOMCOZY_AGENT_IMAGE:?Set MOMCOZY_AGENT_IMAGE to an immutable digest reference}
+  env_file:
+    - ${MOMCOZY_AGENT_ENV_FILE:?Set MOMCOZY_AGENT_ENV_FILE}
+  environment:
+    APP_ENV: ${APP_ENV:?Set APP_ENV}
+    DATABASE_URL: postgresql+asyncpg://${MOMCOZY_AGENT_POSTGRES_USER:?Set MOMCOZY_AGENT_POSTGRES_USER}:${MOMCOZY_AGENT_POSTGRES_PASSWORD:?Set MOMCOZY_AGENT_POSTGRES_PASSWORD}@postgres:5432/${MOMCOZY_AGENT_POSTGRES_DB:?Set MOMCOZY_AGENT_POSTGRES_DB}
+    REDIS_URL: redis://agent-runtime:${MOMCOZY_AGENT_REDIS_PASSWORD:?Set MOMCOZY_AGENT_REDIS_PASSWORD}@redis:6379/1
+    RUNTIME_OUTPUT_STORE_BUCKET: ${MOMCOZY_AGENT_MINIO_BUCKET:?Set MOMCOZY_AGENT_MINIO_BUCKET}
+    RUNTIME_OUTPUT_STORE_ENDPOINT_URL: http://minio:9000
+    RUNTIME_OUTPUT_STORE_ACCESS_KEY_ID: ${MOMCOZY_AGENT_MINIO_ACCESS_KEY:?Set MOMCOZY_AGENT_MINIO_ACCESS_KEY}
+    RUNTIME_OUTPUT_STORE_SECRET_ACCESS_KEY: ${MOMCOZY_AGENT_MINIO_SECRET_KEY:?Set MOMCOZY_AGENT_MINIO_SECRET_KEY}
+    RUNTIME_RELEASE_ID: ${MOMCOZY_AGENT_RELEASE_ID:?Set MOMCOZY_AGENT_RELEASE_ID from the immutable release manifest}
+    MOMCOZY_AGENT_POSTGRES_PASSWORD: ""
+    MOMCOZY_AGENT_REDIS_PASSWORD: ""
+    MOMCOZY_AGENT_MINIO_ACCESS_KEY: ""
+    MOMCOZY_AGENT_MINIO_SECRET_KEY: ""
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - deployment
+
+services:
+  migrate:
+    <<: *runtime-service
+    command: ["python", "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"]
+    restart: "no"
+    profiles: [tools]
+    cpus: 0.5
+    mem_limit: 512m
+
+  api:
+    <<: *runtime-service
+    ports:
+      - "${MOMCOZY_AGENT_API_BIND:?Set MOMCOZY_AGENT_API_BIND}:8000"
+    networks:
+      deployment:
+        aliases: [agent-api]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health/ready', timeout=2)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 768m
+
+  worker:
+    <<: *runtime-service
+    command: ["python", "-m", "app.workers.agent_run"]
+    restart: unless-stopped
+    cpus: 2.0
+    mem_limit: 3g
+
+networks:
+  deployment:
+    name: ${MOMCOZY_NETWORK_NAME:?Set MOMCOZY_NETWORK_NAME}
+    external: true

@@ -1,71 +1,87 @@
 ---
 name: milk-supply-assessment
-order: 1
-description: 评估宝宝是否吃够、奶量是否不足、混合喂养摄入以及妈妈母乳供需，避免把单次泵量或未知亲喂量当作结论。
+description: Assess whether milk supply is sufficient, has changed unexpectedly, or is out of balance with demand. Load when the user asks whether there is enough milk, reports fluctuations or a decline, or worries about low or excessive supply.
 ---
 
-# 适用问题
+# Milk Supply Assessment
 
-用于回答“宝宝是否吃够”“我是不是缺奶”“混合喂养总共吃了多少”“需要补多少”“一次泵得少是否代表回奶”等问题。目标是分别评估宝宝生长、实际摄入和妈妈供需，再说明能判断什么、不能判断什么。
+Assess whether there may be low supply, a supply decline, or a supply-demand mismatch, and identify a suitable next step in light of the mother's circumstances and goals.
 
-# 解决方案
+## Assessment Framework
 
-## 1. 宝宝生长
+Do not treat the user's statements “I have little milk” or “I have no milk” as established facts. Do not judge supply solely from one pumping session, how firm or soft the breasts feel, leaking, or one episode of the baby crying.
 
-需要时核对日龄或出生日期、出生孕周、出生体重、带日期的后续体重及测量条件；已有儿保结论、身长或头围时注明来源。
+Consider three dimensions together:
 
-- 同一宝宝的体重按日期排序、统一单位。日期、单位或测量条件明显冲突时先核实。
-- 新生儿早期要分别看出生后下降和之后恢复，不能把出生到当前的净变化当作稳定增重速度。
-- 两次可比测量且间隔明确时，可计算 `平均日变化 = 体重差（g）÷ 间隔天数`，同时写明区间。该算术值本身不能判定正常或异常，短间隔不能外推长期趋势。
-- 单次体重只能描述一个点；“体重增加”不自动等于增长适宜，“体重偏小”也不自动证明母乳不足。
-- 早产、疾病或已有专业方案时，应结合适用生长标准和专业随访；缺少校正年龄或报告时保留未知。
-- 足月新生儿早期体重下降超过出生体重的 10%，约两周仍未恢复出生体重，后续持续下降，或儿保已提示增长问题，应尽快由儿科/喂养专业人员评估。这是求助触发条件，不直接证明妈妈低奶量，也不能自动推算补奶量。
+1. **Infant growth**
+   - Consider weight and the growth trend as evidence of whether longer-term intake has been sufficient.
+   - Load `infant-growth-assessment.md` when a closer assessment is needed.
 
-结论只写为：有支持性趋势、存在需复核信号，或资料不足。没有参考依据时不自行盖章“生长正常”。
+2. **Actual infant intake**
+   - Consider feeding methods, known intake, wet and soiled diapers, and the baby's overall feeding behavior.
+   - Load `infant-intake-assessment.md` when a closer assessment is needed.
 
-## 2. 宝宝实际摄入
+3. **Maternal production and supply-demand balance**
+   - Consider supply trends, frequency of breastfeeding and pumping, milk removal, and recent changes in feeding methods.
+   - When assessing a change in supply, compare similar times and milk-removal conditions rather than isolated single measurements.
 
-先确认记录是完整 24 小时还是部分时段，并区分奶源。
+Growth and actual intake are more important outcome evidence; pumped volume and similar measures are process or supporting information.
 
-- 瓶喂只统计实际喝入量，区分提供量、剩余量、吐出量；母乳、配方奶和库存母乳分别列出。
-- 亲喂时长和次数不能换算为毫升。未做称重喂养或没有可靠测量时，亲喂体积保持未知。
-- 冷藏或冻存但尚未喂给宝宝的乳汁不计入摄入；同一份乳汁不能在“挤出”和“喝入”中重复当作两份奶。
-- 结合吞咽、喂养耐力、尿便、精神和喂养后表现解释。新生儿约第 5 天起，24 小时湿尿布少于约 6 片是需要及时咨询的信号；不能把该数字套到所有日龄，也不能因达到该数就排除摄入不足。
-- 用户已有个体目标时，可以比较实际量与该目标并注明医嘱来源；不凭通用 `mL/kg/天` 数字远程推算必须补多少。
-- 哭闹、频繁吃奶、睡得久、胸软或愿意继续喝瓶奶，都不能单独证明摄入不足或充足。
+In light of the postpartum stage and available evidence, characterize the situation as:
 
-结论区分：当前证据较支持摄入得到满足、有摄入不足风险，或无法判断。混合喂养下必须区分总摄入与母乳贡献。
+- No clear evidence of low supply at present
+- Possible low supply
+- Possible oversupply
+- Insufficient information to tell at present
 
-## 3. 妈妈母乳供需
+Use what is already known and ask only the key question that could change the assessment; do not request all the data at once.
 
-需要时核对产后阶段、喂养目标、亲喂/吸奶组合、完整同窗产出、有效移乳机会和疼痛或乳房症状。
+## Service Decisions
 
-- 亲喂、替代一餐的吸奶和亲喂后额外吸奶分开解释。单次或亲喂后吸出的量不能代表全天产能。
-- 只有完整且可比的多个 24 小时记录，才描述日总产出趋势；部分时段不乘倍数外推全天，一次变化不诊断“回奶”。
-- 有未测亲喂时，妈妈总产量与母乳供需差额保持未知；不能用“瓶喂需求－吸奶量”计算缺奶量。
-- 全吸奶且同一 24 小时记录完整时，可以比较当日挤出母乳与宝宝实际喝入母乳。差额只是记录内母乳收支；配方奶、库存取用、储存和丢弃要单列，不能将其等同于宝宝总摄入缺口或妈妈生理产能。
-- 多宝宝先分别核对每个宝宝的摄入和生长，再汇总已知母乳用量；不能平均分配妈妈产量代替实际摄入。
-- 产出与母乳用量大致匹配、宝宝又有支持性摄入和生长证据时，不因混合喂养或单次泵量要求追奶。
-- 产出很多不能排除宝宝乳汁转移或健康问题；高产出伴胀痛、奶流困扰或大量额外泵奶时，转 `breast-fullness-and-inflammatory-symptoms`。
+**The assessment helps explain the current situation; it does not by itself dictate a course of action.**
 
-## 4. 综合判断
+Before making a recommendation, consider:
 
-- 生长和摄入有支持性证据，只有单次泵量偏低：不能据此认定奶量不足；解释比较条件，不默认追奶。
-- 生长需复核或摄入有风险，同时含接、吞咽或疼痛有问题：尚不能区分乳汁转移和产量问题；优先儿科核查水合/生长，并请喂养专业人员观察完整喂养。
-- 全吸奶并使用配方奶或库存：分别说明母乳收支和全部奶源构成；用户主动选择混合喂养不等于失败或缺奶。
-- 数据时间窗、对象或条件冲突：明确哪一维无法判断，只补最能改变下一步的一项资料。
-- 用户询问“需要补多少”：没有个体医嘱和可靠摄入评估时，不远程开出固定补充量；已有安全补充方案先维持并联系相应专业人员复核。
+- What the mother most wants to address now;
+- Whether she wants to increase supply, maintain it, or stop pursuing a supply target;
+- How she feels about the current feeding method and what she has already tried;
+- Her time, rest, work, family support, and other practical constraints;
+- Whether infant intake, milk volume, physical comfort, or sustainable feeding matters most to her.
 
-# 复评与转介
+Do not assume:
 
-- 没有风险且一次解释已解决疑问，可以自然结束，不要求泵量测试或固定打卡。
-- 需要观察时，只选一项：下一次自然喂养的吞咽/耐力，已有体重的日期与条件，或一个完整且可比的记录窗口。
-- 复评时仍按生长、摄入、供需分开解释。泵量增加不证明宝宝实际摄入改善，完成记录不证明问题解决。
-- 宝宝明显少尿、精神差、难以唤醒、持续拒奶、呼吸异常、黄疸加重或体重异常，按严重程度及时联系儿科、现有照护团队或急诊，不等待攒够记录。
+**Low supply = she must try to increase supply.**
 
-# 依据与适用范围
+Choose the next step according to the assessment and her goals:
 
-维护核对日期：2026-09-23。数字只适用于注明的人群和阶段，不是诊断标准，也不外推到早产或患病宝宝。
+- **Possible low supply + she wants to increase it**
+  → Explain the evidence, then use `milk-supply-management.md`.
 
-- [AAP 出生后 3–5 天评估](https://www.aap.org/en/patient-care/newborn-infant-and-early-childhood-nutrition/newborn-and-infant-health-assessment-and-promotion/first-office-visit-3-5-days/)：支持按日龄解释体重、水合和排泄信号。
-- 当前没有版本化 WHO/NEWT 参考计算工具，因此不生成百分位、z-score 或参考分类。
+- **Possible low supply + she does not want to increase it**
+  → Respect her choice. Prioritize the baby's intake and a sustainable feeding approach without pressuring her to pursue more supply.
+
+- **Possible low supply + she is exhausted, uncertain, or undecided**
+  → Explain the available options and main trade-offs; help her choose what she can accept now.
+
+- **No clear evidence of low supply + she is still anxious**
+  → Explain the evidence without automatically recommending more milk production; help her focus on more reliable signs to observe.
+
+- **Supply appears sufficient, but the current routine is burdensome**
+  → Do not treat preserving the current routine as the only goal. Consider adjustments that support her rest, comfort, and daily life.
+
+When information is insufficient, say what can and cannot be concluded and ask only for the most important missing information.
+
+## Response Guidance
+
+Center the response on three questions:
+
+1. **What does her situation currently suggest?**
+2. **What supports that assessment?**
+3. **What should she do next, given her goals?**
+
+Prioritize one to three important actions at a time. Do not mechanically display the whole assessment or apply a one-size-fits-all plan.
+
+## Safety and Behavior
+
+- If you identify an emergency medical risk, self-harm risk, or risk of harm to the baby or others, follow the shared safety guidelines first.
+- Follow the shared behavioral guidelines throughout the service.

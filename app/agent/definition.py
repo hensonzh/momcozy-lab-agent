@@ -20,12 +20,12 @@ def _load_instructions() -> str:
     try:
         system_prompt = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
     except OSError as exc:
-        raise RuntimeError("CozyMate system prompt is unavailable.") from exc
+        raise RuntimeError("Momcozy AI system prompt is unavailable.") from exc
     if not system_prompt:
-        raise RuntimeError("CozyMate system prompt is empty.")
+        raise RuntimeError("Momcozy AI system prompt is empty.")
     return (
         f"{system_prompt}\n\n"
-        "# 可加载服务 Skill\n\n"
+        "# Loadable Service Skills\n\n"
         f"{SERVICE_SKILL_REGISTRY.manifest()}"
     )
 

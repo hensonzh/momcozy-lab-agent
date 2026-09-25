@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.care_reports.generation import CareReportGenerator
+from app.care_reports.generation import CareReportGenerator, REPORT_INSTRUCTIONS
 from app.care_reports.generation_schemas import ReportGenerationInput, ReportSource, StructuredCareReport
 from app.core.errors import ApiError
 
@@ -19,8 +19,8 @@ def report_input(content: str = '用户记录：左侧泵奶 60 ml，未记录�
 
 
 def valid_report() -> dict[str, Any]:
-    return {'summary': [{'text': '记录了左侧泵奶量。', 'evidence': [{'source_id': 'lactation:test:1', 'quote': '左侧泵奶 60 ml'}]}],
-        'emotional_state': [], 'communication_preferences': [], 'checks': [], 'data_gaps': ['未记录宝宝摄入量。']}
+    return {'summary': [{'text': 'The client recorded milk pumped from the left side.', 'evidence': [{'source_id': 'lactation:test:1', 'quote': '左侧泵奶 60 ml'}]}],
+        'emotional_state': [], 'communication_preferences': [], 'checks': [], 'data_gaps': ["The baby’s intake was not recorded."]}
 
 
 class FakeResponses:
@@ -65,6 +65,36 @@ def test_generation_has_no_tools_no_provider_storage_and_cited_evidence() -> Non
         assert json.loads(call['input'][0]['content'])['sources'][0]['content'] == request.sources[0].content
         assert result.content.summary[0].evidence[0].source_id == request.sources[0].id
         assert result.input_hash == request.input_hash() and result.prompt_version and result.schema_version
+    asyncio.run(run())
+
+
+def test_report_prose_is_english_and_keeps_original_source_quotes() -> None:
+    async def run() -> None:
+        report = valid_report()
+        service, _ = generator(FakeResponses(body=report))
+        result = await service.generate(report_input())
+        assert result.content.summary[0].evidence[0].quote == '左侧泵奶 60 ml'
+        assert result.content.summary[0].text == 'The client recorded milk pumped from the left side.'
+
+        for field, value in [
+            ('summary', '用户记录了左侧泵奶量。'),
+            ('data_gaps', '宝宝摄入量未记录。'),
+            ('summary', 'CozyMate reviewed the record.'),
+            ('summary', 'ひとつずつ確認しましょう。'),
+            ('summary', '수유 기록을 확인하세요.'),
+            ('summary', 'Проверьте кормление.'),
+            ('data_gaps', 'لا توجد سجلات.'),
+        ]:
+            invalid = valid_report()
+            if field == 'summary':
+                invalid['summary'][0]['text'] = value
+            else:
+                invalid[field] = [value]
+            service, _ = generator(FakeResponses(body=invalid))
+            with pytest.raises(ApiError) as captured:
+                await service.generate(report_input())
+            assert captured.value.code == 'care_report_invalid_output'
+
     asyncio.run(run())
 
 
@@ -115,3 +145,8 @@ def test_report_generation_uses_installed_sdk_and_strict_json_schema() -> None:
         assert request['text']['format']['schema']['additionalProperties'] is False
         assert request['store'] is False and request['tools'] == [] and request['tool_choice'] == 'none'
     asyncio.run(run())
+
+
+def test_report_instructions_request_english_output_and_preserve_source_quotes() -> None:
+    assert "write the report in english" in REPORT_INSTRUCTIONS.lower()
+    assert "quote source text verbatim" in REPORT_INSTRUCTIONS.lower()

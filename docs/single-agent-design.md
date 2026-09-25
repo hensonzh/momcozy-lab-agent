@@ -1,15 +1,15 @@
 # Momcozy 单智能体架构
 
 CozyMate（`cozymate`）是唯一的 Agent，使用单条模型—工具推理链。
-当前启用唯一的 `lactation` 泌乳与喂养不适评估 Skill 和 `load_service_skill` 工具。
-没有设备 Skill、业务工具、工具搜索 namespace 或产品 Action。
+当前启用唯一的 `lactation` 泌乳与喂养不适评估 Skill，以及 `load_service_skill`、`read_topical_records` 两个工具。
+没有设备 Skill、业务写工具、工具搜索 namespace 或产品 Action。
 
 ## 组织与加载
 
 - `app/agent/definition.py` 定义名称与指令，`system_prompt.md` 保存基础规则。
-- `app/agent/skills/lactation/SKILL.md` 只维护高频问题路由、共用工作方式与安全边界；`references/*.md` 分别维护五类问题的具体解决方案。
+- `app/agent/skills/lactation/SKILL.md` 只维护高频问题路由、共用工作方式与安全边界；`references/*.md` 分别维护八个专题的具体方案。reference 文件名、frontmatter `name`、`reference_id` 与交叉引用统一使用小写连接线。
 - `app/agent/skill_registry.py` 校验 Skill 与 reference，并提供渐进加载工具。
-- `app/capability_catalog.py` 仅显式注册 loader，`app/bootstrap/` 注入 Runtime。
+- `app/capability_catalog.py` 显式注册 loader 与专题只读工具，`app/bootstrap/` 注入 Runtime。
 - `app/agent_runtime/` 保留通用执行、上下文、安全、持久化与恢复内核。
 
 系统提示词只包含 Skill 简介。需要专业泌乳咨询时先加载路由：
@@ -35,17 +35,17 @@ loader 的 `momcozy.service_skill.v3` 回执包含加载状态、Skill 身份、
 ## 执行边界
 
 SDK Runner 负责模型—工具循环，自研 AgentLoop 负责租约、账本、恢复、消息和安全门。
-只暴露通过 Run 权限过滤后的 eager loader；不存在 deferred 工具，因此不提供 ToolSearchTool。
+只暴露通过 Run 权限过滤后的 eager loader 与专题只读工具；不存在 deferred 工具，因此不提供 ToolSearchTool。
 工具串行执行并通过统一 ToolExecutor 校验和持久化。历史中未完成的已删除工具无法重新执行。
 
-当前咨询使用用户提供的信息与当前 Run 的基础资料上下文，不查询或写入业务记录。
+当前咨询使用用户提供的信息与当前 Run 的基础资料上下文；必要时按权限及时间窗只读喂养、吸奶、尿便、疼痛或连续生长记录，不写入业务记录。
 账号验证、基础资料快照及附件解析仍通过 Product Backend 服务身份调用，属于 Runtime 基础设施。
 产品 Action 目录为空。通用确认、幂等、审计和恢复结构仍可读取历史账本，但不会授权已删除业务操作。
 
 紧急风险先走安全分流；未命中时由同一个 CozyMate 整合上下文并回复。
 普通健康信息与情绪支持不需要加载 Skill。所有具体限制与契约维护流程见 [tools.md](tools.md)。
 
-泌乳 Skill 先按五类高频问题分流，再只加载相关专题方案。奶量综合判断分别核对生长发育、宝宝摄入、妈妈泌乳供需；疼痛主诉先澄清发生情境、风险与变化，再给下一步及必要复评。无需为单纯疼痛完成奶量问卷。设计与来源见 [lactation-assessment.md](lactation-assessment.md)。
+泌乳 Skill 先按八个专题分流，再只加载与主问题相关的方案；完整判断确实依赖其他维度时才追加 reference。奶量判断、奶量管理、宝宝摄入和生长分别建模；亲喂疼痛、吸奶问题和乳房症状按发生场景分流，返工喂养作为独立管理场景。设计见 [lactation-assessment.md](lactation-assessment.md)。
 
 ## 验证
 

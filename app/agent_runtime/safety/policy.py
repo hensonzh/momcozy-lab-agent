@@ -24,6 +24,7 @@ SafetyCategory = Literal[
     "harmful_instruction",
     "external_content_injection",
     "resource_abuse",
+    "output_language",
 ]
 SafetySeverity = Literal["none", "high", "critical"]
 ResponsePolicy = Literal["non_health", "general_health", "personalized_health", "general_medical", "restricted_medical"]
@@ -52,12 +53,11 @@ class RuntimeSafetyPolicy:
         normalized = _normalize(text)
         if not normalized:
             return RuntimeSafetyDecision.allow()
-        use_chinese = bool(re.search(r"[\u3400-\u9fff]", normalized))
         block = _input_block(normalized)
         if block:
             category, severity, rule = block
             action: SafetyAction = "escalate" if severity == "critical" or category == "prenatal_urgent" else "block"
-            return RuntimeSafetyDecision(action, category, severity, rule, _input_fallback(category, use_chinese))
+            return RuntimeSafetyDecision(action, category, severity, rule, _input_fallback(category))
         masked = mask_sensitive(text)
         response_policy = classify_response_policy(normalized)
         if masked != text:
@@ -68,6 +68,11 @@ class RuntimeSafetyPolicy:
         normalized = _normalize(text)
         if not normalized:
             return RuntimeSafetyDecision.allow()
+        if violates_english_app_output(text):
+            return RuntimeSafetyDecision(
+                "block", "output_language", "high", "output_language.v1",
+                "I couldn't complete that response in English. Please try asking again.",
+            )
         for pattern, category in _OUTPUT_BLOCK_RULES:
             if re.search(pattern, normalized):
                 return RuntimeSafetyDecision(
@@ -75,10 +80,17 @@ class RuntimeSafetyPolicy:
                     cast(SafetyCategory, category),
                     "high",
                     f"output_{category}.v1",
-                    _output_fallback(cast(SafetyCategory, category), bool(re.search(r"[\u3400-\u9fff]", normalized))),
+                    _output_fallback(cast(SafetyCategory, category)),
                 )
         masked = mask_sensitive(text, output=True)
         return RuntimeSafetyDecision.allow(masked_text=masked if masked != text else None)
+
+
+_NON_ENGLISH_OR_RETIRED_BRAND = re.compile(r"[\u3400-\u9fff\U00020000-\U000323af\u3040-\u30ff\u31f0-\u31ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0900-\u097f]|cozy[\s-]*mate", re.I)
+
+
+def violates_english_app_output(text: str) -> bool:
+    return _NON_ENGLISH_OR_RETIRED_BRAND.search(text) is not None
 
 
 def classify_response_policy(text: str) -> ResponsePolicy:
@@ -266,40 +278,20 @@ def _sanitize_content(content: Any) -> Any:
     return content
 
 
-def _input_fallback(category: SafetyCategory, zh: bool) -> str:
+def _input_fallback(category: SafetyCategory) -> str:
     if category == "prenatal_urgent":
-        return (
-            "胎动明显减少需要尽快联系产科或分娩医院评估；如果完全感觉不到胎动或伴随大出血、剧烈疼痛、晕厥或呼吸困难，请立即联系急救服务。"
-            if zh
-            else "Markedly reduced fetal movement needs prompt obstetric assessment. Contact your maternity unit now; call emergency services for no movement or severe symptoms."
-        )
+        return "Markedly reduced fetal movement needs prompt obstetric assessment. Contact your maternity unit now; call emergency services for no movement or severe symptoms."
     if category == "medical_emergency":
-        return (
-            "这可能是紧急情况。请立即联系当地急救服务或前往最近的急诊，不要继续等待聊天回复。"
-            if zh
-            else "This may be an emergency. Contact local emergency services or the nearest emergency department now. Do not wait for another chat response."
-        )
+        return "This may be an emergency. Contact local emergency services or the nearest emergency department now. Do not wait for another chat response."
     if category in {"self_harm_imminent", "infant_harm_imminent"}:
-        return (
-            "请先让自己和宝宝处在安全位置，联系身边可信赖的人陪伴，并立即联系当地紧急服务或危机支持。"
-            if zh
-            else "Move yourself and the baby to safety, contact a trusted person to stay with you, and contact local emergency or crisis support now."
-        )
+        return "Move yourself and the baby to safety, contact a trusted person to stay with you, and contact local emergency or crisis support now."
     if category in {"secret", "pii"}:
-        return "这条消息里带有一些敏感信息，我先不处理这部分内容。请去掉敏感信息后再告诉我需要帮助的内容。"
-    return (
-        "我无法执行修改系统规则、绕过权限或获取内部指令的请求。请直接描述你想解决的母婴或设备问题。"
-        if zh
-        else "I can't modify system rules, bypass permissions, or provide internal instructions. Please describe the maternal, infant, or device issue you need help with."
-    )
+        return "This message contains sensitive information that I cannot process here. Remove it and tell me what you need help with."
+    return "I can't modify system rules, bypass permissions, or provide internal instructions. Please describe the maternal, infant, or device issue you need help with."
 
 
-def _output_fallback(category: SafetyCategory, zh: bool) -> str:
-    return (
-        "刚才的回复里有些内容不适合直接展示，我先帮你收住了。你可以继续告诉我想解决的问题，我会换一种更合适的方式帮你。"
-        if zh
-        else "Part of that response wasn't safe to display, so I stopped it. Tell me what you need and I'll help in a safer way."
-    )
+def _output_fallback(category: SafetyCategory) -> str:
+    return "Part of that response wasn't safe to display, so I stopped it. Tell me what you need and I'll help in a safer way."
 
 
 def _normalize(value: str) -> str:

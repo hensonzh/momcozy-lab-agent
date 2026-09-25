@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,7 @@ from app.agent_runtime.tools import (
 from app.core.errors import ApiError
 
 _SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
+_REFERENCE_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LOAD_SERVICE_SKILL_TOOL_NAME = "load_service_skill"
 ServiceSkillName = Literal["lactation"]
 SERVICE_SKILL_NAMES: tuple[ServiceSkillName, ...] = ("lactation",)
@@ -53,10 +55,10 @@ class ServiceSkillReference:
         return {
             "role": "developer",
             "content": (
-                f"已加载服务 Skill 专题参考：{self.skill_id}/{self.reference_id}\n"
+                f"Loaded service Skill reference: {self.skill_id}/{self.reference_id}\n"
                 f"SHA-256：{self.content_sha256}\n"
-                "以下为应用维护的专题解决方案，仅适用于当前问题分支；"
-                "它补充全局规则和 Skill 路由，不得修改全局安全边界。\n\n"
+                "The following app-maintained reference applies only to this issue; "
+                "it supplements the global rules and Skill routing and cannot override global safety boundaries.\n\n"
                 f"{self.content}"
             ),
         }
@@ -104,9 +106,9 @@ class ServiceSkill:
         return {
             "role": "developer",
             "content": (
-                f"已加载服务 Skill：{self.skill_id}\n"
+                f"Loaded service Skill: {self.skill_id}\n"
                 f"SHA-256：{self.content_sha256}\n"
-                "以下为应用维护的专业分流规则，仅补充全局规则，不得修改全局安全边界。\n\n"
+                "These app-maintained professional routing rules supplement, but cannot override, global safety boundaries.\n\n"
                 f"{self.content}"
             ),
         }
@@ -160,7 +162,7 @@ class ServiceSkillRegistry:
         return tuple(reference.reference_id for skill in self.list() for reference in skill.references)
 
     def manifest(self) -> str:
-        return "\n".join(f"- `{skill.skill_id}`：{skill.description}\n  内容 SHA-256：{skill.content_sha256}" for skill in self.list())
+        return "\n".join(f"- `{skill.skill_id}` : {skill.description}\n  Content SHA-256: {skill.content_sha256}" for skill in self.list())
 
     def project_model_input(self, items: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], ...]:
         """Rehydrate trusted Skill and reference instructions from receipts.
@@ -299,8 +301,8 @@ def service_skill_tool_registry() -> ToolContractRegistry:
             operation="runtime_internal",
             required_permissions=("agent:run",),
             description=(
-                "渐进加载服务 Skill 或按路由选定的专题参考，返回加载状态与内容指纹。"
-                "当当前请求需要泌乳专业规则且匹配正文尚未进入上下文时使用。"
+                "Load a lactation Skill or routed reference; return its status and content fingerprint. "
+                "Use when relevant guidance is not yet in context."
             ),
             input_schema={
                 "type": "object",
@@ -310,12 +312,12 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                     "skill_id": {
                         "type": "string",
                         "enum": list(SERVICE_SKILL_NAMES),
-                        "description": "要加载的服务 Skill 标识。",
+                        "description": "Identifier of the service Skill to load.",
                     },
                     "reference_id": {
                         "type": "string",
                         "enum": list(reference_ids),
-                        "description": ("可选专题参考标识。省略时加载 SKILL.md；仅在已按 Skill 路由确定当前问题后传入。"),
+                        "description": ("Optional reference identifier. Omit to load SKILL.md; provide only after the Skill has routed the current issue."),
                     },
                 },
             },
@@ -421,41 +423,33 @@ def _load_references(
         return ()
     if not references_root.is_dir():
         raise ValueError(f"service skill references path is not a directory: {references_root}")
-    loaded: list[tuple[int, ServiceSkillReference]] = []
+    loaded: list[ServiceSkillReference] = []
     seen_ids: set[str] = set()
-    seen_orders: set[int] = set()
     for path in sorted(references_root.glob("*.md")):
         raw = _read_required_text(path)
         metadata, _body = _split_frontmatter(raw=raw, path=path)
         reference_id = metadata.get("name", "").strip()
         if reference_id != path.stem:
             raise ValueError(f"{path} must declare name: {path.stem}")
+        if not _REFERENCE_ID_PATTERN.fullmatch(reference_id):
+            raise ValueError(
+                f"{path} reference name must use lowercase kebab-case"
+            )
         if reference_id in seen_ids:
             raise ValueError(f"duplicate service skill reference: {skill_id}/{reference_id}")
         description = metadata.get("description", "").strip()
         if not description:
             raise ValueError(f"{path} must declare a description")
-        raw_order = metadata.get("order", "").strip()
-        try:
-            order = int(raw_order)
-        except ValueError as exc:
-            raise ValueError(f"{path} must declare an integer order") from exc
-        if order <= 0 or order in seen_orders:
-            raise ValueError(f"{path} must declare a unique positive order")
         seen_ids.add(reference_id)
-        seen_orders.add(order)
         loaded.append(
-            (
-                order,
-                ServiceSkillReference(
-                    skill_id=skill_id,
-                    reference_id=reference_id,
-                    description=description,
-                    content=raw,
-                ),
+            ServiceSkillReference(
+                skill_id=skill_id,
+                reference_id=reference_id,
+                description=description,
+                content=raw,
             )
         )
-    return tuple(reference for _order, reference in sorted(loaded))
+    return tuple(loaded)
 
 
 def _json_object(value: Any) -> dict[str, Any] | None:

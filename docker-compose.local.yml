@@ -6,7 +6,7 @@ x-runtime-service: &runtime-service
     context: .
     dockerfile: Dockerfile
   env_file:
-    - ${MOMCOZY_AGENT_ENV_FILE:-env/compose.local.env}
+    - ${MOMCOZY_AGENT_ENV_FILE:-env/local.env}
   init: true
 
 services:

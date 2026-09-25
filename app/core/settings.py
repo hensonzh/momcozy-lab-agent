@@ -10,8 +10,9 @@ from urllib.parse import urlparse
 from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 
-VALID_APP_ENVS = {"local", "test", "production"}
+VALID_APP_ENVS = {"local", "test", "staging", "production"}
 PRODUCTION_ENVS = {"production"}
+DEPLOYED_ENVS = {"staging", "production"}
 MODEL_REASONING_EFFORTS = {
     "none",
     "low",
@@ -381,6 +382,10 @@ class Settings:
         return self.app_env.strip().lower() in PRODUCTION_ENVS
 
     @property
+    def is_deployed(self) -> bool:
+        return self.app_env.strip().lower() in DEPLOYED_ENVS
+
+    @property
     def worker_heartbeat_generation(self) -> str:
         return self.runtime_release_id.strip() or self.app_version
 
@@ -395,18 +400,18 @@ class Settings:
         )
         parsed_jwks_url = urlparse(self.auth_jwks_url)
         if normalized_app_env not in VALID_APP_ENVS:
-            errors.append("APP_ENV must be one of: local, test, production")
+            errors.append("APP_ENV must be one of: local, test, staging, production")
         if self.runtime_release_id and not re.fullmatch(
             r"[0-9a-f]{40}", self.runtime_release_id
         ):
             errors.append("RUNTIME_RELEASE_ID must be a full lowercase commit SHA")
         if (
-            normalized_app_env == "test"
+            normalized_app_env in {"test", "staging", "production"}
             and self.worker_heartbeats_required
             and not self.runtime_release_id
         ):
             errors.append(
-                "RUNTIME_RELEASE_ID is required for test worker heartbeats"
+                "RUNTIME_RELEASE_ID is required for non-local worker heartbeats"
             )
         if parsed_database_url.scheme != "postgresql+asyncpg" or not parsed_database_url.netloc or not parsed_database_url.path.strip("/"):
             errors.append("DATABASE_URL must be an absolute postgresql+asyncpg URL")
@@ -507,8 +512,8 @@ class Settings:
             errors.append(
                 "PRODUCT_BACKEND_SERVICE_KEY must not use a placeholder value"
             )
-        if self.is_production and not self.product_backend_service_key:
-            errors.append("PRODUCT_BACKEND_SERVICE_KEY is required in production")
+        if self.is_deployed and not self.product_backend_service_key:
+            errors.append("PRODUCT_BACKEND_SERVICE_KEY is required in deployed environments")
         if (
             self.runtime_admin_service_key
             and len(self.runtime_admin_service_key.encode("utf-8")) < 32
@@ -520,9 +525,9 @@ class Settings:
             errors.append(
                 "RUNTIME_ADMIN_SERVICE_KEY must not use a placeholder value"
             )
-        if self.is_production and not self.runtime_admin_service_key:
+        if self.is_deployed and not self.runtime_admin_service_key:
             errors.append(
-                "RUNTIME_ADMIN_SERVICE_KEY is required in production"
+                "RUNTIME_ADMIN_SERVICE_KEY is required in deployed environments"
             )
         if (
             self.runtime_admin_service_key
@@ -534,16 +539,16 @@ class Settings:
                 "RUNTIME_ADMIN_SERVICE_KEY must be different from "
                 "PRODUCT_BACKEND_SERVICE_KEY"
             )
-        if self.is_production and _is_loopback_host(parsed_database_url.hostname):
-            errors.append("DATABASE_URL must use an explicit non-loopback host in production")
-        if self.is_production and _is_loopback_host(parsed_redis_url.hostname):
-            errors.append("REDIS_URL must use an explicit non-loopback host in production")
-        if self.is_production and (parsed_backend_url.scheme != "https" or _is_loopback_host(parsed_backend_url.hostname)):
-            errors.append("PRODUCT_BACKEND_BASE_URL must be an explicit non-loopback HTTPS URL in production")
-        if self.is_production and not self.auth_jwt_issuer:
-            errors.append("AUTH_JWT_ISSUER is required in production")
-        if self.is_production and (parsed_jwks_url.scheme != "https" or _is_loopback_host(parsed_jwks_url.hostname)):
-            errors.append("AUTH_JWKS_URL must be an explicit non-loopback HTTPS URL in production")
+        if self.is_deployed and _is_loopback_host(parsed_database_url.hostname):
+            errors.append("DATABASE_URL must use an explicit non-loopback host in deployed environments")
+        if self.is_deployed and _is_loopback_host(parsed_redis_url.hostname):
+            errors.append("REDIS_URL must use an explicit non-loopback host in deployed environments")
+        if self.is_deployed and (parsed_backend_url.scheme != "https" or _is_loopback_host(parsed_backend_url.hostname)):
+            errors.append("PRODUCT_BACKEND_BASE_URL must be an explicit non-loopback HTTPS URL in deployed environments")
+        if self.is_deployed and not self.auth_jwt_issuer:
+            errors.append("AUTH_JWT_ISSUER is required in deployed environments")
+        if self.is_deployed and (parsed_jwks_url.scheme != "https" or _is_loopback_host(parsed_jwks_url.hostname)):
+            errors.append("AUTH_JWKS_URL must be an explicit non-loopback HTTPS URL in deployed environments")
         if errors:
             raise ValueError("; ".join(errors))
 
@@ -584,7 +589,7 @@ class Settings:
                 ):
                     errors.append(
                         "OPENAI_BASE_URL must be an explicit non-loopback "
-                        "HTTPS URL in production"
+                        "HTTPS URL in deployed environments"
                     )
         if self.agent_model_provider == "azure_openai_responses":
             parsed_azure_url = urlparse(self.azure_openai_endpoint)
@@ -607,7 +612,7 @@ class Settings:
             ):
                 errors.append(
                     "AZURE_OPENAI_ENDPOINT must be an explicit "
-                    "non-loopback HTTPS URL in production"
+                    "non-loopback HTTPS URL in deployed environments"
                 )
             if self.azure_openai_auth_mode not in AZURE_OPENAI_AUTH_MODES:
                 errors.append(
@@ -675,7 +680,7 @@ class Settings:
     def validate_for_worker(self) -> None:
         self.validate_model_provider()
         errors: list[str] = []
-        if self.is_production and not self.runtime_output_store_bucket:
+        if self.is_deployed and not self.runtime_output_store_bucket:
             errors.append(
                 "RUNTIME_OUTPUT_STORE_BUCKET is required for the "
                 "Agent worker in production"
@@ -885,4 +890,8 @@ def _is_safe_token_scope(value: str) -> bool:
 
 
 def _is_placeholder_secret(value: str) -> bool:
-    return value.strip().lower() in KNOWN_SECRET_PLACEHOLDERS
+    normalized = value.strip()
+    return (
+        normalized.lower() in KNOWN_SECRET_PLACEHOLDERS
+        or normalized.upper().startswith("REPLACE_WITH_")
+    )

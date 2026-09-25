@@ -5375,7 +5375,9 @@
               {
                 "enum": [
                   "\u6dfb\u52a0\u4e00\u888b",
-                  "\u53d6\u7528\u4e00\u888b"
+                  "\u53d6\u7528\u4e00\u888b",
+                  "Add a bag",
+                  "Use a bag"
                 ],
                 "type": "string"
               },
@@ -5439,7 +5441,10 @@
                 "enum": [
                   "\u53ef\u4ee5\u7ee7\u7eed\u5582",
                   "\u9700\u8981\u6682\u505c",
-                  "\u65e0\u6cd5\u7ee7\u7eed"
+                  "\u65e0\u6cd5\u7ee7\u7eed",
+                  "Could continue",
+                  "Needed a break",
+                  "Could not continue"
                 ],
                 "type": "string"
               },
@@ -5475,7 +5480,11 @@
                   "\u521a\u5f00\u59cb\u542b\u5976\u65f6",
                   "\u5582\u5976\u8fc7\u7a0b\u4e2d",
                   "\u5582\u5976\u540e",
-                  "\u6cf5\u5976\u65f6"
+                  "\u6cf5\u5976\u65f6",
+                  "When latching",
+                  "During feeding",
+                  "After feeding",
+                  "While pumping"
                 ],
                 "type": "string"
               },
@@ -5491,7 +5500,10 @@
                 "enum": [
                   "\u5de6\u4fa7",
                   "\u53f3\u4fa7",
-                  "\u4e24\u4fa7"
+                  "\u4e24\u4fa7",
+                  "Left side",
+                  "Right side",
+                  "Both sides"
                 ],
                 "type": "string"
               },
@@ -5507,7 +5519,10 @@
                 "enum": [
                   "\u6709",
                   "\u6ca1\u6709",
-                  "\u4e0d\u786e\u5b9a"
+                  "\u4e0d\u786e\u5b9a",
+                  "Yes",
+                  "No",
+                  "Not sure"
                 ],
                 "type": "string"
               },

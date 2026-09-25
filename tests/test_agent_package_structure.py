@@ -43,18 +43,22 @@ def test_system_prompt_owns_identity_tool_selection_and_safety_boundaries() -> N
     )
 
 
+def test_system_prompt_requires_english_for_the_app() -> None:
+    assert "Reply in English" in AGENT.instructions
+    assert "Reply in the user’s primary language" not in AGENT.instructions
+
+
 def test_service_skills_are_complete_domain_contracts() -> None:
     assert tuple(
         skill.skill_id for skill in SERVICE_SKILL_REGISTRY.list()
     ) == SERVICE_SKILL_NAMES
     for skill in SERVICE_SKILL_REGISTRY.list():
         assert skill.content.startswith("---\n")
-        assert "# 角色与使命" in skill.content
-        assert "# 服务范围" in skill.content
-        assert "# 工作方式" in skill.content
-        assert "# 工具与事实" in skill.content
-        assert "# 安全边界" in skill.content
-        assert "# 回复标准" in skill.content
+        assert "# Lactation Skill" in skill.content
+        assert "## Principles for Use" in skill.content
+        assert "## Reference Files" in skill.content
+        assert "## Combining References" in skill.content
+        assert "## Safety and Behavior" in skill.content
 
 
 def test_agent_package_has_canonical_single_agent_files() -> None:

@@ -26,7 +26,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧泵奶量。",
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
             "evidence": [
               {
                 "source_id": "lactation:synthetic:1",
@@ -39,7 +39,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
       "expected": "accepted",
@@ -72,7 +72,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧泵奶量。",
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
             "evidence": [
               {
                 "source_id": "lactation:synthetic:1",
@@ -85,7 +85,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
       "expected": "accepted",
@@ -118,7 +118,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧亲喂，缺少量值。",
+            "text": "The client recorded nursing on the left side; no intake amount is known.",
             "evidence": [
               {
                 "source_id": "lactation:synthetic:1",
@@ -131,7 +131,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "时长及宝宝摄入量未记录。"
+          "Nursing duration and the baby’s intake were not recorded."
         ]
       },
       "expected": "accepted",
@@ -165,7 +165,7 @@
         "summary": [],
         "emotional_state": [
           {
-            "text": "用户自述有点紧张。",
+            "text": "The client said she felt a little anxious today.",
             "evidence": [
               {
                 "source_id": "dialogue:synthetic:1",
@@ -208,7 +208,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧泵奶量。",
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
             "evidence": [
               {
                 "source_id": "foreign:private:1",
@@ -221,7 +221,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
       "expected": "invalid_output",
@@ -254,7 +254,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧泵奶量。",
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
             "evidence": [
               {
                 "source_id": "lactation:synthetic:1",
@@ -267,7 +267,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
       "expected": "invalid_output",
@@ -300,7 +300,7 @@
       "candidate": {
         "summary": [
           {
-            "text": "记录了左侧泵奶量。",
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
             "evidence": []
           }
         ],
@@ -308,7 +308,7 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
       "expected": "invalid_output",
@@ -333,6 +333,52 @@
       "candidate": {
         "summary": [
           {
+            "text": "The client recorded 60 ml of milk pumped from the left side.",
+            "evidence": [
+              {
+                "source_id": "lactation:synthetic:1",
+                "quote": "左侧泵奶 60 ml"
+              }
+            ]
+          }
+        ],
+        "emotional_state": [],
+        "communication_preferences": [],
+        "checks": [],
+        "data_gaps": [
+          "The baby’s intake was not recorded."
+        ]
+      },
+      "expected": "invalid_input",
+      "quality_rubric": [
+        "只陈述来源支持的事实；泵奶量不等于宝宝摄入量。",
+        "不推断性格、诊断或风险评分。"
+      ]
+    },
+    {
+      "id": "non_english_prose_rejected",
+      "priority": "p0",
+      "scenario": "Reject Chinese report prose while retaining an exact Chinese source excerpt.",
+      "input": {
+        "episode_id": "11111111-1111-4111-8111-111111111111",
+        "purpose": "daily",
+        "report_date": "2026-09-08",
+        "timezone": "Asia/Shanghai",
+        "as_of": "2026-09-08T12:00:00Z",
+        "omitted_count": 0,
+        "sources": [
+          {
+            "id": "lactation:synthetic:1",
+            "kind": "lactation",
+            "recorded_at": "2026-09-08T10:00:00Z",
+            "content": "用户记录：左侧泵奶 60 ml。宝宝摄入量未记录。",
+            "truncated": false
+          }
+        ]
+      },
+      "candidate": {
+        "summary": [
+          {
             "text": "记录了左侧泵奶量。",
             "evidence": [
               {
@@ -346,13 +392,12 @@
         "communication_preferences": [],
         "checks": [],
         "data_gaps": [
-          "宝宝摄入量未记录。"
+          "The baby’s intake was not recorded."
         ]
       },
-      "expected": "invalid_input",
+      "expected": "invalid_output",
       "quality_rubric": [
-        "只陈述来源支持的事实；泵奶量不等于宝宝摄入量。",
-        "不推断性格、诊断或风险评分。"
+        "Generated findings must be in English; source excerpts remain verbatim and attributable."
       ]
     }
   ]

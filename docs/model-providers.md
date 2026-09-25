@@ -11,7 +11,7 @@ Tool/Action、上下文构造和恢复语义不依赖具体服务商。
 
 - Responses 请求与流式事件；
 - Function Tool 与 Structured Output；
-- 当前启用工具需要的能力（当前仅 `load_service_skill`，不要求 Tool Search）；
+- 当前启用工具需要的能力（`load_service_skill` 和 `read_topical_records`，不要求 Tool Search）；
 - Runtime 所需的错误、超时和上下文预算语义。
 
 缺少必需能力时 worker 在启动组合阶段失败，不允许静默降级、移除 Tool 或改变
@@ -60,8 +60,7 @@ checkpoint。job 的幂等键与 worker 兼容性检查同时绑定该快照，�
 
 ## 配置
 
-共享服务器在私有 `env/compose.test.env` 中修改 provider 配置；仓库中的
-`env/compose.test.env.example` 只是无密钥模板。当前不维护 production 部署配置。
+staging 与 production 分别在私有 `env/staging.env`、`env/production.env` 中配置 provider；仓库中的同名 `.example` 文件只保存非秘密默认值。两个环境共用 `docker-compose.deploy.yml`。
 不要在 `app/core/settings.py` 中硬编码服务商。
 
 通用设置：
@@ -190,7 +189,7 @@ Provider 实现，也不解析服务商身份、加密推理或专属响应格�
    Compose 中旧 worker 仍运行时可执行：
 
    ```bash
-   docker compose --env-file env/compose.test.env -f docker-compose.test.yml exec -T worker python -m scripts.check_model_provider_switch
+   MOMCOZY_AGENT_ENV_FILE=env/staging.env docker compose --env-file env/staging.env -f docker-compose.deploy.yml exec -T worker python -m scripts.check_model_provider_switch
    ```
 
    退出码 0 表示当前数据库快照已排空；退出码 1 表示仍有阻塞项。输出只有数量，不包含

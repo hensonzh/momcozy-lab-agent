@@ -326,7 +326,7 @@ class AgentRuntimeService:
                     "thread_id": str(thread.id),
                     "message_id": str(message_record.id),
                     "phase": "queued",
-                    "label": "我已经收到你的消息啦～",
+                    "label": "I have your message.",
                 },
             )
             await self.repository.append_event(
