@@ -37,7 +37,7 @@ Prioritize factors that matter most to the supply-demand balance. Do not add unn
 
 ## Service Decisions
 
-**The user sets the supply goal; the plan should serve that goal rather than force her to fit a fixed regimen.**
+**The user sets the supply goal; the plan should serve that goal rather than force her to fit a fixed regimen.** If a relative requests more milk but she is unsure or does not want to pursue it, first address what she wants and any pain or fatigue; partial breastfeeding or mixed feeding is a valid goal.
 
 ### Increasing Supply
 
@@ -70,10 +70,10 @@ When the user wants to reduce supply:
 
 - Prefer gradual changes; avoid abruptly and substantially reducing milk removal;
 - Choose parts of the current breastfeeding and pumping routine to adjust with the least disruption to her life;
-- Watch breast comfort and new fullness, firmness, or pain during the change;
+- Watch breast comfort and new fullness, firmness, or pain during the change; if removing extra pumping leaves her uncomfortably full, small amounts of hand expression or pumping for comfort may be appropriate, without aiming to empty the breast;
 - If breast symptoms appear, address those first rather than mechanically following the original plan.
 
-Load `breast-symptoms.md` as needed.
+Load `breast-symptoms.md` as needed. Do not prescribe fluid restriction, a rigid block-feeding schedule, or medication to suppress milk without individual clinical assessment.
 
 ## Individualizing Adjustments
 
@@ -104,7 +104,7 @@ On review, consider:
 
 - Whether supply is moving toward her goal;
 - Whether the plan is realistically sustainable;
-- Whether the baby's intake remains adequate;
+- Whether the baby's intake remains adequate; a change in expressed output alone does not justify reducing existing supplementation, especially when direct breast milk transfer is unknown;
 - Whether the mother has new pain, discomfort, fatigue, or significant stress.
 
 Distinguish:

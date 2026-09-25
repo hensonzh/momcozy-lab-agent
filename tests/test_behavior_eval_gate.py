@@ -22,6 +22,7 @@ from app.agent_runtime.evals.behavior import (
     load_behavior_suite,
 )
 from app.bootstrap import TOOL_CATALOG
+from app.agent_runtime.safety import RuntimeSafetyPolicy
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -89,10 +90,28 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         "lactation_guidance_persistent_lump",
         "lactation_guidance_high_supply",
         "lactation_guidance_plan_boundary",
+        "lactation_case_family_pressure_goal_pivot",
+        "lactation_case_prolonged_feed_intake_reassessment",
+        "lactation_case_oversupply_new_symptoms_revision",
+        "lactation_case_return_to_work_sustainable_plan",
+        "lactation_case_white_spot_separate_night_feeds",
     }
     assert all(case.quality_rubric is not None for case in suite.cases)
     assert frozenset(TOOL_CATALOG.tool_names) <= KNOWN_TOOL_NAMES
     assert all(set(case.structural_expectation.required_tools) <= set(TOOL_CATALOG.tool_names) for case in suite.cases)
+
+
+def test_clinic_inspired_turns_reach_the_model_for_quality_review() -> None:
+    suite = load_behavior_suite(CATALOG_PATH)
+    cases = [case for case in suite.cases if "clinic_case_inspired" in case.tags]
+    policy = RuntimeSafetyPolicy()
+
+    assert len(cases) == 5
+    for case in cases:
+        assert case.status == "active"
+        assert len(case.turns) == len(case.turn_expectations) == 3
+        assert case.quality_rubric is not None
+        assert all(policy.evaluate(turn.content).decision == "allow" for turn in case.turns)
 
 
 def test_suite_rejects_unknown_fields_wrong_version_and_duplicate_case_ids() -> None:

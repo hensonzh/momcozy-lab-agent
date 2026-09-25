@@ -50,10 +50,10 @@ Choose the next step based on her circumstances:
   → Do not insist on a fixed number of pumping sessions. Find the most realistic opportunities, then adjust to supply and physical response.
 
 - **Supply appears to have fallen markedly after returning to work**
-  → Load `milk-supply-assessment.md` as needed to assess whether supply and demand have actually changed; if she wants to increase or maintain supply, then load `milk-supply-management.md`.
+  → Compare output over similar periods and pumping conditions, and review missed milk-removal opportunities rather than diagnosing low infant intake from a few pump sessions. Load `milk-supply-assessment.md` as needed; if she wants to increase or maintain supply, then load `milk-supply-management.md`.
 
 - **Pumping at work is painful or ineffective**
-  → Load `pumping-support.md` and prioritize comfort and effective milk removal.
+  → Load `pumping-support.md` and prioritize comfort and effective milk removal; do not prescribe extra night pumping to compensate for a painful or unsustainable daytime routine.
 
 - **Frequent engorgement, lumps, or pain after returning**
   → Load `breast-symptoms.md`; do not rely only on extra pumping or repeatedly emptying the breasts.
@@ -78,7 +78,7 @@ Build the return-to-work plan around three parts of the day:
    - Return to direct breastfeeding, bottles, or a combination according to their needs;
    - Do not add a substantial burden just to “make up” for daytime sessions.
 
-If supply needs adjustment, adapt the plan to actual trends rather than setting a long-term fixed schedule all at once.
+If supply needs adjustment, adapt the plan to actual trends rather than setting a long-term fixed schedule all at once. Review the baby's intake and growth, the mother's comfort and sleep, and whether the agreed workday opportunity is actually feasible; a higher pump volume alone is not success if pain or burden increases.
 
 ## Response Guidance
 

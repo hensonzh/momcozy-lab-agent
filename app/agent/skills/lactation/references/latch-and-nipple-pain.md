@@ -47,7 +47,7 @@ Choose the next step according to the assessment:
   → Describe basic adjustments the user can try, such as bringing the baby's body closer and waiting for a wide-open mouth before latching; observe whether pain and swallowing improve afterward.
 
 - **Clear nipple irritation or injury**
-  → Prioritize reducing further friction and injury while looking for the cause of pain; advise professional evaluation if symptoms persist or worsen.
+  → Prioritize reducing further friction and injury while looking for the cause of pain; advise professional evaluation if symptoms persist or worsen. If she describes a recurrent white spot or blister, do not identify its cause from color alone or advise picking, piercing, unroofing, or forcefully squeezing it.
 
 - **Significant pain whose cause cannot be identified from text**
   → Do not repeatedly guess at a specific latch problem. Recommend an in-person or live video assessment by an IBCLC or another appropriate professional.

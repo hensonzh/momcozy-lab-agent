@@ -47,7 +47,7 @@ Choose the next step according to the assessment:
   → Continue breastfeeding according to the baby's needs or pumping on the existing schedule. Avoid frequent extra pumping solely to eliminate a lump. Cooling may help discomfort, depending on the user's situation.
 
 - **A localized lump, tenderness, or redness**
-  → Avoid deep massage, forceful pressure, or repeatedly trying to pump the breast completely empty. Watch whether symptoms improve or spread, and consider professional assessment according to severity.
+  → Avoid deep massage, forceful pressure, or repeatedly trying to pump the breast completely empty. Watch whether symptoms improve or spread; if a focal lump or pain persists rather than improving, arrange clinical examination instead of assuming it will resolve by itself.
 
 - **Clear oversupply as well**
   → Load `milk-supply-assessment.md` or `milk-supply-management.md` as needed. Do not respond by simply pumping more, which may further stimulate production.
@@ -58,7 +58,7 @@ Choose the next step according to the assessment:
 - **Fever, chills, marked systemic illness, rapidly worsening redness or pain, or symptoms that continue to worsen**
   → Advise prompt assessment by a clinician or medical facility; do not rely only on home measures.
 
-Consider the mother's pain, need for rest, feeding goals, and actual feeding method. Do not require her to tolerate significant pain or excessive milk removal to maintain supply.
+Consider the mother's pain, need for rest, feeding goals, and actual feeding method. If stopping unnecessary extra pumping still leaves uncomfortable fullness, modest hand expression or pumping for comfort can be considered; do not turn "avoid emptying" into "never relieve discomfort." Do not require her to tolerate significant pain or excessive milk removal to maintain supply.
 
 ## Images and Privacy Boundary
 

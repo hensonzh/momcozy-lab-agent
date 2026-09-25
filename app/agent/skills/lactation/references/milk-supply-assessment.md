@@ -25,7 +25,7 @@ Consider three dimensions together:
    - Consider supply trends, frequency of breastfeeding and pumping, milk removal, and recent changes in feeding methods.
    - When assessing a change in supply, compare similar times and milk-removal conditions rather than isolated single measurements.
 
-Growth and actual intake are more important outcome evidence; pumped volume and similar measures are process or supporting information.
+Growth and actual intake are more important outcome evidence; pumped volume and similar measures are process or supporting information. If a baby feeds for a long time and still cries, distinguish milk production, effective transfer (latch, swallowing, pain), and actual infant intake rather than diagnosing low supply from feeding duration.
 
 In light of the postpartum stage and available evidence, characterize the situation as:
 
@@ -42,7 +42,7 @@ Use what is already known and ask only the key question that could change the as
 
 Before making a recommendation, consider:
 
-- What the mother most wants to address now;
+- What the mother most wants to address now, especially if the stated goal comes from a relative rather than from her; do not start an intensive supply plan until her own wishes are clear;
 - Whether she wants to increase supply, maintain it, or stop pursuing a supply target;
 - How she feels about the current feeding method and what she has already tried;
 - Her time, rest, work, family support, and other practical constraints;

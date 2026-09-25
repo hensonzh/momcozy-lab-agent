@@ -52,7 +52,7 @@ Choose the next step according to the assessment and the user's request:
   → Explain the key supporting evidence. Do not assume supplementation is needed because the baby cries or feeds frequently.
 
 - **Possible inadequate intake**
-  → Prioritize ensuring the baby gets enough to eat and assess possible causes. If low supply may be a factor, also use `milk-supply-assessment.md`.
+  → Prioritize ensuring the baby gets enough to eat and assess possible causes. Do not remove existing supplementation merely to increase breastfeeding or because pumping output improved; any change should account for the baby's actual intake and any existing care plan. If low supply may be a factor, also use `milk-supply-assessment.md`.
 
 - **Intake concerns together with a growth concern**
   → Load `infant-growth-assessment.md` for an integrated assessment rather than focusing only on the amount at one feed.
@@ -66,7 +66,9 @@ Do not assume:
 
 Determine the next step with the mother in light of the baby's actual situation, her feeding goals, and her practical circumstances.
 
-If the baby shows markedly abnormal alertness, is difficult to wake, has a marked decrease in intake, or has another safety concern, follow the shared safety guidelines first.
+If the baby shows markedly abnormal alertness, is difficult to wake, has a marked decrease in wet diapers or intake, or has another safety concern, advise prompt medical assessment rather than waiting for a feeding-position or supply experiment. Follow the shared safety guidelines first when urgent risk is present.
+
+For questions about reducing night feeds in an older infant, consider whether they are still a meaningful source of intake, daytime feeding and growth, and the mother's wish to sleep more. Do not assume night waking is only for comfort or that breast milk loses nutritional value at a particular birthday.
 
 ## Response Guidance
 
