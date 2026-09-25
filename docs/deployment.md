@@ -1,7 +1,11 @@
 # Agent Runtime Deployment
 
-Updated: 2026-09-24. The deployable environment names are `staging` and
+Updated: 2026-09-25. The deployable environment names are `staging` and
 `production`; `test` is reserved for pytest and ephemeral CI.
+
+For the single cross-repository file/command matrix (Backend, Agent, and Flutter),
+see `app/docs/deployment/environment-workflow.md` from the workspace root.
+This page documents the Agent-specific release contract.
 
 ## Files
 
@@ -16,6 +20,10 @@ scripts/release.py
 ```
 
 `docker-compose.ci.yml` is a CI-only override. It is never deployed.
+The archived local Azure experiment under `.local/config-archive/` is not a
+deployable env and is not loaded by Compose or the release workflow. If needed,
+review its values and transfer the selected provider settings into the target
+environment's private service env; do not add another `env_file` to Compose.
 
 ## Ownership boundary
 

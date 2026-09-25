@@ -13,7 +13,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 REPORT_SCHEMA_VERSION: Literal['care_report.v1'] = 'care_report.v1'
 REPORT_PROMPT_VERSION: Literal['care_report.2026-09-08.v1'] = 'care_report.2026-09-08.v1'
 MAX_INPUT_BYTES = 96 * 1024
-_NON_ENGLISH_PROSE = re.compile(r'[\u3400-\u9fff\U00020000-\U000323af\u3040-\u30ff\u31f0-\u31ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0900-\u097f]|\bcozy[\s-]*mate\b', re.IGNORECASE)
+_NON_ENGLISH_PROSE = re.compile(r'[\u3400-\u9fff\U00020000-\U000323af\u3040-\u30ff\u31f0-\u31ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0900-\u097f\u0370-\u03ff\u0590-\u05ff\u0e00-\u0e7f]|\bcozy[\s-]*mate\b', re.IGNORECASE)
 
 
 class StrictReportModel(BaseModel):

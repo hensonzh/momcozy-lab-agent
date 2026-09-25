@@ -84,6 +84,9 @@ def test_report_prose_is_english_and_keeps_original_source_quotes() -> None:
             ('summary', '수유 기록을 확인하세요.'),
             ('summary', 'Проверьте кормление.'),
             ('data_gaps', 'لا توجد سجلات.'),
+            ('summary', 'Παρακαλώ καταγράψτε τη σίτιση.'),
+            ('data_gaps', 'אין רשומות.'),
+            ('summary', 'โปรดบันทึกการให้นม'),
         ]:
             invalid = valid_report()
             if field == 'summary':

@@ -43,9 +43,9 @@ def test_system_prompt_owns_identity_tool_selection_and_safety_boundaries() -> N
     )
 
 
-def test_system_prompt_requires_english_for_the_app() -> None:
-    assert "Reply in English" in AGENT.instructions
-    assert "Reply in the user’s primary language" not in AGENT.instructions
+def test_system_prompt_follows_the_user_primary_language() -> None:
+    assert "Reply in the user’s primary language" in AGENT.instructions
+    assert "Reply in English throughout" not in AGENT.instructions
 
 
 def test_service_skills_are_complete_domain_contracts() -> None:
@@ -87,7 +87,9 @@ def test_system_prompt_defines_supportive_care_behavior() -> None:
             "Respect the user’s choices",
             "Clarify misconceptions gently",
             "Find solutions together",
-            "Provide information progressively and as needed",
+            "Build on each turn",
+            "do not ask again about matters already answered",
+            "Do not turn the professional assessment framework into a checklist of questions",
             "Strengthen self-efficacy",
         )
     )
