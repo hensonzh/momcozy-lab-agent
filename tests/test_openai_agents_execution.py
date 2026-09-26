@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 import pytest
+import httpx
 from agents.agent_output import AgentOutputSchemaBase
 from agents.handoffs import Handoff
 from agents.items import ModelResponse, TResponseInputItem
@@ -102,6 +103,38 @@ def test_sdk_runner_owns_the_business_tool_round_trip() -> None:
         and item.get("call_id") == "profile-call"
         for item in model.requests[1].input_items
     )
+
+
+def test_sdk_retries_one_network_disconnect_after_a_tool_turn() -> None:
+    model = ScriptedAgentModel(
+        {
+            "cozymate": [
+                ScriptedTurn.calls(
+                    ScriptedToolCall(
+                        call_id="load-skill",
+                        name="load_service_skill",
+                        arguments={"skill_id": "lactation"},
+                    )
+                ),
+                httpx.ReadError("stream disconnected"),
+                ScriptedTurn.final("继续。"),
+            ]
+        }
+    )
+    port = RecordingExecutionPort()
+
+    result = asyncio.run(
+        _engine(model).execute(
+            input_items=({"role": "user", "content": "喂养问题"},),
+            port=port,
+            authorization_permissions=_all_tool_permissions(),
+        )
+    )
+
+    assert result.text == "继续。"
+    assert len(model.requests) == 3
+    assert [call[2] for call in port.tool_calls] == ["load-skill"]
+    assert model.requests[1].input_items == model.requests[2].input_items
 
 
 def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:

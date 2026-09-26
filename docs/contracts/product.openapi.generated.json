@@ -5584,7 +5584,7 @@
               "type": "string"
             },
             "maxItems": 11,
-            "minItems": 4,
+            "minItems": 3,
             "title": "Order",
             "type": "array"
           }

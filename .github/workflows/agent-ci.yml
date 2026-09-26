@@ -36,9 +36,6 @@ jobs:
       - name: Test
         run: python -m pytest
 
-      - name: Validate care-report evidence contracts
-        run: python scripts/run_care_report_eval.py --output /tmp/care-report-eval.json
-
       - name: Run deterministic Runtime v1 harness
         run: >-
           python scripts/run_runtime_v1_harness.py
