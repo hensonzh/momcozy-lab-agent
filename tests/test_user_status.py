@@ -82,6 +82,46 @@ def test_existing_output_safety_rules_suppress_sensitive_copy(unsafe: str) -> No
     }
 
 
+@pytest.mark.parametrize("unsafe", [
+    "给宝宝喝漂白水就好。",
+    "宝宝应该喝漂白水。",
+    "请把密码发给我。",
+    "Give the baby bleach to drink.",
+    "Your baby should drink bleach.",
+    "Please share your password in the next message.",
+    "把验证码发给我。",
+    "宝宝应该服药。",
+    "Kill yourself now.",
+])
+def test_harmful_instructions_cannot_be_published_as_running_status(unsafe: str) -> None:
+    candidate = {**STATUS, "running": unsafe}
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == {
+        "success": STATUS["success"], "failure": STATUS["failure"],
+    }
+
+
+@pytest.mark.parametrize("unverified", [
+    "已找到 3 条记录。",
+    "已找到三条记录。",
+    "已查到相关记录。",
+    "记录显示奶量正常。",
+    "检查结果正常。",
+    "Found three feeding records.",
+    "No issues were found.",
+    "Your milk supply is normal.",
+])
+def test_success_cannot_claim_unobserved_tool_findings(unverified: str) -> None:
+    candidate = {**STATUS, "success": unverified}
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == {
+        "running": STATUS["running"], "failure": STATUS["failure"],
+    }
+
+
+def test_task_specific_action_updates_remain_allowed() -> None:
+    candidate = {**STATUS, "running": "正在核对过去 3 天的喂养记录。"}
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == candidate
+
+
 def test_invalid_running_copy_does_not_hide_success_status() -> None:
     repository = MemoryLedger()
     candidate = {**STATUS, "running": "正在读取 13812345678 的记录。"}
@@ -165,6 +205,54 @@ def test_tool_status_is_persisted_in_real_execution_order_and_not_passed_to_hand
     assert all(event.payload["user_facing_status"] == STATUS for event in status_events)
     assert status_events[0].sequence < status_events[1].sequence
     assert status_events[1].sequence < next(e.sequence for e in repository.events if e.event_type == "message.completed")
+
+
+@pytest.mark.parametrize(("success_copy", "expected_visible"), [
+    ("已找到 3 条记录。", False),
+    ("这次喂养记录已核对。", True),
+])
+def test_success_on_empty_result_only_reports_completed_work(success_copy: str, expected_visible: bool) -> None:
+    repository = MemoryLedger()
+    candidate = {**STATUS, "success": success_copy}
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="empty-records", name="fixture_read", namespace="fixture",
+            arguments={"infant_scope": "all", STATUS_ARGUMENT_KEY: candidate},
+        )),
+        ScriptedTurn.final("这次没有记录。"),
+    ]})
+    executor = RecordingToolExecutor(repository, result=ToolResult.json({"ok": True, "items": []}))
+    run = asyncio.run(_loop(repository=repository, provider=provider,
+                            tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
+
+    assert run.status == "completed"
+    assert executor.calls == [("fixture_read", "empty-records", {"infant_scope": "all"})]
+    status_events = [event.payload for event in repository.events if event.payload.get("phase") == "tool_status"]
+    assert [event["outcome"] for event in status_events] == ["running", "success"]
+    assert all(("success" in event["user_facing_status"]) is expected_visible for event in status_events)
+    assert all("已找到 3 条" not in str(event) for event in status_events)
+
+
+def test_harmful_status_is_not_persisted_before_tool_execution() -> None:
+    repository = MemoryLedger()
+    candidate = {**STATUS, "running": "给宝宝喝漂白水就好。"}
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="unsafe-running", name="fixture_read", namespace="fixture",
+            arguments={"infant_scope": "all", STATUS_ARGUMENT_KEY: candidate},
+        )),
+        ScriptedTurn.final("已整理。"),
+    ]})
+    executor = RecordingToolExecutor(repository)
+    run = asyncio.run(_loop(repository=repository, provider=provider,
+                            tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
+
+    assert run.status == "completed"
+    assert executor.calls == [("fixture_read", "unsafe-running", {"infant_scope": "all"})]
+    status_events = [event.payload for event in repository.events if event.payload.get("phase") == "tool_status"]
+    assert [event["outcome"] for event in status_events] == ["running", "success"]
+    assert all("running" not in event["user_facing_status"] for event in status_events)
+    assert all("漂白水" not in str(event) for event in status_events)
 
 
 def test_business_level_failure_is_not_reported_as_success() -> None:
