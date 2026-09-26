@@ -23,6 +23,8 @@ Momcozy AI registers a lactation Skill loader and a bounded, read-only records t
 `app/agent/skills/lactation/SKILL.md` 只维护高频问题路由、共用工作方式和安全边界；具体方案维护在 `app/agent/skills/lactation/references/*.md`。当前八个专题覆盖奶量评估、奶量管理、宝宝摄入、宝宝生长、含乳与乳头疼痛、吸奶支持、乳房症状和返工喂养。文件名、frontmatter `name`、`reference_id` 与交叉引用统一使用小写连接线；注册表按文件名稳定排序，不使用无业务语义的 `order` 参数。目录不分版本；每个文档由独立内容指纹识别，工具回执的 Schema 版本不代表内容版本。
 没有 deferred namespace，不向模型提供 ToolSearchTool。工具调用保持串行。
 
+工具状态文案由模型在本次工具调用的 `user_facing_status` 参数中现场写出 `running`、`success`、`failure` 三句话，不使用固定候选词库，也不检查语言。Runtime 在执行前发出 `running`，执行后按真实结果选 `success` 或 `failure`；单个阶段的文案缺失、格式不合适或触发现有输出安全规则时仅省略该阶段，不影响其余阶段或工具执行；没有任何有效文案时不显示工具状态，不回退到固定英文文案。状态文案不作长度拦截。状态字段从业务参数中剥离，不传给工具 handler。
+
 ## 事实与能力边界
 
 泌乳咨询使用用户提供的信息与当前 Run 的基础资料上下文；确有需要时可按主题限量读取当前用户记录，不修改记录、计划或日程，也不创建咨询卡片或工单。

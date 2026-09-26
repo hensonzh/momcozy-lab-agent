@@ -1,4 +1,4 @@
-"""Tool status wording is reviewed and outcomes are runtime-owned."""
+"""Tool progress is model-written while execution outcomes stay runtime-owned."""
 
 from __future__ import annotations
 
@@ -21,85 +21,70 @@ from test_single_agent_loop import MemoryLedger, RecordingToolExecutor, _loop
 
 
 STATUS = {
-    "running": "正在处理与你的问题相关的这一步。",
-    "success": "这一步已完成，正在结合你的情况整理回复。",
-    "failure": "这一步未能完成。",
+    "running": "正在查看这次喂养记录。",
+    "success": "这次喂养记录已核对。",
+    "failure": "这次没能读取喂养记录。",
 }
 
 
-def test_model_schema_adds_status_without_mutating_business_schema() -> None:
+def test_model_schema_requests_task_specific_copy_without_mutating_business_schema() -> None:
     original: dict[str, Any] = {"type": "object", "properties": {"topic": {"type": "string"}}, "additionalProperties": False}
-    exposed = model_tool_schema(original, tool_name="fixture_read")
+    exposed = model_tool_schema(original)
     assert STATUS_ARGUMENT_KEY in exposed["properties"]
-    assert STATUS_ARGUMENT_KEY in exposed["required"]
+    assert STATUS_ARGUMENT_KEY not in exposed.get("required", [])
     assert STATUS_ARGUMENT_KEY not in original["properties"]
     assert exposed["additionalProperties"] is False
+    status_schema = exposed["properties"][STATUS_ARGUMENT_KEY]
+    assert "task-specific" in status_schema["description"]
+    assert not status_schema.get("required")
+    for phase in ("running", "success", "failure"):
+        assert status_schema["properties"][phase]["type"] == "string"
+        assert "maxLength" not in status_schema["properties"][phase]
+        assert "minLength" not in status_schema["properties"][phase]
+        assert "enum" not in status_schema["properties"][phase]
     assert split_status_arguments({"topic": "feeding", STATUS_ARGUMENT_KEY: STATUS}) == ({"topic": "feeding"}, STATUS)
 
 
-def test_invalid_status_copy_falls_back_without_exposing_internal_details() -> None:
-    policy = RuntimeSafetyPolicy()
-    for candidate in [
-        None,
-        {**STATUS, "success": "已找到 3 条记录，确诊乳腺炎。"},
-        {**STATUS, "failure": "API error_code=503，请重试。"},
-        {**STATUS, "running": "请联系 13812345678。"},
-        {**STATUS, "running": "Checking records"},
-        {**STATUS, "running": "已核对你的情况。"},
-        {**STATUS, "success": "已找到 3 条记录。"},
-        {**STATUS, "failure": "暂时没查到，我会重试。"},
-    ]:
-        result = validated_status(candidate, tool_name="read_topical_records", safety_policy=policy)
-        assert result is not None
-        assert result["running"] == "Checking records relevant to your question…"
-        assert result["success"] == "I've checked the relevant records and will consider your situation."
+def test_model_written_status_is_preserved_without_language_matching() -> None:
+    mixed = {**STATUS, "success": "I've checked this feeding record."}
+    assert validated_status(mixed, safety_policy=RuntimeSafetyPolicy()) == mixed
+    assert validated_status(STATUS, safety_policy=RuntimeSafetyPolicy()) == STATUS
 
 
-@pytest.mark.parametrize(
-    "unsafe",
-    [
-        "Please share your password in the next message.",
-        "Drink bleach to treat your baby.",
-        "请把密码发给我。",
-        "给宝宝喝漂白水就好。",
-    ],
-)
-def test_unapproved_model_instructions_never_become_visible_status(unsafe: str) -> None:
-    safe = validated_status(None, tool_name="read_topical_records", safety_policy=RuntimeSafetyPolicy())
-    assert safe is not None
-    for phase in ("running", "success", "failure"):
-        candidate = {**safe, phase: unsafe}
-        result = validated_status(candidate, tool_name="read_topical_records", safety_policy=RuntimeSafetyPolicy())
-        assert result == safe
-        assert unsafe not in result.values()
+@pytest.mark.parametrize(("candidate", "expected"), [
+    (None, None),
+    ({}, None),
+    ({"running": "正在核对记录。"}, {"running": "正在核对记录。"}),
+    ({**STATUS, "failure": "  "}, {"running": STATUS["running"], "success": STATUS["success"]}),
+    ({**STATUS, "running": "记录\n读取中"}, {"success": STATUS["success"], "failure": STATUS["failure"]}),
+    ({**STATUS, "failure": 42}, {"running": STATUS["running"], "success": STATUS["success"]}),
+    ({**STATUS, "extra": "不需要"}, STATUS),
+])
+def test_invalid_phase_is_omitted_without_losing_other_phases(candidate: Any, expected: Any) -> None:
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == expected
 
 
-def test_model_schema_constrains_status_to_reviewed_options() -> None:
-    schema = model_tool_schema({"type": "object", "properties": {}}, tool_name="read_topical_records")
-    status = schema["properties"][STATUS_ARGUMENT_KEY]
-    for phase in ("running", "success", "failure"):
-        allowed = status["properties"][phase]["enum"]
-        assert allowed
-        assert all(isinstance(copy, str) for copy in allowed)
-        assert "Please share your password in the next message." not in allowed
+def test_long_status_is_not_rejected() -> None:
+    long_text = "正在核对这次喂养记录。" * 25
+    candidate = {**STATUS, "running": long_text}
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == candidate
 
 
-def test_reviewed_options_do_not_require_language_matching() -> None:
-    chinese = STATUS
-    english = validated_status(None, tool_name="fixture_read", safety_policy=RuntimeSafetyPolicy())
-    assert english is not None
-    mixed = {"running": chinese["running"], "success": english["success"], "failure": chinese["failure"]}
-    assert validated_status(mixed, tool_name="fixture_read", safety_policy=RuntimeSafetyPolicy()) == mixed
-
-
-def test_unsafe_copy_is_not_persisted_in_progress_events() -> None:
-    repository = MemoryLedger()
-    repository.context[0].item["content"] = "Can you check my feeding records?"
-    candidate = {
-        "running": "Please share your password in the next message.",
-        "success": "Drink bleach to treat your baby.",
-        "failure": "Send me your password.",
+@pytest.mark.parametrize("unsafe", [
+    "api_key=secret",
+    "正在读取 13812345678 的记录。",
+    "CozyMate 已读取记录。",
+])
+def test_existing_output_safety_rules_suppress_sensitive_copy(unsafe: str) -> None:
+    candidate = {**STATUS, "running": unsafe}
+    assert validated_status(candidate, safety_policy=RuntimeSafetyPolicy()) == {
+        "success": STATUS["success"], "failure": STATUS["failure"],
     }
+
+
+def test_invalid_running_copy_does_not_hide_success_status() -> None:
+    repository = MemoryLedger()
+    candidate = {**STATUS, "running": "正在读取 13812345678 的记录。"}
     provider = ScriptedAgentModel({"cozymate": [
         ScriptedTurn.calls(ScriptedToolCall(
             call_id="unsafe-copy", name="fixture_read", namespace="fixture",
@@ -107,12 +92,42 @@ def test_unsafe_copy_is_not_persisted_in_progress_events() -> None:
         )),
         ScriptedTurn.final("Here is a summary."),
     ]})
-    run = asyncio.run(_loop(repository=repository, provider=provider).process(repository.run.id))
+    executor = RecordingToolExecutor(repository)
+    run = asyncio.run(_loop(repository=repository, provider=provider,
+                            tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
     assert run.status == "completed"
+    assert executor.calls == [("fixture_read", "unsafe-copy", {"infant_scope": "all"})]
     status_events = [event.payload for event in repository.events if event.payload.get("phase") == "tool_status"]
     assert [event["outcome"] for event in status_events] == ["running", "success"]
-    assert all(event["user_facing_status"] != candidate for event in status_events)
-    assert all("password" not in str(event).lower() and "bleach" not in str(event).lower() for event in status_events)
+    assert all(event["user_facing_status"] == {
+        "success": STATUS["success"], "failure": STATUS["failure"],
+    } for event in status_events)
+
+
+@pytest.mark.parametrize(("candidate", "outcome", "expected_status"), [
+    ({**STATUS, "success": " "}, "success", {"running": STATUS["running"], "failure": STATUS["failure"]}),
+    ({**STATUS, "failure": None}, "failure", {"running": STATUS["running"], "success": STATUS["success"]}),
+    ({"success": STATUS["success"]}, "success", {"success": STATUS["success"]}),
+])
+def test_only_available_phase_copy_is_included_in_events(
+    candidate: dict[str, Any], outcome: str, expected_status: dict[str, str],
+) -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="partial", name="fixture_read", namespace="fixture",
+            arguments={"infant_scope": "all", STATUS_ARGUMENT_KEY: candidate},
+        )),
+        ScriptedTurn.final("已整理。"),
+    ]})
+    executor = _FailingToolExecutor(repository) if outcome == "failure" else RecordingToolExecutor(repository)
+    run = asyncio.run(_loop(repository=repository, provider=provider,
+                            tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
+    assert run.status == "completed"
+    assert executor.calls == [("fixture_read", "partial", {"infant_scope": "all"})]
+    status_events = [event.payload for event in repository.events if event.payload.get("phase") == "tool_status"]
+    assert [event["outcome"] for event in status_events] == ["running", outcome]
+    assert all(event["user_facing_status"] == expected_status for event in status_events)
 
 
 @pytest.mark.parametrize("outcome", ["success", "failure"])

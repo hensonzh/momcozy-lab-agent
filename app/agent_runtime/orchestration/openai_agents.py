@@ -491,7 +491,7 @@ class ResponsesAgentsExecutionEngine:
         return FunctionTool(
             name=contract.name,
             description=contract.description,
-            params_json_schema=model_tool_schema(contract.input_schema, tool_name=contract.name),
+            params_json_schema=model_tool_schema(contract.input_schema),
             on_invoke_tool=invoke,
             strict_json_schema=False,
             timeout_seconds=None,

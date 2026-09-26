@@ -385,8 +385,10 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     for tool in eager_function_tools.values():
         model_schema = tool["parameters"]
         assert "user_facing_status" in model_schema["properties"]
-        assert "user_facing_status" in model_schema["required"]
-        assert set(model_schema["properties"]["user_facing_status"]["required"]) == {"running", "success", "failure"}
+        assert "user_facing_status" not in model_schema.get("required", [])
+        assert not model_schema["properties"]["user_facing_status"].get("required")
+        for phase in ("running", "success", "failure"):
+            assert "enum" not in model_schema["properties"]["user_facing_status"]["properties"][phase]
     namespaces = {
         tool["name"]: tool
         for tool in request["tools"]

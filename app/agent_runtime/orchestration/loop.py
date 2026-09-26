@@ -602,11 +602,7 @@ class AgentLoop:
         if safety_probe.decision in {"block", "escalate"}:
             await self._record_safety_decision(run=run, decision=safety_probe, event_type="safety.tool")
             return await self._append_tool_error(run=run, call=call, code="safety_guardrail_blocked")
-        status = validated_status(
-            candidate,
-            tool_name=call.name,
-            safety_policy=self.safety_policy,
-        )
+        status = validated_status(candidate, safety_policy=self.safety_policy)
         if status is not None:
             await self._tool_status(run, call_id=call.call_id, status=status, outcome="running")
         principal = self._runtime_principal(run)
