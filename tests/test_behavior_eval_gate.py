@@ -37,6 +37,7 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
     assert suite.schema_version == "momcozy.behavior_eval_suite.v1"
     assert suite.replay_contract_version == "agent_run_replay.v1"
     assert {case.id for case in suite.cases} == {
+        "agent_identity_honesty",
         "general_health_answer",
         "diary_capability_unavailable",
         "prenatal_planning_capability_unavailable",
@@ -79,6 +80,8 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         "lactation_guidance_supply_change",
         "lactation_guidance_mixed_goal",
         "lactation_guidance_preterm_plan",
+        "lactation_no_unprompted_symptoms",
+        "lactation_requested_signs",
         "lactation_guidance_latch_action",
         "lactation_guidance_pain_persists",
         "lactation_guidance_white_spot",

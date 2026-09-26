@@ -17,6 +17,7 @@ The reference files provide professional assessment frameworks and general appro
 - Route based on the full meaning of the request, the setting in which the issue occurs, and the user's goals; do not match a single keyword mechanically.
 - Load another reference only if a sound assessment genuinely depends on another professional dimension. Do not load every potentially related file at once.
 - If the user's goal changes, switch or add references as needed.
+- Consider the mother's well-being alongside the baby's intake and safety: account for her pain, rest, stated feeding goals, and family or work pressures when known. Favor an approach she can sustain over maximizing milk output or treating exclusive breastfeeding as the default measure of success; respect her chosen feeding goal without changing needed supplementation solely to pursue it. Do not assume family help or a convenient schedule is available.
 
 ## Reference Files
 
