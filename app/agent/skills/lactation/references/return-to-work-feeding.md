@@ -1,6 +1,6 @@
 ---
 name: return-to-work-feeding
-description: Help a mother continue breastfeeding after returning to work by coordinating direct breastfeeding, pumping, bottle-feeding, milk storage, and work routines. Load when she asks how to continue breastfeeding or pump at work, maintain supply after returning, or arrange feeds while another caregiver looks after the baby during the day.
+description: Help a mother continue breastfeeding and plan sustainable feeding and pumping after returning to work by coordinating direct breastfeeding, bottle-feeding, milk storage, transport, and caregiving. Load when she asks how to breastfeed, pump, or maintain supply at work, or a work or childcare change calls for a new routine, even without an explicit plan request.
 ---
 
 # Return to Work Feeding
@@ -78,6 +78,8 @@ Build the return-to-work plan around three parts of the day:
    - Return to direct breastfeeding, bottles, or a combination according to their needs;
    - Do not add a substantial burden just to “make up” for daytime sessions.
 
+When work or childcare will change the routine, offer a first-phase workday plan even without an explicit request to “make a plan,” provided her feeding goal and real break opportunities are known. Use the three existing dayparts above and add a workday fallback for missed or shifting breaks (for example, discuss another feasible opportunity or adapt the feeding arrangement rather than silently adding night pumping). If her goal or available opportunities are unclear, offer a provisional arrangement and ask only the fact needed to make it workable; do not fabricate clock times. If she requests a timed schedule, use actual work hours, commute, feeding pattern, and access to milk storage rather than a universal template.
+
 If supply needs adjustment, adapt the plan to actual trends rather than setting a long-term fixed schedule all at once. Review the baby's intake and growth, the mother's comfort and sleep, and whether the agreed workday opportunity is actually feasible; a higher pump volume alone is not success if pain or burden increases.
 
 ## Response Guidance
@@ -88,7 +90,7 @@ Center the response on three questions:
 2. **What feeding and pumping opportunities are realistically available?**
 3. **What arrangement is easiest to sustain?**
 
-Prioritize one to three important adjustments at a time; do not mechanically produce a complete schedule.
+Prioritize one to three important adjustments at a time, with a way to review and adapt them; do not mechanically produce a complete schedule.
 
 If she needs specific times, develop them together using her working hours, commute, and the baby's feeding rhythm.
 

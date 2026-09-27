@@ -12,6 +12,7 @@ RUNTIME_TABLES = {
     "agent_eval_cases",
     "agent_events",
     "agent_messages",
+    "agent_notification_receipts",
     "agent_runs",
     "agent_threads",
     "agent_thread_context_heads",

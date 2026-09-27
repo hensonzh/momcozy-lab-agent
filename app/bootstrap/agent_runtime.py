@@ -137,10 +137,12 @@ def build_runtime_contract_catalog_snapshot(
     policy_rules: Mapping[str, ActionPolicyRule] | None = None,
 ) -> dict[str, Any]:
     selected_registry = registry or build_runtime_tool_registry()
+    available_rules = build_action_policy_rules()
     selected_rules = dict(
-        build_action_policy_rules()
-        if policy_rules is None
-        else policy_rules
+        {action_type: available_rules[action_type]
+         for contract in selected_registry.list() for action_type in contract.action_types
+         if action_type in available_rules}
+        if policy_rules is None else policy_rules
     )
     validate_runtime_contracts(
         registry=selected_registry,
@@ -218,7 +220,7 @@ def validate_runtime_contracts(
 ) -> None:
     """Fail closed when Tool and Action authorization metadata diverge."""
 
-    rules = dict(policy_rules or build_action_policy_rules())
+    rules = dict(build_action_policy_rules() if policy_rules is None else policy_rules)
     bindings: dict[str, list[str]] = {}
     contracts = {contract.name: contract for contract in registry.list()}
     for contract in contracts.values():

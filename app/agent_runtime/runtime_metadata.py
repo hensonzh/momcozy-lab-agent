@@ -59,7 +59,7 @@ COMPACTION_PROMPT_VERSION: Final = "agent_context_compaction.v2"
 
 REPLAY_SCHEMA_VERSION: Final[ReplaySchemaVersion] = "agent_run_replay.v1"
 RUNTIME_SAFETY_POLICY_VERSION: Final = "momcozy.runtime_safety.v1"
-SERVICE_SKILL_SCHEMA_VERSION: Final = "momcozy.service_skill.v3"
+SERVICE_SKILL_SCHEMA_VERSION: Final = "momcozy.service_skill.v1"
 
 BEHAVIOR_SUITE_SCHEMA_VERSION: Final[BehaviorSuiteSchemaVersion] = "momcozy.behavior_eval_suite.v1"
 BEHAVIOR_RUN_MAP_SCHEMA_VERSION: Final[BehaviorRunMapSchemaVersion] = "momcozy.behavior_eval_run_map.v1"

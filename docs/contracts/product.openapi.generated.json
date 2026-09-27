@@ -190,6 +190,59 @@
         "title": "AgentFileResolveResponse",
         "type": "object"
       },
+      "AgentUpdateRead": {
+        "additionalProperties": false,
+        "properties": {
+          "notification_id": {
+            "format": "uuid",
+            "title": "Notification Id",
+            "type": "string"
+          },
+          "send_status": {
+            "title": "Send Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "notification_id",
+          "send_status"
+        ],
+        "title": "AgentUpdateRead",
+        "type": "object"
+      },
+      "AgentUpdateWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "format": "uuid",
+            "title": "Owner User Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "owner_user_id",
+          "thread_id",
+          "completed_at"
+        ],
+        "title": "AgentUpdateWrite",
+        "type": "object"
+      },
       "BabyProfileList": {
         "properties": {
           "items": {
@@ -699,6 +752,58 @@
         "title": "BabyRecordWrite",
         "type": "object"
       },
+      "BatchItem": {
+        "additionalProperties": false,
+        "properties": {
+          "op": {
+            "enum": [
+              "create",
+              "update"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "resource_id",
+          "revision"
+        ],
+        "title": "BatchItem",
+        "type": "object"
+      },
+      "BatchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "batch_id",
+          "items"
+        ],
+        "title": "BatchResult",
+        "type": "object"
+      },
       "Body_transcribe_speech_chunk_v1_speech_transcribe_chunk_post": {
         "properties": {
           "file": {
@@ -1093,17 +1198,10 @@
         "additionalProperties": false,
         "properties": {
           "confirm_password": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "minLength": 8,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confirm Password"
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Confirm Password",
+            "type": "string"
           },
           "device_id": {
             "default": "",
@@ -1132,6 +1230,7 @@
         },
         "required": [
           "password",
+          "confirm_password",
           "email",
           "token"
         ],
@@ -2977,7 +3076,7 @@
           "baby_count": {
             "anyOf": [
               {
-                "maximum": 3.0,
+                "maximum": 6.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -3013,7 +3112,9 @@
               {
                 "enum": [
                   "vaginal",
-                  "cesarean"
+                  "cesarean",
+                  "assisted_vaginal",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -3043,11 +3144,13 @@
                   "enum": [
                     "direct",
                     "expressed",
-                    "formula"
+                    "formula",
+                    "unknown"
                   ],
                   "type": "string"
                 },
                 "maxItems": 3,
+                "minItems": 1,
                 "type": "array"
               },
               {
@@ -3741,6 +3844,20 @@
             "title": "Age",
             "type": "integer"
           },
+          "client_timezone_offset_minutes": {
+            "anyOf": [
+              {
+                "maximum": 840.0,
+                "minimum": -720.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Device UTC offset in minutes, used only to validate its local delivery date.",
+            "title": "Client Timezone Offset Minutes"
+          },
           "delivery_count": {
             "description": "Number of deliveries including this birth.",
             "maximum": 20.0,
@@ -3775,6 +3892,33 @@
             "minLength": 1,
             "title": "Display Name",
             "type": "string"
+          },
+          "feeding_methods": {
+            "items": {
+              "enum": [
+                "direct",
+                "expressed",
+                "formula",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Feeding Methods",
+            "type": "array"
+          },
+          "gestation_days": {
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Gestation Days",
+            "type": "integer"
+          },
+          "gestation_weeks": {
+            "maximum": 45.0,
+            "minimum": 20.0,
+            "title": "Gestation Weeks",
+            "type": "integer"
           },
           "has_cesarean_history": {
             "anyOf": [
@@ -3815,6 +3959,9 @@
           "age",
           "delivery_date",
           "delivery_count",
+          "gestation_weeks",
+          "gestation_days",
+          "feeding_methods",
           "infant_count",
           "infants"
         ],
@@ -3855,9 +4002,45 @@
         "title": "OnboardingStateOutput",
         "type": "object"
       },
+      "PasswordChangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Confirm Password",
+            "type": "string"
+          },
+          "current_password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password",
+          "confirm_password"
+        ],
+        "title": "PasswordChangeRequest",
+        "type": "object"
+      },
       "PasswordResetConfirmRequest": {
         "additionalProperties": false,
         "properties": {
+          "confirm_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Confirm Password",
+            "type": "string"
+          },
           "email": {
             "maxLength": 320,
             "minLength": 3,
@@ -3880,7 +4063,8 @@
         "required": [
           "email",
           "token",
-          "new_password"
+          "new_password",
+          "confirm_password"
         ],
         "title": "PasswordResetConfirmRequest",
         "type": "object"
@@ -3934,7 +4118,7 @@
           "baby_count": {
             "anyOf": [
               {
-                "maximum": 3.0,
+                "maximum": 6.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -3972,7 +4156,8 @@
                   "enum": [
                     "direct",
                     "expressed",
-                    "formula"
+                    "formula",
+                    "unknown"
                   ],
                   "type": "string"
                 },
@@ -5544,6 +5729,36 @@
         "title": "PushInstallationWrite",
         "type": "object"
       },
+      "RecordBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/RecordOperation"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Operations",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "timezone",
+          "operations"
+        ],
+        "title": "RecordBatch",
+        "type": "object"
+      },
       "RecordDeletion": {
         "properties": {
           "id": {
@@ -5561,6 +5776,433 @@
           "version"
         ],
         "title": "RecordDeletion",
+        "type": "object"
+      },
+      "RecordFields": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "consistency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency"
+          },
+          "diaper_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "wet",
+                  "dirty",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diaper Kind"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 240.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "head_circumference_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 150.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Circumference Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 150.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "latch_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Stayed latched",
+                  "Came off easily",
+                  "Could not latch",
+                  "\u542b\u5f97\u7a33",
+                  "\u5bb9\u6613\u677e\u5f00",
+                  "\u542b\u4e0d\u4f4f"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latch Status"
+          },
+          "measurement_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "home",
+                  "clinic",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Source"
+          },
+          "mental_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "active",
+                  "crying",
+                  "drowsy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mental State"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "breastfeeding",
+                  "expressed_milk",
+                  "formula"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "enum": [
+                  "weight",
+                  "length",
+                  "head_circumference"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "pain_score": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pain Score"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "recorded_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded On"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "signs": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "blood",
+                    "mucus"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signs"
+          },
+          "stool_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Count"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 150.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 50.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "wet_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wet Count"
+          }
+        },
+        "title": "RecordFields",
+        "type": "object"
+      },
+      "RecordOperation": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "$ref": "#/components/schemas/RecordFields"
+          },
+          "infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infant Id"
+          },
+          "op": {
+            "enum": [
+              "create",
+              "update"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          },
+          "record_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "baby_records",
+                  "feeding_records",
+                  "pumping_records",
+                  "mother_observations",
+                  "growth_records"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Source"
+          },
+          "record_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "event",
+                  "daily_summary"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Type"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "topic": {
+            "enum": [
+              "feeding",
+              "pumping",
+              "diaper",
+              "pain",
+              "growth",
+              "latch",
+              "after_feeding_mood"
+            ],
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "topic",
+          "fields"
+        ],
+        "title": "RecordOperation",
         "type": "object"
       },
       "RecordOrder": {
@@ -5672,6 +6314,129 @@
           "enabled"
         ],
         "title": "ReminderWrite",
+        "type": "object"
+      },
+      "ScheduleBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleOperation"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Operations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "operations"
+        ],
+        "title": "ScheduleBatch",
+        "type": "object"
+      },
+      "ScheduleFields": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "ScheduleFields",
+        "type": "object"
+      },
+      "ScheduleOperation": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Updated At"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/ScheduleFields"
+          },
+          "op": {
+            "enum": [
+              "create",
+              "update"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "op",
+          "fields"
+        ],
+        "title": "ScheduleOperation",
         "type": "object"
       },
       "SchedulePageRead": {
@@ -6186,10 +6951,48 @@
               "pumping",
               "diaper",
               "pain",
-              "growth"
+              "growth",
+              "latch",
+              "after_feeding_mood"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "latch_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Stayed latched",
+                  "Came off easily",
+                  "Could not latch",
+                  "\u542b\u5f97\u7a33",
+                  "\u5bb9\u6613\u677e\u5f00",
+                  "\u542b\u4e0d\u4f4f"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latch Status"
+          },
+          "mental_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "active",
+                  "crying",
+                  "drowsy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mental State"
           },
           "method": {
             "anyOf": [
@@ -6247,6 +7050,11 @@
             ],
             "title": "Phase"
           },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
           "record_type": {
             "anyOf": [
               {
@@ -6273,6 +7081,10 @@
               }
             ],
             "title": "Recorded On"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
           },
           "side": {
             "anyOf": [
@@ -6368,6 +7180,8 @@
         },
         "required": [
           "source",
+          "record_id",
+          "revision",
           "kind"
         ],
         "title": "TopicalRecord",
@@ -6425,7 +7239,9 @@
               "pumping",
               "diaper",
               "pain",
-              "growth"
+              "growth",
+              "latch",
+              "after_feeding_mood"
             ],
             "title": "Topic",
             "type": "string"
@@ -6921,6 +7737,58 @@
           "flutter"
         ],
         "x-momcozy-owner": "product-assets",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/auth/change-password": {
+      "post": {
+        "operationId": "change_password_v1_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change Password",
+        "tags": [
+          "auth"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "auth",
         "x-momcozy-stability": "stable"
       }
     },
@@ -9438,6 +10306,71 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/internal/agent/notifications/reply-ready": {
+      "post": {
+        "operationId": "agent_reply_ready_v1_internal_agent_notifications_reply_ready_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentUpdateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentUpdateRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Reply Ready",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "notifications",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/internal/agent/profile": {
       "get": {
         "operationId": "read_agent_profile_v1_internal_agent_profile_get",
@@ -9570,7 +10503,9 @@
                 "pumping",
                 "diaper",
                 "pain",
-                "growth"
+                "growth",
+                "latch",
+                "after_feeding_mood"
               ],
               "title": "Topic",
               "type": "string"
@@ -9672,6 +10607,278 @@
           }
         },
         "summary": "Read Agent Topical Records",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/records/batch": {
+      "post": {
+        "operationId": "write_agent_records_v1_internal_agent_records_batch_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Agent Records",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/schedule": {
+      "get": {
+        "operationId": "read_agent_schedule_v1_internal_agent_schedule_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Start Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 10000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulePageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Schedule",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "profiles",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/internal/agent/schedule/batch": {
+      "post": {
+        "operationId": "write_agent_schedule_v1_internal_agent_schedule_batch_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Agent Schedule",
         "tags": [
           "internal-agent"
         ],

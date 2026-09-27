@@ -793,11 +793,12 @@ class FakeActionRepository:
         action: AgentAction,
         failed_at: datetime,
         error_code: str,
+        failure_payload: dict[str, Any] | None = None,
     ) -> AgentAction:
         action.status = "failed"
         action.failed_at = failed_at
         action.error_code = error_code
-        action.result_payload = {}
+        action.result_payload = {"failure": failure_payload} if failure_payload else {}
         return action
 
     async def mark_action_expired(

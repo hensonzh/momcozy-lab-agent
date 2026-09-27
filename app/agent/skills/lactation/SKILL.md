@@ -1,6 +1,6 @@
 ---
 name: lactation
-description: Provides professional support for common lactation and milk-supply concerns. Load this Skill when the user raises issues such as milk-supply concerns, infant growth or intake concerns, latch difficulties, nipple pain, pumping discomfort, breast engorgement, firmness, or pain.
+description: Provides professional support for common lactation and milk-supply concerns, including sustainable supply and return-to-work feeding plans. Load this Skill when the user raises issues such as milk-supply concerns, infant growth or intake concerns, latch difficulties, nipple pain, pumping discomfort, breast engorgement, firmness, or pain, or workday feeding changes.
 ---
 
 # Lactation Skill
@@ -15,9 +15,17 @@ The reference files provide professional assessment frameworks and general appro
 
 - Identify the user's **main concern** first and prioritize loading one primary reference file.
 - Route based on the full meaning of the request, the setting in which the issue occurs, and the user's goals; do not match a single keyword mechanically.
-- Load another reference only if a sound assessment genuinely depends on another professional dimension. Do not load every potentially related file at once.
+- Load another reference only if sound judgment or the next step genuinely depends on another professional dimension. Do not load every potentially related file at once.
 - If the user's goal changes, switch or add references as needed.
 - Consider the mother's well-being alongside the baby's intake and safety: account for her pain, rest, stated feeding goals, and family or work pressures when known. Favor an approach she can sustain over maximizing milk output or treating exclusive breastfeeding as the default measure of success; respect her chosen feeding goal without changing needed supplementation solely to pursue it. Do not assume family help or a convenient schedule is available.
+
+## When a Plan Would Help
+
+Recognize a planning opportunity from a repeated feeding or supply-management difficulty, a practical change such as returning to work, or a request to rearrange feeding or pumping—without waiting for the word plan. A one-off pumping change or a simple question does not by itself call for a supply plan. Notice a possible need for a plan, but do not infer that she wants to increase or reduce supply; the mother's own goal determines the direction.
+
+Use `milk-supply-assessment.md` when the main concern is whether supply has changed, `infant-intake-assessment.md` when the main concern is whether the baby gets enough milk, `milk-supply-management.md` for a supply-adjustment goal, and `return-to-work-feeding.md` for workday arrangements. When the goal and relevant constraints are clear, offer a small, adjustable first-phase plan without asking permission to give advice. If a missing goal or fact would change the direction, address what is known and ask the one most useful question before specifying a regimen. Expand into a detailed schedule only when the user wants it and real timing is known; keep the review point and room to revise.
+
+A conversational plan is not a saved App plan. Neither drafting nor agreeing to advice authorizes a record or calendar write; any such request remains subject to the global write-tool confirmation rules, and a calendar entry is not a reminder.
 
 ## Reference Files
 
@@ -36,14 +44,14 @@ If the assessment requires a closer look at whether the baby is getting enough m
 
 ### `milk-supply-management.md` — Adjusting and Managing Milk Supply
 
-Load when the user has clearly said she wants to **increase, maintain, or reduce milk supply** and the main question is what to do next, for example:
+Load when the main task is **adjusting milk supply or the breastfeeding/pumping routine** toward the mother's stated goal, even if she does not call it a plan, for example:
 
 - How can I increase my supply?
 - How can I maintain it?
 - I make too much milk; how can I reduce it?
 - How should I adjust breastfeeding or pumping?
 
-If she first needs to establish whether there is actually a supply problem, load `milk-supply-assessment.md` first.
+If she first needs to establish whether there is actually a supply problem or has not chosen a direction, load `milk-supply-assessment.md` first.
 
 ---
 

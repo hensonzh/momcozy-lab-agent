@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeAlias, TypeVar
+from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -9,12 +10,16 @@ from pydantic import BaseModel, ValidationError
 from app.core.errors import ApiError, DependencyError
 
 from .contracts import (
+    AgentReplyReadyRequest,
+    AgentReplyReadyResponse,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
     ProfileReadRequest,
     ProfileReadResponse,
     TopicalRecordsReadRequest,
     TopicalRecordsReadResponse,
+    AgentRecordBatchRequest, AgentScheduleBatchRequest, AgentBatchResponse,
+    AgentScheduleReadRequest, AgentScheduleReadResponse,
 )
 
 
@@ -40,6 +45,14 @@ class ProductBackendClient:
     ) -> None:
         self.http_client = http_client
         self.service_key = service_key
+
+    async def notify_agent_reply_ready(self, *, command: AgentReplyReadyRequest, request_id: str) -> AgentReplyReadyResponse:
+        return await self._request_model(
+            "POST", "/v1/internal/agent/notifications/reply-ready",
+            response_model=AgentReplyReadyResponse,
+            json=command.model_dump(mode="json"),
+            request_id=request_id,
+        )
 
     async def require_active_account(self, *, access_token: str, user_id: str) -> None:
         # No positive cache: logout/reset/deletion must affect the next request.
@@ -105,6 +118,40 @@ class ProductBackendClient:
             or result.timezone != query.timezone or len(result.items) > query.limit):
             raise _invalid_response()
         return result
+
+
+    async def read_agent_schedule(self, *, query: AgentScheduleReadRequest, request_id: str) -> AgentScheduleReadResponse:
+        response = await self._request_model(
+            "GET", "/v1/internal/agent/schedule", response_model=AgentScheduleReadResponse,
+            params={**query.model_dump(mode="json")}, request_id=request_id,
+        )
+        if len(response.personal) > query.limit:
+            raise _invalid_response()
+        return response
+
+    async def write_agent_records(
+        self, *, command: AgentRecordBatchRequest, idempotency_key: str, request_id: str,
+    ) -> AgentBatchResponse:
+        response = await self._request_model(
+            "POST", "/v1/internal/agent/records/batch", response_model=AgentBatchResponse,
+            json=command.model_dump(mode="json", exclude_unset=True), idempotency_key=idempotency_key, request_id=request_id,
+        )
+        if (response.batch_id != UUID(idempotency_key) or len(response.items) != len(command.operations)
+            or any(item.op != operation.op for item, operation in zip(response.items, command.operations, strict=True))):
+            raise _invalid_response()
+        return response
+
+    async def write_agent_schedule(
+        self, *, command: AgentScheduleBatchRequest, idempotency_key: str, request_id: str,
+    ) -> AgentBatchResponse:
+        response = await self._request_model(
+            "POST", "/v1/internal/agent/schedule/batch", response_model=AgentBatchResponse,
+            json=command.model_dump(mode="json", exclude_unset=True), idempotency_key=idempotency_key, request_id=request_id,
+        )
+        if (response.batch_id != UUID(idempotency_key) or len(response.items) != len(command.operations)
+            or any(item.op != operation.op for item, operation in zip(response.items, command.operations, strict=True))):
+            raise _invalid_response()
+        return response
 
 
     async def resolve_agent_file(
@@ -177,13 +224,14 @@ class ProductBackendClient:
                     retryable=False,
                     dependency_status=response.status_code,
                 )
-            error_code, error_message = _safe_error(response)
+            error_code, error_message, issue = _safe_error(response)
             raise DependencyError(
                 code=error_code,
                 message=error_message,
                 status=_mapped_status(response.status_code),
                 retryable=response.status_code >= 500 or response.status_code == 429,
                 dependency_status=response.status_code,
+                issue=issue if path in {"/v1/internal/agent/records/batch", "/v1/internal/agent/schedule/batch"} else None,
             )
         try:
             payload = response.json()
@@ -201,17 +249,57 @@ class ProductBackendClient:
             raise _invalid_response() from exc
 
 
-def _safe_error(response: httpx.Response) -> tuple[str, str]:
+_ISSUE_FIELDS = frozenset({
+    "op", "topic", "infant_id", "record_type", "record_source", "record_id", "revision",
+    "task_id", "expected_updated_at", "occurred_at", "recorded_on", "method", "side", "volume_ml",
+    "duration_minutes", "diaper_kind", "wet_count", "stool_count", "color", "consistency", "signs",
+    "metric", "value", "measurement_source", "mental_state", "pain_score", "phase", "impact",
+    "latch_status", "weight_kg", "height_cm", "head_circumference_cm", "title", "date", "start_time", "note",
+})
+_ISSUE_REASONS = frozenset({"required", "invalid_value", "invalid_fields", "future_time", "stale_revision", "not_found"})
+
+
+def _safe_issue(details: Any) -> dict[str, Any] | None:
+    if not isinstance(details, dict):
+        return None
+    index, field, reason = details.get("operation_index"), details.get("field_path"), details.get("reason")
+    if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < 20 and isinstance(field, str) and isinstance(reason, str):
+        name = field.removeprefix("fields.")
+        if (not field or (name in _ISSUE_FIELDS and field in {name, f"fields.{name}"})) and reason in _ISSUE_REASONS:
+            return {"operation_index": index, "field_path": field, "reason": reason}
+    # FastAPI request-model errors are static shape failures. Never forward
+    # their free-text messages, rejected values or arbitrary field names.
+    errors = details.get("errors")
+    if isinstance(errors, list):
+        for error in errors:
+            if not isinstance(error, dict):
+                continue
+            loc = error.get("loc")
+            if not isinstance(loc, (list, tuple)) or len(loc) < 3 or tuple(loc[:2]) != ("body", "operations"):
+                continue
+            index = loc[2]
+            if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < 20:
+                continue
+            fields = [part for part in loc[3:] if isinstance(part, str)]
+            field = ".".join(fields[-2:]) if fields and fields[-2:-1] == ["fields"] else (fields[-1] if fields else "")
+            if field and field.removeprefix("fields.") not in _ISSUE_FIELDS:
+                field = ""
+            return {"operation_index": index, "field_path": field,
+                    "reason": "required" if error.get("type") == "missing" else "invalid_fields"}
+    return None
+
+
+def _safe_error(response: httpx.Response) -> tuple[str, str, dict[str, Any] | None]:
     try:
         payload = response.json()
     except ValueError:
-        return "product_backend_error", "Product Backend request failed."
+        return "product_backend_error", "Product Backend request failed.", None
     if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
-        return "product_backend_error", "Product Backend request failed."
+        return "product_backend_error", "Product Backend request failed.", None
     error = payload["error"]
     code = str(error.get("code") or "product_backend_error")
     message = str(error.get("message") or "Product Backend request failed.")
-    return code, message
+    return code, message, _safe_issue(error.get("details"))
 
 
 def _mapped_status(dependency_status: int) -> int:

@@ -50,10 +50,13 @@ class DependencyError(ApiError):
         status: int = 502,
         retryable: bool,
         dependency_status: int | None = None,
+        issue: dict[str, Any] | None = None,
     ) -> None:
         details: dict[str, Any] = {"retryable": retryable}
         if dependency_status is not None:
             details["dependency_status"] = dependency_status
+        if issue is not None:
+            details["issue"] = issue
         super().__init__(
             code=code,
             message=message,

@@ -1,11 +1,52 @@
 {
   "actions": {
-    "items": [],
+    "items": [
+      {
+        "action_type": "records.batch.change",
+        "allows_payload_edit": false,
+        "audit_required": true,
+        "blocking_policy": "must_wait",
+        "confirmation_exemption": "User explicitly agreed to the batch in conversation before tool invocation.",
+        "idempotency_required": true,
+        "required_permissions": [
+          "records:write"
+        ],
+        "requires_confirmation": false,
+        "retryable_error_codes": [
+          "product_backend_error",
+          "product_backend_timeout",
+          "product_backend_unavailable"
+        ],
+        "schema_version": "agent.action_policy.v1",
+        "side_effect_level": "medium",
+        "target_type": "record_batch"
+      },
+      {
+        "action_type": "schedule.batch.change",
+        "allows_payload_edit": false,
+        "audit_required": true,
+        "blocking_policy": "must_wait",
+        "confirmation_exemption": "User explicitly agreed to the batch in conversation before tool invocation.",
+        "idempotency_required": true,
+        "required_permissions": [
+          "plans:write"
+        ],
+        "requires_confirmation": false,
+        "retryable_error_codes": [
+          "product_backend_error",
+          "product_backend_timeout",
+          "product_backend_unavailable"
+        ],
+        "schema_version": "agent.action_policy.v1",
+        "side_effect_level": "medium",
+        "target_type": "schedule_batch"
+      }
+    ],
     "policy_schema_version": "agent.action_policy.v1",
     "schema_version": "agent.action_catalog.v1",
-    "sha256": "a950eb7cb571b1f3e8e9c9b936a6dd1ba62c7f1eb210a38a830da0602d549f7c"
+    "sha256": "436f784fa00b57468b46cae8cbf4fe6c8efecb1c0a191eef79fa7d6e7d2a9cf8"
   },
-  "catalog_sha256": "0b669727139466763cc35f0ddd4d1417ec7ce19f10be8924de6415bb332ae9b9",
+  "catalog_sha256": "91ca1ff7dfdd4f3cc09c3f8e6a3edf4695e2e3f917294925cd64a07c6641a101",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -32,7 +73,7 @@
     "runtime_safety_policy_version": "momcozy.runtime_safety.v1",
     "runtime_version": "momcozy-agent-v1",
     "schema_version": "agent.runtime_metadata.v1",
-    "service_skill_schema_version": "momcozy.service_skill.v3",
+    "service_skill_schema_version": "momcozy.service_skill.v1",
     "text_stream_schema_version": "append-only.v1",
     "tool_catalog_schema_version": "agent.tool_catalog.v1",
     "tool_contract_schema_version": "agent.tool_contract.v1"
@@ -41,6 +82,1766 @@
   "tools": {
     "contract_schema_version": "agent.tool_contract.v1",
     "items": [
+      {
+        "action_types": [
+          "records.batch.change"
+        ],
+        "description": "Apply a records batch. Use when the user has verbally agreed to every change.",
+        "domain": "records",
+        "input_schema": {
+          "$defs": {
+            "BottleFeedingCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/BottleFeedingFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "feeding",
+                  "description": "Expressed milk or formula feeding; no breast side or breastfeeding duration.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "fields"
+              ],
+              "title": "BottleFeedingCreate",
+              "type": "object"
+            },
+            "BottleFeedingFields": {
+              "additionalProperties": false,
+              "properties": {
+                "method": {
+                  "description": "Recorded feeding method; breastfeeding and bottle fields differ.",
+                  "enum": [
+                    "expressed_milk",
+                    "formula"
+                  ],
+                  "title": "Method",
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                },
+                "volume_ml": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 1000,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Measured volume in millilitres, not an estimate invented by the agent.",
+                  "title": "Volume Ml"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "method"
+              ],
+              "title": "BottleFeedingFields",
+              "type": "object"
+            },
+            "BreastfeedingCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/BreastfeedingFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "feeding",
+                  "description": "Breastfeeding; side required, measured volume not accepted.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "fields"
+              ],
+              "title": "BreastfeedingCreate",
+              "type": "object"
+            },
+            "BreastfeedingFields": {
+              "additionalProperties": false,
+              "properties": {
+                "duration_minutes": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 240,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded positive duration in minutes when known.",
+                  "title": "Duration Minutes"
+                },
+                "method": {
+                  "const": "breastfeeding",
+                  "description": "Recorded feeding method; breastfeeding and bottle fields differ.",
+                  "title": "Method",
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                },
+                "side": {
+                  "description": "Recorded side from the allowed choices; never infer both from a total amount.",
+                  "enum": [
+                    "left",
+                    "right",
+                    "both"
+                  ],
+                  "title": "Side",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "method",
+                "side"
+              ],
+              "title": "BreastfeedingFields",
+              "type": "object"
+            },
+            "DiaperDailyCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/DiaperDailyFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "record_type": {
+                  "const": "daily_summary",
+                  "description": "For diaper: one event or a daily summary.",
+                  "title": "Record Type",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "diaper",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "record_type",
+                "fields"
+              ],
+              "title": "DiaperDailyCreate",
+              "type": "object"
+            },
+            "DiaperDailyFields": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "yellow",
+                        "yellow_brown",
+                        "green",
+                        "brown",
+                        "black",
+                        "red",
+                        "pale",
+                        "unsure"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded stool color when applicable.",
+                  "title": "Color"
+                },
+                "consistency": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "watery",
+                        "loose",
+                        "pasty",
+                        "formed",
+                        "hard",
+                        "unsure"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded stool consistency when applicable.",
+                  "title": "Consistency"
+                },
+                "recorded_on": {
+                  "description": "Actual local record date, YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Recorded On",
+                  "type": "string"
+                },
+                "stool_count": {
+                  "anyOf": [
+                    {
+                      "maximum": 100,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded number of stools on this date.",
+                  "title": "Stool Count"
+                },
+                "wet_count": {
+                  "anyOf": [
+                    {
+                      "maximum": 100,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded number of wet diapers on this date.",
+                  "title": "Wet Count"
+                }
+              },
+              "required": [
+                "recorded_on"
+              ],
+              "title": "DiaperDailyFields",
+              "type": "object"
+            },
+            "DiaperEventCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/DiaperEventFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "record_type": {
+                  "const": "event",
+                  "description": "For diaper: one event or a daily summary.",
+                  "title": "Record Type",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "diaper",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "record_type",
+                "fields"
+              ],
+              "title": "DiaperEventCreate",
+              "type": "object"
+            },
+            "DiaperEventFields": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "yellow",
+                        "yellow_brown",
+                        "green",
+                        "brown",
+                        "black",
+                        "red",
+                        "pale",
+                        "unsure"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded stool color when applicable.",
+                  "title": "Color"
+                },
+                "consistency": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "watery",
+                        "loose",
+                        "pasty",
+                        "formed",
+                        "hard",
+                        "unsure"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded stool consistency when applicable.",
+                  "title": "Consistency"
+                },
+                "diaper_kind": {
+                  "description": "Recorded wet, dirty, or both diaper event.",
+                  "enum": [
+                    "wet",
+                    "dirty",
+                    "both"
+                  ],
+                  "title": "Diaper Kind",
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                },
+                "signs": {
+                  "description": "Recorded visible stool signs when applicable, without duplicates.",
+                  "items": {
+                    "enum": [
+                      "blood",
+                      "mucus"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 2,
+                  "title": "Signs",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "diaper_kind"
+              ],
+              "title": "DiaperEventFields",
+              "type": "object"
+            },
+            "GrowthCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/GrowthFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "growth",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "fields"
+              ],
+              "title": "GrowthCreate",
+              "type": "object"
+            },
+            "GrowthFields": {
+              "additionalProperties": false,
+              "properties": {
+                "measurement_source": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "home",
+                        "clinic",
+                        "other"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Home, clinic, or other measurement source when known.",
+                  "title": "Measurement Source"
+                },
+                "metric": {
+                  "description": "Recorded growth metric with its matching value and unit.",
+                  "enum": [
+                    "weight",
+                    "length",
+                    "head_circumference"
+                  ],
+                  "title": "Metric",
+                  "type": "string"
+                },
+                "recorded_on": {
+                  "description": "Actual local record date, YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Recorded On",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Positive growth measurement; weight is in kg, other metrics in cm.",
+                  "exclusiveMinimum": 0,
+                  "maximum": 150,
+                  "title": "Value",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "recorded_on",
+                "metric",
+                "value"
+              ],
+              "title": "GrowthFields",
+              "type": "object"
+            },
+            "LatchCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/LatchFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "latch",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "topic",
+                "fields"
+              ],
+              "title": "LatchCreate",
+              "type": "object"
+            },
+            "LatchFields": {
+              "additionalProperties": false,
+              "properties": {
+                "latch_status": {
+                  "description": "Recorded latch status from the allowed options.",
+                  "enum": [
+                    "Stayed latched",
+                    "Came off easily",
+                    "Could not latch",
+                    "含得稳",
+                    "容易松开",
+                    "含不住"
+                  ],
+                  "title": "Latch Status",
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "latch_status"
+              ],
+              "title": "LatchFields",
+              "type": "object"
+            },
+            "MoodCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/MoodFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "description": "Current baby's infant_id.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "after_feeding_mood",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "infant_id",
+                "topic",
+                "fields"
+              ],
+              "title": "MoodCreate",
+              "type": "object"
+            },
+            "MoodFields": {
+              "additionalProperties": false,
+              "properties": {
+                "mental_state": {
+                  "description": "Recorded after-feeding mood on this date.",
+                  "enum": [
+                    "content",
+                    "active",
+                    "crying",
+                    "drowsy"
+                  ],
+                  "title": "Mental State",
+                  "type": "string"
+                },
+                "recorded_on": {
+                  "description": "Actual local record date, YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Recorded On",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recorded_on",
+                "mental_state"
+              ],
+              "title": "MoodFields",
+              "type": "object"
+            },
+            "PainCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/PainFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "pain",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "topic",
+                "fields"
+              ],
+              "title": "PainCreate",
+              "type": "object"
+            },
+            "PainFields": {
+              "additionalProperties": false,
+              "properties": {
+                "impact": {
+                  "description": "Recorded impact of pain on feeding.",
+                  "enum": [
+                    "可以继续喂",
+                    "需要暂停",
+                    "无法继续",
+                    "Could continue",
+                    "Needed a break",
+                    "Could not continue"
+                  ],
+                  "title": "Impact",
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                },
+                "pain_score": {
+                  "description": "Recorded maternal pain score from 0 to 10.",
+                  "maximum": 10,
+                  "minimum": 0,
+                  "title": "Pain Score",
+                  "type": "integer"
+                },
+                "phase": {
+                  "description": "Recorded phase in which pain occurred.",
+                  "enum": [
+                    "刚开始含奶时",
+                    "喂奶过程中",
+                    "喂奶后",
+                    "泵奶时",
+                    "When latching",
+                    "During feeding",
+                    "After feeding",
+                    "While pumping"
+                  ],
+                  "title": "Phase",
+                  "type": "string"
+                },
+                "side": {
+                  "description": "Recorded side from the allowed choices; never infer both from a total amount.",
+                  "enum": [
+                    "Left side",
+                    "Right side",
+                    "Both sides",
+                    "左侧",
+                    "右侧",
+                    "两侧"
+                  ],
+                  "title": "Side",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "pain_score",
+                "side",
+                "phase",
+                "impact"
+              ],
+              "title": "PainFields",
+              "type": "object"
+            },
+            "PumpingCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/PumpingFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a new record after the user agreed to these exact fields.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "topic": {
+                  "const": "pumping",
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "topic",
+                "fields"
+              ],
+              "title": "PumpingCreate",
+              "type": "object"
+            },
+            "PumpingFields": {
+              "additionalProperties": false,
+              "properties": {
+                "duration_minutes": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 240,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded positive duration in minutes when known.",
+                  "title": "Duration Minutes"
+                },
+                "occurred_at": {
+                  "description": "Actual timezone-aware occurrence time; never invent an unknown time.",
+                  "format": "date-time",
+                  "title": "Occurred At",
+                  "type": "string"
+                },
+                "side": {
+                  "description": "Recorded pumping side; do not guess that a total volume means both sides.",
+                  "enum": [
+                    "Left side",
+                    "Right side",
+                    "Both sides",
+                    "左侧",
+                    "右侧",
+                    "两侧"
+                  ],
+                  "title": "Side",
+                  "type": "string"
+                },
+                "volume_ml": {
+                  "description": "Measured volume in millilitres, not an estimate invented by the agent.",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3000,
+                  "title": "Volume Ml",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "occurred_at",
+                "side",
+                "volume_ml"
+              ],
+              "title": "PumpingFields",
+              "type": "object"
+            },
+            "RecordFields": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded color when explicitly provided by the user.",
+                  "title": "Color"
+                },
+                "consistency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded consistency when explicitly provided by the user.",
+                  "title": "Consistency"
+                },
+                "diaper_kind": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "wet",
+                        "dirty",
+                        "both"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded diaper kind when explicitly provided by the user.",
+                  "title": "Diaper Kind"
+                },
+                "duration_minutes": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 240,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded duration minutes when explicitly provided by the user.",
+                  "title": "Duration Minutes"
+                },
+                "head_circumference_cm": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 150,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded head circumference cm when explicitly provided by the user.",
+                  "title": "Head Circumference Cm"
+                },
+                "height_cm": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 150,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded height cm when explicitly provided by the user.",
+                  "title": "Height Cm"
+                },
+                "impact": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded impact when explicitly provided by the user.",
+                  "title": "Impact"
+                },
+                "latch_status": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "Stayed latched",
+                        "Came off easily",
+                        "Could not latch",
+                        "含得稳",
+                        "容易松开",
+                        "含不住"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded latch status when explicitly provided by the user.",
+                  "title": "Latch Status"
+                },
+                "measurement_source": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "home",
+                        "clinic",
+                        "other"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded measurement source when explicitly provided by the user.",
+                  "title": "Measurement Source"
+                },
+                "mental_state": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "content",
+                        "active",
+                        "crying",
+                        "drowsy"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded mental state when explicitly provided by the user.",
+                  "title": "Mental State"
+                },
+                "method": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "breastfeeding",
+                        "expressed_milk",
+                        "formula"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded method when explicitly provided by the user.",
+                  "title": "Method"
+                },
+                "metric": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "weight",
+                        "length",
+                        "head_circumference"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded metric when explicitly provided by the user.",
+                  "title": "Metric"
+                },
+                "occurred_at": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded occurred at when explicitly provided by the user.",
+                  "title": "Occurred At"
+                },
+                "pain_score": {
+                  "anyOf": [
+                    {
+                      "maximum": 10,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded pain score when explicitly provided by the user.",
+                  "title": "Pain Score"
+                },
+                "phase": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded phase when explicitly provided by the user.",
+                  "title": "Phase"
+                },
+                "recorded_on": {
+                  "anyOf": [
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded recorded on when explicitly provided by the user.",
+                  "title": "Recorded On"
+                },
+                "side": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded side when explicitly provided by the user.",
+                  "title": "Side"
+                },
+                "signs": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "enum": [
+                          "blood",
+                          "mucus"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded signs when explicitly provided by the user.",
+                  "title": "Signs"
+                },
+                "stool_count": {
+                  "anyOf": [
+                    {
+                      "maximum": 100,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded stool count when explicitly provided by the user.",
+                  "title": "Stool Count"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 150,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded value when explicitly provided by the user.",
+                  "title": "Value"
+                },
+                "volume_ml": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 3000,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded volume ml when explicitly provided by the user.",
+                  "title": "Volume Ml"
+                },
+                "weight_kg": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "maximum": 50,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded weight kg when explicitly provided by the user.",
+                  "title": "Weight Kg"
+                },
+                "wet_count": {
+                  "anyOf": [
+                    {
+                      "maximum": 100,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Recorded wet count when explicitly provided by the user.",
+                  "title": "Wet Count"
+                }
+              },
+              "title": "RecordFields",
+              "type": "object"
+            },
+            "RecordUpdate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/RecordFields",
+                  "description": "Only the fields supplied by the user and valid for this topic and operation."
+                },
+                "infant_id": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Required only for baby topics; omit for maternal topics.",
+                  "title": "Infant Id"
+                },
+                "op": {
+                  "const": "update",
+                  "description": "Create a new record or update a previously read record.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "record_id": {
+                  "description": "Copy the target record ID from read_topical_records.",
+                  "format": "uuid",
+                  "title": "Record Id",
+                  "type": "string"
+                },
+                "record_source": {
+                  "description": "Copy the source from read_topical_records for this target.",
+                  "enum": [
+                    "baby_records",
+                    "mother_observations",
+                    "feeding_records",
+                    "pumping_records",
+                    "growth_records"
+                  ],
+                  "title": "Record Source",
+                  "type": "string"
+                },
+                "record_type": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "event",
+                        "daily_summary"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Required for diaper; omit for all other topics.",
+                  "title": "Record Type"
+                },
+                "revision": {
+                  "description": "Copy the target revision from read_topical_records; never guess.",
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "title": "Revision",
+                  "type": "string"
+                },
+                "topic": {
+                  "description": "App record topic; use only the fields supported for this topic.",
+                  "enum": [
+                    "feeding",
+                    "pumping",
+                    "diaper",
+                    "pain",
+                    "growth",
+                    "latch",
+                    "after_feeding_mood"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "topic",
+                "record_source",
+                "record_id",
+                "revision",
+                "fields"
+              ],
+              "title": "RecordUpdate",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "operations": {
+              "description": "One to twenty independently dated record creations or updates, executed atomically.",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/BreastfeedingCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/BottleFeedingCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/PumpingCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/DiaperEventCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/DiaperDailyCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/PainCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/LatchCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/GrowthCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/MoodCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/RecordUpdate"
+                  }
+                ]
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Operations",
+              "type": "array"
+            }
+          },
+          "required": [
+            "operations"
+          ],
+          "title": "RecordChanges",
+          "type": "object"
+        },
+        "internal_input_schema": null,
+        "model_output_max_bytes": 16384,
+        "name": "change_records",
+        "operation": "action_proposal",
+        "output_schema": {
+          "$defs": {
+            "BatchFailure": {
+              "additionalProperties": false,
+              "properties": {
+                "field_path": {
+                  "maxLength": 80,
+                  "pattern": "^(?:fields\\.)?[a-z_]*$",
+                  "title": "Field Path",
+                  "type": "string"
+                },
+                "operation_index": {
+                  "maximum": 19,
+                  "minimum": 0,
+                  "title": "Operation Index",
+                  "type": "integer"
+                },
+                "reason": {
+                  "enum": [
+                    "required",
+                    "invalid_value",
+                    "invalid_fields",
+                    "future_time",
+                    "stale_revision",
+                    "not_found"
+                  ],
+                  "title": "Reason",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "operation_index",
+                "field_path",
+                "reason"
+              ],
+              "title": "BatchFailure",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "action_id": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            },
+            "action_status": {
+              "title": "Action Status",
+              "type": "string"
+            },
+            "batch_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Batch Id"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Error Code"
+            },
+            "failure": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BatchFailure"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "items": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "ok": {
+              "title": "Ok",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ok",
+            "action_id",
+            "action_status"
+          ],
+          "title": "AppliedBatch",
+          "type": "object"
+        },
+        "owner_scope": "actor",
+        "required_permissions": [
+          "records:write"
+        ],
+        "retry_policy": "idempotent_write",
+        "safe_arg_fields": [],
+        "safe_output_fields": [],
+        "schema_version": "agent.tool_contract.v1",
+        "timeout_seconds": 60
+      },
+      {
+        "action_types": [
+          "schedule.batch.change"
+        ],
+        "description": "Apply a schedule batch. Use when the user has verbally agreed to every change.",
+        "domain": "schedule",
+        "input_schema": {
+          "$defs": {
+            "ScheduleCreate": {
+              "additionalProperties": false,
+              "properties": {
+                "fields": {
+                  "$ref": "#/$defs/ScheduleCreateFields",
+                  "description": "Complete title, date and time agreed by the user."
+                },
+                "op": {
+                  "const": "create",
+                  "description": "Create a personal calendar entry.",
+                  "title": "Op",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "fields"
+              ],
+              "title": "ScheduleCreate",
+              "type": "object"
+            },
+            "ScheduleCreateFields": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "description": "Calendar date, YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Date",
+                  "type": "string"
+                },
+                "note": {
+                  "default": "",
+                  "description": "Optional note, up to 120 characters.",
+                  "maxLength": 120,
+                  "title": "Note",
+                  "type": "string"
+                },
+                "start_time": {
+                  "description": "Local 24-hour time, HH:MM.",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                  "title": "Start Time",
+                  "type": "string"
+                },
+                "title": {
+                  "description": "Non-blank title, up to 40 characters.",
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "title": "Title",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "date",
+                "start_time"
+              ],
+              "title": "ScheduleCreateFields",
+              "type": "object"
+            },
+            "ScheduleUpdate": {
+              "additionalProperties": false,
+              "properties": {
+                "expected_updated_at": {
+                  "description": "Copy the target revision from read_schedule.",
+                  "format": "date-time",
+                  "title": "Expected Updated At",
+                  "type": "string"
+                },
+                "fields": {
+                  "$ref": "#/$defs/ScheduleUpdateFields",
+                  "description": "Only the fields the user agreed to change."
+                },
+                "op": {
+                  "const": "update",
+                  "description": "Update a previously read personal calendar entry.",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "task_id": {
+                  "description": "Copy the target ID from read_schedule.",
+                  "format": "uuid",
+                  "title": "Task Id",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "task_id",
+                "expected_updated_at",
+                "fields"
+              ],
+              "title": "ScheduleUpdate",
+              "type": "object"
+            },
+            "ScheduleUpdateFields": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Updated calendar date when provided.",
+                  "title": "Date"
+                },
+                "note": {
+                  "anyOf": [
+                    {
+                      "maxLength": 120,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Updated note when provided.",
+                  "title": "Note"
+                },
+                "start_time": {
+                  "anyOf": [
+                    {
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Updated local HH:MM time when provided.",
+                  "title": "Start Time"
+                },
+                "title": {
+                  "anyOf": [
+                    {
+                      "maxLength": 40,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Updated non-blank title when provided.",
+                  "title": "Title"
+                }
+              },
+              "title": "ScheduleUpdateFields",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "operations": {
+              "description": "One to twenty personal schedule creations or updates, executed atomically.",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ScheduleCreate"
+                  },
+                  {
+                    "$ref": "#/$defs/ScheduleUpdate"
+                  }
+                ]
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Operations",
+              "type": "array"
+            }
+          },
+          "required": [
+            "operations"
+          ],
+          "title": "ScheduleChanges",
+          "type": "object"
+        },
+        "internal_input_schema": null,
+        "model_output_max_bytes": 16384,
+        "name": "change_schedule",
+        "operation": "action_proposal",
+        "output_schema": {
+          "$defs": {
+            "BatchFailure": {
+              "additionalProperties": false,
+              "properties": {
+                "field_path": {
+                  "maxLength": 80,
+                  "pattern": "^(?:fields\\.)?[a-z_]*$",
+                  "title": "Field Path",
+                  "type": "string"
+                },
+                "operation_index": {
+                  "maximum": 19,
+                  "minimum": 0,
+                  "title": "Operation Index",
+                  "type": "integer"
+                },
+                "reason": {
+                  "enum": [
+                    "required",
+                    "invalid_value",
+                    "invalid_fields",
+                    "future_time",
+                    "stale_revision",
+                    "not_found"
+                  ],
+                  "title": "Reason",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "operation_index",
+                "field_path",
+                "reason"
+              ],
+              "title": "BatchFailure",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "action_id": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            },
+            "action_status": {
+              "title": "Action Status",
+              "type": "string"
+            },
+            "batch_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Batch Id"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Error Code"
+            },
+            "failure": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BatchFailure"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "items": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "ok": {
+              "title": "Ok",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ok",
+            "action_id",
+            "action_status"
+          ],
+          "title": "AppliedBatch",
+          "type": "object"
+        },
+        "owner_scope": "actor",
+        "required_permissions": [
+          "plans:write"
+        ],
+        "retry_policy": "idempotent_write",
+        "safe_arg_fields": [],
+        "safe_output_fields": [],
+        "schema_version": "agent.tool_contract.v1",
+        "timeout_seconds": 60
+      },
       {
         "action_types": [],
         "description": "Load a lactation Skill or routed reference; return its status and content fingerprint. Use when relevant guidance is not yet in context.",
@@ -112,7 +1913,7 @@
               "type": "string"
             },
             "schema_version": {
-              "const": "momcozy.service_skill.v3",
+              "const": "momcozy.service_skill.v1",
               "type": "string"
             },
             "skill_id": {
@@ -124,10 +1925,6 @@
             "status": {
               "const": "loaded",
               "type": "string"
-            },
-            "version": {
-              "minLength": 1,
-              "type": "string"
             }
           },
           "required": [
@@ -136,7 +1933,6 @@
             "skill_id",
             "resource_type",
             "resource_id",
-            "version",
             "description",
             "content_sha256"
           ],
@@ -157,107 +1953,81 @@
           "resource_type",
           "schema_version",
           "skill_id",
-          "status",
-          "version"
+          "status"
         ],
         "schema_version": "agent.tool_contract.v1",
         "timeout_seconds": 5
       },
       {
         "action_types": [],
-        "description": "Read bounded, owner-scoped recorded entries for one care topic. Use when feeding, pumping, diaper, pain, or growth history is needed.",
-        "domain": "records",
+        "description": "Read bounded personal schedule entries. Use when the user's dated plans are relevant.",
+        "domain": "schedule",
         "input_schema": {
           "additionalProperties": false,
           "properties": {
             "end_date": {
-              "description": "Last local calendar date (inclusive); maximum 30 days total.",
+              "description": "Last local calendar day to read, exclusive; at most 62 days.",
               "format": "date",
               "title": "End Date",
               "type": "string"
             },
-            "infant_id": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Current baby UUID for feeding, diaper, or growth; omit for maternal topics.",
-              "title": "Infant Id"
-            },
             "limit": {
-              "default": 20,
-              "description": "Maximum recorded entries to return, up to 20.",
-              "maximum": 20,
+              "default": 50,
+              "description": "Maximum number of personal schedule items to return.",
+              "maximum": 100,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
             },
+            "offset": {
+              "default": 0,
+              "description": "Number of previously retrieved schedule items to skip.",
+              "maximum": 10000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            },
             "start_date": {
-              "description": "First local calendar date (inclusive), YYYY-MM-DD.",
+              "description": "First local calendar day to read, inclusive.",
               "format": "date",
               "title": "Start Date",
-              "type": "string"
-            },
-            "topic": {
-              "description": "Which recorded topic to read.",
-              "enum": [
-                "feeding",
-                "pumping",
-                "diaper",
-                "pain",
-                "growth"
-              ],
-              "title": "Topic",
               "type": "string"
             }
           },
           "required": [
-            "topic",
             "start_date",
             "end_date"
           ],
-          "title": "ModelReadArgs",
+          "title": "ScheduleRead",
           "type": "object"
         },
         "internal_input_schema": {
           "additionalProperties": false,
           "properties": {
             "end_date": {
-              "description": "Last local calendar date (inclusive); maximum 30 days total.",
+              "description": "Last local calendar day to read, exclusive; at most 62 days.",
               "format": "date",
               "title": "End Date",
               "type": "string"
             },
-            "infant_id": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Current baby UUID for feeding, diaper, or growth; omit for maternal topics.",
-              "title": "Infant Id"
-            },
             "limit": {
-              "default": 20,
-              "description": "Maximum recorded entries to return, up to 20.",
-              "maximum": 20,
+              "default": 50,
+              "description": "Maximum number of personal schedule items to return.",
+              "maximum": 100,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
             },
+            "offset": {
+              "default": 0,
+              "description": "Number of previously retrieved schedule items to skip.",
+              "maximum": 10000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            },
             "start_date": {
-              "description": "First local calendar date (inclusive), YYYY-MM-DD.",
+              "description": "First local calendar day to read, inclusive.",
               "format": "date",
               "title": "Start Date",
               "type": "string"
@@ -267,24 +2037,347 @@
               "minLength": 1,
               "title": "Timezone",
               "type": "string"
-            },
-            "topic": {
-              "description": "Which recorded topic to read.",
-              "enum": [
-                "feeding",
-                "pumping",
-                "diaper",
-                "pain",
-                "growth"
+            }
+          },
+          "required": [
+            "start_date",
+            "end_date",
+            "timezone"
+          ],
+          "title": "ScheduleReadInternal",
+          "type": "object"
+        },
+        "model_output_max_bytes": 24576,
+        "name": "read_schedule",
+        "operation": "read",
+        "output_schema": {
+          "$defs": {
+            "AgentPersonalSchedule": {
+              "properties": {
+                "date": {
+                  "format": "date",
+                  "title": "Date",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "title": "Id",
+                  "type": "string"
+                },
+                "note": {
+                  "title": "Note",
+                  "type": "string"
+                },
+                "start_time": {
+                  "title": "Start Time",
+                  "type": "string"
+                },
+                "title": {
+                  "title": "Title",
+                  "type": "string"
+                },
+                "updated_at": {
+                  "format": "date-time",
+                  "title": "Updated At",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "date",
+                "start_time",
+                "note",
+                "updated_at"
               ],
-              "title": "Topic",
+              "title": "AgentPersonalSchedule",
+              "type": "object"
+            }
+          },
+          "properties": {
+            "has_more": {
+              "title": "Has More",
+              "type": "boolean"
+            },
+            "personal": {
+              "items": {
+                "$ref": "#/$defs/AgentPersonalSchedule"
+              },
+              "title": "Personal",
+              "type": "array"
+            },
+            "server_time": {
+              "format": "date-time",
+              "title": "Server Time",
               "type": "string"
             }
           },
           "required": [
-            "topic",
-            "start_date",
-            "end_date",
+            "personal",
+            "server_time",
+            "has_more"
+          ],
+          "title": "AgentScheduleReadResponse",
+          "type": "object"
+        },
+        "owner_scope": "actor",
+        "required_permissions": [
+          "plans:read"
+        ],
+        "retry_policy": "safe_read",
+        "safe_arg_fields": [],
+        "safe_output_fields": [],
+        "schema_version": "agent.tool_contract.v1",
+        "timeout_seconds": 30
+      },
+      {
+        "action_types": [],
+        "description": "Read up to three owner-scoped record topics. Use when feeding, pumping, diaper, pain, growth, latch, or after-feeding mood history matters.",
+        "domain": "records",
+        "input_schema": {
+          "$defs": {
+            "BabyReadQuery": {
+              "additionalProperties": false,
+              "properties": {
+                "end_date": {
+                  "description": "Last local calendar date for this topic (inclusive); maximum 30 days total.",
+                  "format": "date",
+                  "title": "End Date",
+                  "type": "string"
+                },
+                "infant_id": {
+                  "description": "Required current baby's infant_id for every baby-side topic.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "limit": {
+                  "default": 20,
+                  "description": "Maximum recorded entries for this topic, up to 20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Limit",
+                  "type": "integer"
+                },
+                "start_date": {
+                  "description": "First local calendar date for this topic (inclusive), YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Start Date",
+                  "type": "string"
+                },
+                "topic": {
+                  "description": "Baby-side topic: feeding, diaper, growth, or after_feeding_mood.",
+                  "enum": [
+                    "feeding",
+                    "diaper",
+                    "growth",
+                    "after_feeding_mood"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "start_date",
+                "end_date",
+                "topic",
+                "infant_id"
+              ],
+              "title": "BabyReadQuery",
+              "type": "object"
+            },
+            "MaternalReadQuery": {
+              "additionalProperties": false,
+              "properties": {
+                "end_date": {
+                  "description": "Last local calendar date for this topic (inclusive); maximum 30 days total.",
+                  "format": "date",
+                  "title": "End Date",
+                  "type": "string"
+                },
+                "limit": {
+                  "default": 20,
+                  "description": "Maximum recorded entries for this topic, up to 20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Limit",
+                  "type": "integer"
+                },
+                "start_date": {
+                  "description": "First local calendar date for this topic (inclusive), YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Start Date",
+                  "type": "string"
+                },
+                "topic": {
+                  "description": "Maternal topic: pumping, pain, or latch. Do not provide infant_id, including for latch.",
+                  "enum": [
+                    "pumping",
+                    "pain",
+                    "latch"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "start_date",
+                "end_date",
+                "topic"
+              ],
+              "title": "MaternalReadQuery",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "queries": {
+              "description": "One to three topic/date queries. Baby topics require infant_id; maternal topics (pumping, pain, latch) must omit it. If input is rejected, correct the reported query/field and retry rather than claiming the records are unavailable.",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/BabyReadQuery"
+                  },
+                  {
+                    "$ref": "#/$defs/MaternalReadQuery"
+                  }
+                ]
+              },
+              "maxItems": 3,
+              "minItems": 1,
+              "title": "Queries",
+              "type": "array"
+            }
+          },
+          "required": [
+            "queries"
+          ],
+          "title": "ModelReadArgs",
+          "type": "object"
+        },
+        "internal_input_schema": {
+          "$defs": {
+            "BabyReadQuery": {
+              "additionalProperties": false,
+              "properties": {
+                "end_date": {
+                  "description": "Last local calendar date for this topic (inclusive); maximum 30 days total.",
+                  "format": "date",
+                  "title": "End Date",
+                  "type": "string"
+                },
+                "infant_id": {
+                  "description": "Required current baby's infant_id for every baby-side topic.",
+                  "format": "uuid",
+                  "title": "Infant Id",
+                  "type": "string"
+                },
+                "limit": {
+                  "default": 20,
+                  "description": "Maximum recorded entries for this topic, up to 20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Limit",
+                  "type": "integer"
+                },
+                "start_date": {
+                  "description": "First local calendar date for this topic (inclusive), YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Start Date",
+                  "type": "string"
+                },
+                "topic": {
+                  "description": "Baby-side topic: feeding, diaper, growth, or after_feeding_mood.",
+                  "enum": [
+                    "feeding",
+                    "diaper",
+                    "growth",
+                    "after_feeding_mood"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "start_date",
+                "end_date",
+                "topic",
+                "infant_id"
+              ],
+              "title": "BabyReadQuery",
+              "type": "object"
+            },
+            "MaternalReadQuery": {
+              "additionalProperties": false,
+              "properties": {
+                "end_date": {
+                  "description": "Last local calendar date for this topic (inclusive); maximum 30 days total.",
+                  "format": "date",
+                  "title": "End Date",
+                  "type": "string"
+                },
+                "limit": {
+                  "default": 20,
+                  "description": "Maximum recorded entries for this topic, up to 20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Limit",
+                  "type": "integer"
+                },
+                "start_date": {
+                  "description": "First local calendar date for this topic (inclusive), YYYY-MM-DD.",
+                  "format": "date",
+                  "title": "Start Date",
+                  "type": "string"
+                },
+                "topic": {
+                  "description": "Maternal topic: pumping, pain, or latch. Do not provide infant_id, including for latch.",
+                  "enum": [
+                    "pumping",
+                    "pain",
+                    "latch"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "start_date",
+                "end_date",
+                "topic"
+              ],
+              "title": "MaternalReadQuery",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "queries": {
+              "description": "One to three topic/date queries. Baby topics require infant_id; maternal topics (pumping, pain, latch) must omit it. If input is rejected, correct the reported query/field and retry rather than claiming the records are unavailable.",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/BabyReadQuery"
+                  },
+                  {
+                    "$ref": "#/$defs/MaternalReadQuery"
+                  }
+                ]
+              },
+              "maxItems": 3,
+              "minItems": 1,
+              "title": "Queries",
+              "type": "array"
+            },
+            "timezone": {
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          "required": [
+            "queries",
             "timezone"
           ],
           "title": "ExecutionArgs",
@@ -388,10 +2481,50 @@
                     "pumping",
                     "diaper",
                     "pain",
-                    "growth"
+                    "growth",
+                    "latch",
+                    "after_feeding_mood"
                   ],
                   "title": "Kind",
                   "type": "string"
+                },
+                "latch_status": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "Stayed latched",
+                        "Came off easily",
+                        "Could not latch",
+                        "含得稳",
+                        "容易松开",
+                        "含不住"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Latch Status"
+                },
+                "mental_state": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "content",
+                        "active",
+                        "crying",
+                        "drowsy"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Mental State"
                 },
                 "method": {
                   "anyOf": [
@@ -454,6 +2587,11 @@
                   "default": null,
                   "title": "Phase"
                 },
+                "record_id": {
+                  "format": "uuid",
+                  "title": "Record Id",
+                  "type": "string"
+                },
                 "record_type": {
                   "anyOf": [
                     {
@@ -482,6 +2620,10 @@
                   ],
                   "default": null,
                   "title": "Recorded On"
+                },
+                "revision": {
+                  "title": "Revision",
+                  "type": "string"
                 },
                 "side": {
                   "anyOf": [
@@ -583,80 +2725,103 @@
                 }
               },
               "required": [
+                "record_id",
+                "revision",
                 "source",
                 "kind"
               ],
               "title": "TopicalRecord",
               "type": "object"
+            },
+            "TopicalRecordsReadResponse": {
+              "additionalProperties": false,
+              "properties": {
+                "coverage": {
+                  "const": "recorded_entries_only",
+                  "default": "recorded_entries_only",
+                  "title": "Coverage",
+                  "type": "string"
+                },
+                "end_date": {
+                  "format": "date",
+                  "title": "End Date",
+                  "type": "string"
+                },
+                "has_more": {
+                  "title": "Has More",
+                  "type": "boolean"
+                },
+                "infant_id": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Infant Id"
+                },
+                "items": {
+                  "items": {
+                    "$ref": "#/$defs/TopicalRecord"
+                  },
+                  "title": "Items",
+                  "type": "array"
+                },
+                "start_date": {
+                  "format": "date",
+                  "title": "Start Date",
+                  "type": "string"
+                },
+                "timezone": {
+                  "title": "Timezone",
+                  "type": "string"
+                },
+                "topic": {
+                  "enum": [
+                    "feeding",
+                    "pumping",
+                    "diaper",
+                    "pain",
+                    "growth",
+                    "latch",
+                    "after_feeding_mood"
+                  ],
+                  "title": "Topic",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "topic",
+                "infant_id",
+                "start_date",
+                "end_date",
+                "timezone",
+                "items",
+                "has_more"
+              ],
+              "title": "TopicalRecordsReadResponse",
+              "type": "object"
             }
           },
           "additionalProperties": false,
           "properties": {
-            "coverage": {
-              "const": "recorded_entries_only",
-              "default": "recorded_entries_only",
-              "title": "Coverage",
-              "type": "string"
-            },
-            "end_date": {
-              "format": "date",
-              "title": "End Date",
-              "type": "string"
-            },
-            "has_more": {
-              "title": "Has More",
-              "type": "boolean"
-            },
-            "infant_id": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Infant Id"
-            },
-            "items": {
+            "results": {
               "items": {
-                "$ref": "#/$defs/TopicalRecord"
+                "$ref": "#/$defs/TopicalRecordsReadResponse"
               },
-              "title": "Items",
+              "maxItems": 3,
+              "minItems": 1,
+              "title": "Results",
               "type": "array"
-            },
-            "start_date": {
-              "format": "date",
-              "title": "Start Date",
-              "type": "string"
-            },
-            "timezone": {
-              "title": "Timezone",
-              "type": "string"
-            },
-            "topic": {
-              "enum": [
-                "feeding",
-                "pumping",
-                "diaper",
-                "pain",
-                "growth"
-              ],
-              "title": "Topic",
-              "type": "string"
             }
           },
           "required": [
-            "topic",
-            "infant_id",
-            "start_date",
-            "end_date",
-            "timezone",
-            "items",
-            "has_more"
+            "results"
           ],
-          "title": "TopicalRecordsReadResponse",
+          "title": "BatchReadResponse",
           "type": "object"
         },
         "owner_scope": "actor",
@@ -664,22 +2829,13 @@
           "records:read"
         ],
         "retry_policy": "safe_read",
-        "safe_arg_fields": [
-          "end_date",
-          "limit",
-          "start_date",
-          "topic"
-        ],
-        "safe_output_fields": [
-          "coverage",
-          "has_more",
-          "topic"
-        ],
+        "safe_arg_fields": [],
+        "safe_output_fields": [],
         "schema_version": "agent.tool_contract.v1",
         "timeout_seconds": 30
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "f8c2c45702fbc6e00172981c83413da25b7f3bd122f01088ab17af183e9eadf7"
+    "sha256": "69f3317a46f993009ef53f11bb3013bc93a42f3dabed8b1eedbc3625b1029a3d"
   }
 }

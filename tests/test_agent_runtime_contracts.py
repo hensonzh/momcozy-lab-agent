@@ -52,7 +52,6 @@ def test_skill_loader_contract_accepts_only_known_skill_ids() -> None:
         "skill_id",
         "resource_type",
         "resource_id",
-        "version",
         "description",
         "status",
         "content_sha256",

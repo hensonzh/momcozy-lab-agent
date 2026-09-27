@@ -1,11 +1,11 @@
 ---
 name: milk-supply-management
-description: Create an individualized plan for a user's stated milk-supply goal. Load when she wants to increase, maintain, or reduce supply or adjust breastfeeding, pumping, and overall supply-demand routines. If she first needs to know whether supply is actually low, excessive, or changing unexpectedly, use milk-supply-assessment.md first.
+description: Guide individualized milk-supply adjustment and planning. Load when the mother wants to increase, maintain, or reduce supply, or her stated feeding goal and constraints call for changing breastfeeding or pumping routines. Assess uncertain supply or goals with milk-supply-assessment.md first.
 ---
 
 # Milk Supply Management
 
-When the user has clearly stated that she wants to increase, maintain, or reduce supply, develop a feasible and sustainable approach based on current lactation, her goals, and her practical circumstances.
+When the mother's own supply or feeding goal is clear, develop a feasible and sustainable approach based on current lactation and practical circumstances. She need not explicitly request a “plan” if a change in routine is what she needs; do not choose an increase or decrease on her behalf.
 
 If she first needs to establish whether supply is actually low, excessive, or changing unexpectedly, use `milk-supply-assessment.md` first.
 
@@ -68,6 +68,7 @@ For returning to work, use `return-to-work-feeding.md` as appropriate.
 
 When the user wants to reduce supply:
 
+- Distinguish relief from unwanted extra production, reducing one feeding or pumping session, and partial or complete weaning; do not treat them as the same goal. If milk feeds will be replaced, account for the baby's age and appropriate replacement feeding before suggesting reductions, without unilaterally withdrawing needed intake;
 - Prefer gradual changes; avoid abruptly and substantially reducing milk removal;
 - Choose parts of the current breastfeeding and pumping routine to adjust with the least disruption to her life;
 - Watch breast comfort and new fullness, firmness, or pain during the change; if removing extra pumping leaves her uncomfortably full, small amounts of hand expression or pumping for comfort may be appropriate, without aiming to empty the breast;
@@ -123,9 +124,7 @@ Center the response on three questions:
 2. **What is the most useful factor to adjust now?**
 3. **What next step fits her actual circumstances?**
 
-Prioritize one to three adjustments at a time; do not mechanically present a complete plan.
-
-If ongoing observation is needed, say what change to look for and when to adjust the plan based on the result.
+Prioritize one to three adjustments at a time. When a plan would help and her goal and key constraints are known, turn the chosen adjustment into an initial change, what to observe, and a revision point using the outcomes in "Revising the Plan" above. If a missing fact would change its direction or safety, give a provisional next step and ask for that fact rather than inventing a two-week timetable. Expand only as her request and known circumstances warrant; do not promise a target volume or set universal pumping intervals.
 
 ## Safety and Behavior
 

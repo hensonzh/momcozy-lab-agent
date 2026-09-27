@@ -9,7 +9,7 @@ from app.infrastructure.db.schema import RUNTIME_SCHEMA_REVISION
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_HEAD_REVISION = "20260916_0002"
+RUNTIME_HEAD_REVISION = "20260926_0003"
 
 
 def test_runtime_has_one_fresh_alembic_head() -> None:
@@ -69,6 +69,8 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "CREATE INDEX ix_agent_runs_runnable_lease" in sql
     assert "agent_name VARCHAR(64)" in sql
     assert "CREATE INDEX ix_agent_runs_agent_name" in sql
+    assert "CREATE INDEX ix_agent_runs_completed_notification" in sql
+    assert "CREATE TABLE agent_notification_receipts" in sql
     assert "skill_id VARCHAR(64)" not in sql
     assert "CREATE INDEX ix_agent_actions_confirmation_expiry" in sql
     assert "CREATE TABLE audit_logs" in sql

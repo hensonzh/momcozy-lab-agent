@@ -54,8 +54,8 @@ def test_diary_and_prenatal_capabilities_are_not_composed() -> None:
         namespace.name for namespace in TOOL_NAMESPACE_DEFINITIONS
     }
 
-    assert tool_names == {"load_service_skill", "read_topical_records"}
-    assert action_types == set()
+    assert tool_names == {"load_service_skill", "read_topical_records", "read_schedule", "change_records", "change_schedule"}
+    assert action_types == {"records.batch.change", "schedule.batch.change"}
     assert REMOVED_TOOL_NAMES.isdisjoint(tool_names)
     assert REMOVED_ACTION_TYPES.isdisjoint(action_types)
     assert {"diary", "prenatal"}.isdisjoint(namespace_names)

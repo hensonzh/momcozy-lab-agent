@@ -75,6 +75,8 @@ class AgentRun(Base):
         ),
         Index("ix_agent_runs_thread_started", "thread_id", "started_at"),
         Index("ix_agent_runs_actor_status_started", "actor_user_id", "status", "started_at"),
+        Index("ix_agent_runs_completed_notification", "completed_at", "id",
+            postgresql_where=text("status = 'completed'")),
         Index(
             "ix_agent_runs_runnable_lease",
             "status",
@@ -153,6 +155,17 @@ class AgentRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class AgentNotificationReceipt(Base):
+    """Durable handoff status for a completed run sent to Product Backend."""
+
+    __tablename__ = "agent_notification_receipts"
+
+    run_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), primary_key=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AgentMessage(Base):

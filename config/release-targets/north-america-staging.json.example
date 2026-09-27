@@ -1,0 +1,8 @@
+{
+  "deployment_target": "north-america-staging",
+  "app_env": "staging",
+  "release_root": "TBD",
+  "release_lock": "TBD",
+  "service_env_file": "TBD",
+  "public_url": "TBD"
+}

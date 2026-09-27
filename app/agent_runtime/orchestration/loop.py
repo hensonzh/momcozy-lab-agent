@@ -609,7 +609,7 @@ class AgentLoop:
         try:
             async with self._persistence_lock:
                 trusted_args = None
-                if call.name == "read_topical_records":
+                if call.name in {"read_topical_records", "read_schedule", "change_records"}:
                     current_records = await self.repository.list_context_items_for_run(
                         run_id=run.id, owner_user_id=principal.user_id,
                     )
@@ -634,6 +634,7 @@ class AgentLoop:
                 run=run,
                 call=call,
                 code=exc.code,
+                details=exc.details,
             )
         if status is not None:
             outcome = "failure" if execution.canonical_output.get("ok") is False else "success"
@@ -691,9 +692,21 @@ class AgentLoop:
         run: AgentRun,
         call: _PendingToolCall,
         code: str,
+        details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        error: dict[str, str] = {"code": code}
+        if code == "tool_input_invalid" and details:
+            path = details.get("path")
+            reason = details.get("reason")
+            if isinstance(path, str) and len(path) <= 160 and re.fullmatch(r"\$(?:\.[A-Za-z_][A-Za-z_0-9]*|\[\d{1,3}\])*", path):
+                error["path"] = path
+            if isinstance(reason, str) and reason in {
+                "required", "additionalProperties", "enum", "type", "format", "pattern",
+                "minimum", "maximum", "minItems", "maxItems", "minLength", "maxLength", "anyOf", "oneOf", "date_window", "invalid_field", "future_time",
+            }:
+                error["reason"] = reason
         output = json.dumps(
-            {"ok": False, "error": {"code": code}},
+            {"ok": False, "error": error},
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,

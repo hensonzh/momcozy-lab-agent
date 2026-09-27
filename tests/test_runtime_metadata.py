@@ -122,7 +122,7 @@ def test_first_party_contract_versions_match_current_baseline() -> None:
         "runtime_contract_catalog": "agent.runtime_contract_catalog.v1",
         "runtime_metadata": "agent.runtime_metadata.v1",
         "runtime_safety_policy": "momcozy.runtime_safety.v1",
-        "service_skill": "momcozy.service_skill.v3",
+        "service_skill": "momcozy.service_skill.v1",
         "text_stream": "append-only.v1",
         "tool_catalog": "agent.tool_catalog.v1",
         "tool_contract": "agent.tool_contract.v1",
@@ -215,7 +215,7 @@ def test_runtime_contract_catalog_is_versioned_and_deterministic() -> None:
     } == {TOOL_CONTRACT_SCHEMA_VERSION}
     assert {
         item["schema_version"] for item in first["actions"]["items"]
-    } == set()
+    } == {ACTION_POLICY_SCHEMA_VERSION}
     assert len(first["tools"]["sha256"]) == 64
     assert len(first["actions"]["sha256"]) == 64
     assert len(first["catalog_sha256"]) == 64

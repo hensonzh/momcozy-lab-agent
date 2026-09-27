@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 from typing import Any
+
+from pydantic import ValidationError
 
 from app.agent_runtime.ledger import AgentAction
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
@@ -81,6 +84,7 @@ class ActionExecutor:
                 action=action,
                 run=run,
                 error_code=_error_code(exc),
+                issue=_error_issue(exc),
             )
 
         applied = await self.repository.mark_action_applied(
@@ -125,11 +129,13 @@ class ActionExecutor:
         action: AgentAction,
         run: Any,
         error_code: str,
+        issue: dict[str, Any] | None = None,
     ) -> ActionExecutionOutcome:
         failed = await self.repository.mark_action_failed(
             action=action,
             failed_at=_utcnow(),
             error_code=error_code,
+            failure_payload=issue,
         )
         rule = self.policy.validate(
             action_type=failed.action_type,
@@ -143,6 +149,7 @@ class ActionExecutor:
                 **_event_identity(failed),
                 **action_presentation(rule=rule),
                 "code": error_code,
+                **({"issue": issue} if issue else {}),
             },
         )
         return ActionExecutionOutcome(action=failed)
@@ -161,7 +168,32 @@ def _event_identity(action: AgentAction) -> dict[str, str]:
 def _error_code(exc: Exception) -> str:
     if isinstance(exc, ApiError):
         return exc.code
+    if isinstance(exc, ValidationError):
+        return "validation_failed"
     return "agent_action_handler_error"
+
+
+def _error_issue(exc: Exception) -> dict[str, Any] | None:
+    if isinstance(exc, ApiError):
+        issue = exc.details.get("issue")
+        if (isinstance(issue, dict) and set(issue) == {"operation_index", "field_path", "reason"}
+            and isinstance(issue["operation_index"], int) and not isinstance(issue["operation_index"], bool)
+            and 0 <= issue["operation_index"] < 20
+            and isinstance(issue["field_path"], str) and len(issue["field_path"]) <= 80
+            and (not issue["field_path"] or re.fullmatch(r"(?:fields\.)?[a-z_]+", issue["field_path"]))
+            and isinstance(issue["reason"], str)
+            and issue["reason"] in {"required", "invalid_value", "invalid_fields", "future_time", "stale_revision", "not_found"}):
+            return issue
+    if isinstance(exc, ValidationError):
+        for error in exc.errors(include_url=False):
+            loc = error["loc"]
+            if len(loc) >= 2 and loc[0] == "operations" and isinstance(loc[1], int):
+                field = str(loc[-1]) if len(loc) > 2 else ""
+                if field not in {"infant_id", "record_type", "record_source", "record_id", "revision", "task_id", "expected_updated_at"}:
+                    field = ""
+                return {"operation_index": loc[1], "field_path": field,
+                        "reason": "required" if error["type"] == "missing" else "invalid_fields"}
+    return None
 
 
 def _result_payload(result: ActionApplyResult) -> dict[str, Any]:

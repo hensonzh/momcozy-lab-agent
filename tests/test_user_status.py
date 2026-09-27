@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, cast
 
 import pytest
@@ -17,6 +18,7 @@ from app.agent_runtime.orchestration.user_status import (
 from app.agent_runtime.safety import RuntimeSafetyPolicy
 from app.agent_runtime.tools import ToolResult
 from app.agent_runtime.tools.executor import ToolExecutor
+from app.core.errors import ApiError
 from test_single_agent_loop import MemoryLedger, RecordingToolExecutor, _loop
 
 
@@ -302,6 +304,46 @@ def test_running_status_is_committed_before_tool_execution() -> None:
     asyncio.run(_loop(repository=repository, provider=provider,
                       tool_executor=cast(ToolExecutor, executor)).process(repository.run.id))
     assert executor.committed_running
+
+
+def test_invalid_tool_input_receipt_exposes_safe_field_path_for_model_retry() -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="bad-query", name="fixture_read", namespace="fixture",
+            arguments={"infant_scope": "all"},
+        )),
+        ScriptedTurn.calls(ScriptedToolCall(
+            call_id="corrected-query", name="fixture_read", namespace="fixture",
+            arguments={"infant_scope": "current"},
+        )),
+        ScriptedTurn.final("已核对。"),
+    ]})
+
+    class InvalidInputExecutor(RecordingToolExecutor):
+        async def execute(self, **kwargs: Any) -> Any:
+            if kwargs["call_id"] == "bad-query":
+                raise ApiError(
+                    code="tool_input_invalid", message="Invalid input", status=422,
+                    details={
+                        "path": "$.queries[2].infant_id", "reason": "additionalProperties",
+                        "private": "never echo this value",
+                    },
+                )
+            return await super().execute(**kwargs)
+
+    executor = InvalidInputExecutor(repository)
+    run = asyncio.run(_loop(
+        repository=repository, provider=provider,
+        tool_executor=cast(ToolExecutor, executor),
+    ).process(repository.run.id))
+    assert run.status == "completed"
+    output = next(item for item in provider.requests[1].input_items if item.get("type") == "function_call_output")
+    assert json.loads(str(output["output"])) == {
+        "ok": False,
+        "error": {"code": "tool_input_invalid", "path": "$.queries[2].infant_id", "reason": "additionalProperties"},
+    }
+    assert executor.calls == [("fixture_read", "corrected-query", {"infant_scope": "current"})]
 
 
 class _ObserveRunningToolExecutor(RecordingToolExecutor):

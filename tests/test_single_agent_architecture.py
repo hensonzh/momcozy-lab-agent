@@ -27,7 +27,7 @@ def test_runtime_exposes_one_agent_and_a_global_tool_catalog() -> None:
     assert RUNTIME_DEFINITION.agent is AGENT
     assert RUNTIME_DEFINITION.tools is TOOL_CATALOG
     assert not hasattr(AGENT, "tool_names")
-    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME, "read_topical_records")
+    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME, "read_topical_records", "read_schedule", "change_records", "change_schedule")
 
     namespace_tools = tuple(
         tool_name
@@ -88,12 +88,11 @@ def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:
 
     output = result.canonical_output
     assert output == {
-        "schema_version": "momcozy.service_skill.v3",
+        "schema_version": "momcozy.service_skill.v1",
         "status": "loaded",
         "skill_id": "lactation",
         "resource_type": "skill",
         "resource_id": "lactation",
-        "version": skill.version,
         "description": skill.description,
         "content_sha256": hashlib.sha256(
             skill.content.encode("utf-8")

@@ -109,12 +109,11 @@ def test_skill_loader_can_load_one_fingerprinted_reference() -> None:
     )
 
     assert result.canonical_output == {
-        "schema_version": "momcozy.service_skill.v3",
+        "schema_version": "momcozy.service_skill.v1",
         "status": "loaded",
         "skill_id": "lactation",
         "resource_type": "reference",
         "resource_id": reference.reference_id,
-        "version": reference.version,
         "description": reference.description,
         "content_sha256": hashlib.sha256(reference.content.encode("utf-8")).hexdigest(),
     }
@@ -139,6 +138,9 @@ def test_skill_loader_contract_exposes_only_registered_references() -> None:
     assert contract.input_schema["required"] == ["skill_id"]
     assert contract.input_schema["properties"]["reference_id"]["enum"] == list(REFERENCE_IDS)
     assert {"resource_type", "resource_id"} <= set(contract.output_schema["required"])
+    assert "version" not in contract.output_schema["required"]
+    assert "version" not in contract.output_schema["properties"]
+    assert "version" not in contract.safe_output_fields
 
     with pytest.raises(ApiError, match="reference"):
         LoadServiceSkillToolHandler(registry=SERVICE_SKILL_REGISTRY)(
@@ -156,9 +158,10 @@ def test_skill_loader_contract_exposes_only_registered_references() -> None:
     [
         ("momcozy.service_skill.v1", False),
         ("momcozy.service_skill.v2", True),
+        ("momcozy.service_skill.v3", True),
     ],
 )
-def test_legacy_skill_receipts_still_rehydrate_the_router(
+def test_old_skill_receipt_formats_do_not_activate_documents(
     schema_version: str,
     include_status: bool,
 ) -> None:
@@ -173,20 +176,19 @@ def test_legacy_skill_receipts_still_rehydrate_the_router(
         {
             "type": "function_call",
             "name": LOAD_SERVICE_SKILL_TOOL_NAME,
-            "call_id": "legacy-skill",
+            "call_id": "old-skill",
             "arguments": '{"skill_id":"lactation"}',
         },
         {
             "type": "function_call_output",
-            "call_id": "legacy-skill",
+            "call_id": "old-skill",
             "output": json.dumps(output),
         },
     )
 
-    assert SERVICE_SKILL_REGISTRY.project_model_input(history) == (
-        *history,
-        skill.developer_item(),
-    )
+    projected = SERVICE_SKILL_REGISTRY.project_model_input(history)
+    assert projected == history
+    assert skill.developer_item() not in projected
 
 
 def test_reference_names_must_use_lowercase_kebab_case(tmp_path: Path) -> None:

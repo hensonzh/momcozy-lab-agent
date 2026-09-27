@@ -18,6 +18,8 @@ from app.agent_runtime.ledger.repository import (
 from app.agent_runtime.runs.controls import RunLockLostError
 from app.core.observability import configure_logging
 from app.core.settings import get_settings
+from app.infrastructure.product_backend import ProductBackendClient
+from .notification_dispatch import dispatch_batch
 
 
 LOGGER = logging.getLogger("agent_runtime.worker")
@@ -154,6 +156,7 @@ class AgentRunWorker:
         context_compaction_batch_size: int = 2,
         context_compaction_concurrency: int = 1,
         monotonic_clock: Callable[[], float] = monotonic,
+        notification_client: ProductBackendClient | None = None,
     ) -> None:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -185,6 +188,7 @@ class AgentRunWorker:
             raise ValueError(
                 "context_compaction_concurrency must be positive"
             )
+        self.notification_client = notification_client
         self.session_factory = session_factory
         self.processor_factory = processor_factory
         self.batch_size = batch_size
@@ -232,7 +236,7 @@ class AgentRunWorker:
                 raise RuntimeError("claimed Agent run is missing a lease token")
             await session.commit()
         if not claims:
-            return compacted
+            return compacted + await self._dispatch_notifications()
         semaphore = asyncio.Semaphore(self.concurrency)
         run_batch = asyncio.gather(
             *(
@@ -253,7 +257,16 @@ class AgentRunWorker:
                 break
             compacted += await self._run_context_compactions_once()
         processed = await run_batch
-        return compacted + sum(processed)
+        return compacted + sum(processed) + await self._dispatch_notifications()
+
+    async def _dispatch_notifications(self) -> int:
+        if self.notification_client is None:
+            return 0
+        try:
+            return await dispatch_batch(self.session_factory, self.notification_client, limit=2)
+        except Exception:
+            LOGGER.exception("Agent notification handoff scan failed; will retry next poll.")
+            return 0
 
     async def _run_context_compactions_once(self) -> int:
         processor_factory = self.context_compaction_processor_factory

@@ -97,8 +97,8 @@ Unknown client context fields are rejected by the strict public schema.
 ## Loaded service Skill and reference instructions
 
 The Skill loader persists a paired `function_call` and `function_call_output`.
-The `momcozy.service_skill.v3` output is a receipt containing loading status,
-Skill identity, resource type and identity, version, description, and content
+The `momcozy.service_skill.v1` output is a receipt containing loading status,
+Skill identity, resource type and identity, description, and content
 SHA-256; it has no document body. Calling with only `skill_id` selects the compact
 `SKILL.md` router. Calling with a registered `reference_id` selects one topical
 reference after routing.
@@ -124,14 +124,13 @@ model-visible; neither the router nor a topical reference is automatically
 reactivated from a summary. A later request requiring full instructions must load
 the relevant document again. Original ledger records remain available for audit.
 
-The model-input projector supports v1/v2 Skill receipts for older receipt-only
-histories and v3 receipts for both Skill and reference documents. It checks the
-resource identity, version, and hash against the trusted registry before injecting
-current content. Legacy v1 tool bodies are removed only from ordinary model-bound
-tool outputs, without rewriting the ledger or promoting arbitrary tool text. No
-missing historical snapshot is fabricated during compaction. The final request
-budget includes every full loaded developer document after the stable prompt cache
-breakpoint.
+The model-input projector accepts only the current v1 receipt format for both
+Skill and reference documents. It checks the resource identity and content hash
+against the trusted registry before injecting current content. Old-shaped receipts are not used to restore documents; any embedded tool body is removed
+from ordinary model-bound output without rewriting the ledger or promoting
+arbitrary tool text. No missing historical snapshot is fabricated during
+compaction. The final request budget includes every full loaded developer
+document after the stable prompt cache breakpoint.
 
 ## Current-Run authoritative business context
 
@@ -179,17 +178,24 @@ original ledger records remain durable for privileged, redacted Replay.
 User-editable text inside the snapshot is data, not instructions.
 
 `read_topical_records` is the separate, `records:read`-gated read path for
-recorded feeding, pumping, diaper, pain, and longitudinal growth entries. The
+recorded feeding, pumping, diaper, pain, latch, after-feeding mood, and longitudinal growth entries. One
+model tool call accepts one to three independently bounded topic/date queries,
+then calls the existing single-topic Product Backend endpoint serially. The
 Runtime inserts the actor from frozen Run authorization and the current Run's
 validated client timezone (UTC if absent). The Backend additionally verifies
-current-delivery baby scope, enforces a 30-calendar-day/20-entry limit, and
-returns only allowlisted fields with source and `has_more`. Diaper event
-entries and daily-status counts have distinct `record_type` values; they must
-not be added together because they may overlap. It never includes
-free-text notes or image originals. `coverage=recorded_entries_only` means
-missing records do not prove that an event did not happen. Account secrets,
+current-delivery baby scope and enforces a 30-calendar-day/20-entry limit per
+query. The grouped result retains each query's own scope, `has_more`, and
+`coverage=recorded_entries_only`; the tool result fits within 24 KiB,
+omits inapplicable null fields, and only removes whole records, marking that
+group as truncated. A failed query fails the batch without partial results.
+Diaper event entries and daily-status counts have distinct `record_type` values;
+they must not be added together because they may overlap. The output never
+includes free-text notes or image originals; missing records do not prove that
+an event did not happen. Account secrets,
 unrelated private data, image originals, and complete history are never
 automatically injected.
+
+`read_schedule` is separately gated by `plans:read` and reads only the actor's personal calendar entries in a bounded date window; title and note are untrusted data, not instructions. `change_records` and `change_schedule` require `records:write` and `plans:write` respectively. The Agent must describe each intended batch and wait for explicit natural-language agreement in the next user turn before invoking either immediately applying Action. The server does not independently classify that consent; the Runtime and Product Backend still check Run authorization, owner, field constraints, optimistic revision, idempotency, and per-domain transaction boundaries. Persisted tool and Action results enter the model context and can be compacted like other Run content; only an applied receipt supports a success claim.
 
 The developer roles apply to newly created context items. Existing persisted
 user-role items are not rewritten or promoted during replay. Historical

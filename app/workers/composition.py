@@ -239,6 +239,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
             yield AgentRunWorker(
                 session_factory=session_factory,
                 processor_factory=processor_factory,
+                notification_client=product_client,
                 batch_size=settings.agent_worker_batch_size,
                 concurrency=settings.agent_worker_concurrency,
                 poll_interval_seconds=(settings.agent_worker_poll_interval_seconds),

@@ -29,7 +29,7 @@ ReviewStatus = Literal["not_required", "review_required", "passed", "failed"]
 ReleaseStatus = Literal["passed", "failed", "review_required"]
 
 # Includes dormant tools so evals can explicitly forbid their invocation.
-KNOWN_TOOL_NAMES = frozenset({"load_service_skill", "read_topical_records"})
+KNOWN_TOOL_NAMES = frozenset({"load_service_skill", "read_topical_records", "read_schedule", "change_records", "change_schedule"})
 SERVICE_SKILL_NAMES = frozenset({"lactation"})
 
 

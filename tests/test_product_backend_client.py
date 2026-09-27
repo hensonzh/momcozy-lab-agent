@@ -62,6 +62,20 @@ def test_profile_client_sends_service_actor_and_returns_typed_response() -> None
     assert captured_headers["x-request-id"] == "req-profile-read"
 
 
+def test_profile_client_accepts_supported_six_baby_and_unknown_feeding_context() -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        payload = _profile_response(infant_scope="current_delivery")
+        payload["mother"]["personal_context"] = {
+            "baby_count": 6,
+            "feeding_methods": ["unknown"],
+        }
+        return httpx.Response(200, json=payload)
+
+    result = asyncio.run(_read_profile(handler))
+    assert result.mother.personal_context.baby_count == 6
+    assert result.mother.personal_context.feeding_methods == ["unknown"]
+
+
 def test_profile_client_rejects_malformed_success_response() -> None:
     async def handler(_request: httpx.Request) -> httpx.Response:
         payload = _profile_response(infant_scope="all")

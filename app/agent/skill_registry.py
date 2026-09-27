@@ -46,7 +46,6 @@ class ServiceSkillReference:
             "skill_id": self.skill_id,
             "resource_type": "reference",
             "resource_id": self.reference_id,
-            "version": self.version,
             "description": self.description,
             "content_sha256": self.content_sha256,
         }
@@ -77,7 +76,7 @@ class ServiceSkill:
 
     @property
     def version(self) -> str:
-        """Keep the receipt/event field compatible without a manual version."""
+        """Retain the event field without a manually maintained content version."""
         return self.content_sha256
 
     def get_reference(self, reference_id: str) -> ServiceSkillReference:
@@ -97,7 +96,6 @@ class ServiceSkill:
             "skill_id": self.skill_id,
             "resource_type": "skill",
             "resource_id": self.skill_id,
-            "version": self.version,
             "description": self.description,
             "content_sha256": self.content_sha256,
         }
@@ -330,7 +328,6 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                     "skill_id",
                     "resource_type",
                     "resource_id",
-                    "version",
                     "description",
                     "content_sha256",
                 ],
@@ -352,7 +349,6 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                         "type": "string",
                         "enum": resource_ids,
                     },
-                    "version": {"type": "string", "minLength": 1},
                     "description": {"type": "string", "minLength": 1},
                     "content_sha256": {
                         "type": "string",
@@ -367,7 +363,6 @@ def service_skill_tool_registry() -> ToolContractRegistry:
                 "skill_id",
                 "resource_type",
                 "resource_id",
-                "version",
                 "content_sha256",
             ),
             timeout_seconds=5,
@@ -381,21 +376,14 @@ def _matches_skill_receipt(
     output: dict[str, Any],
     skill: ServiceSkill,
 ) -> bool:
-    if any(
-        output.get(key) != value
-        for key, value in (
-            ("skill_id", skill.skill_id),
-            ("version", skill.version),
-            ("content_sha256", skill.content_sha256),
-        )
-    ):
-        return False
-    schema_version = output.get("schema_version")
-    if schema_version == SERVICE_SKILL_SCHEMA_VERSION:
-        return output.get("status") == "loaded" and output.get("resource_type") == "skill" and output.get("resource_id") == skill.skill_id
-    if schema_version == "momcozy.service_skill.v2":
-        return output.get("status") == "loaded"
-    return schema_version == "momcozy.service_skill.v1"
+    return (
+        output.get("schema_version") == SERVICE_SKILL_SCHEMA_VERSION
+        and output.get("status") == "loaded"
+        and output.get("skill_id") == skill.skill_id
+        and output.get("resource_type") == "skill"
+        and output.get("resource_id") == skill.skill_id
+        and output.get("content_sha256") == skill.content_sha256
+    )
 
 
 def _matches_reference_receipt(
@@ -409,7 +397,6 @@ def _matches_reference_receipt(
         and output.get("skill_id") == reference.skill_id
         and output.get("resource_type") == "reference"
         and output.get("resource_id") == reference.reference_id
-        and output.get("version") == reference.version
         and output.get("content_sha256") == reference.content_sha256
     )
 

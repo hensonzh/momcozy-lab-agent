@@ -71,6 +71,10 @@ Choose the next step according to the assessment and her goals:
 
 When information is insufficient, say what can and cannot be concluded and ask only for the most important missing information.
 
+## Planning Triage
+
+Assessment is a planning triage, not a prescription to increase or reduce supply. Distinguish missing evidence about infant intake from an unchosen maternal goal. When the direction is clear, hand the actionable next step to `milk-supply-management.md` or, for workday arrangements, `return-to-work-feeding.md`; do not repeat their management instructions here. If a missing goal or infant-intake fact would change the direction, give the current assessment and ask the one question that resolves that gap rather than drafting a detailed supply regimen.
+
 ## Response Guidance
 
 Center the response on three questions:
