@@ -129,6 +129,20 @@ def test_invalid_pumping_side_reports_only_field_path_not_submitted_value() -> N
     assert 'both' not in str(error.value.details)
 
 
+def test_batch_preflight_reports_missing_fields_across_items_without_values() -> None:
+    operations = [
+        {'op':'create','topic':'pumping','fields':{'volume_ml':60}},
+        {'op':'create','topic':'pain','fields':{'occurred_at':'2026-09-23T10:00:00Z','pain_score':2}},
+    ]
+    with pytest.raises(ApiError) as error:
+        validate_tool_input(schema=registry().get('change_records').input_schema, value={'operations':operations})
+    paths = {item['path'] for item in error.value.details['issues']}
+    assert {'$.operations[0].fields.occurred_at','$.operations[0].fields.side',
+            '$.operations[1].fields.side','$.operations[1].fields.phase',
+            '$.operations[1].fields.impact'} <= paths
+    assert '60' not in str(error.value.details)
+
+
 def test_semantic_record_and_schedule_errors_never_propose_an_action() -> None:
     infant = str(uuid4())
     repo = ToolRepository(permissions=frozenset({'agent:run','records:write','plans:write'}))

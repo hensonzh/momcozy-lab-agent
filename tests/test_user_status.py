@@ -346,6 +346,33 @@ def test_invalid_tool_input_receipt_exposes_safe_field_path_for_model_retry() ->
     assert executor.calls == [("fixture_read", "corrected-query", {"infant_scope": "current"})]
 
 
+def test_invalid_batch_receipt_lists_safe_fields_without_echoing_private_details() -> None:
+    repository = MemoryLedger()
+    provider = ScriptedAgentModel({"cozymate": [
+        ScriptedTurn.calls(ScriptedToolCall(call_id="bad-batch", name="fixture_read", namespace="fixture", arguments={})),
+        ScriptedTurn.final("先补全信息。"),
+    ]})
+    class InvalidExecutor:
+        async def execute(self, **_kwargs: Any) -> Any:
+            raise ApiError(code="tool_input_invalid", message="private", status=422, details={
+                "path":"$.operations[0].fields.side", "reason":"required", "private":"phone=13812345678",
+                "issues":[
+                    {"path":"$.operations[0].fields.side","reason":"required","value":"private"},
+                    {"path":"$.operations[1].fields.phase","reason":"required"},
+                    {"path":"$.operations[2].fields.13812345678","reason":"required"},
+                ],
+            })
+    asyncio.run(_loop(repository=repository, provider=provider,
+        tool_executor=cast(ToolExecutor, InvalidExecutor())).process(repository.run.id))
+    output = next(item for item in provider.requests[1].input_items if item.get("type") == "function_call_output")
+    error = json.loads(str(output["output"]))["error"]
+    assert error["issues"] == [
+        {"path":"$.operations[0].fields.side","reason":"required"},
+        {"path":"$.operations[1].fields.phase","reason":"required"},
+    ]
+    assert "private" not in str(error) and "13812345678" not in str(error)
+
+
 class _ObserveRunningToolExecutor(RecordingToolExecutor):
     committed_running = False
 

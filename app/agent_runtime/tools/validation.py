@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import islice
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -44,13 +45,16 @@ def _validate(
     message: str,
     status: int,
 ) -> None:
+    errors: list[ValidationError] = []
     try:
         Draft202012Validator.check_schema(schema)
         validator = Draft202012Validator(
             schema,
             format_checker=FormatChecker(),
         )
-        validator.validate(value)
+        errors = list(islice(validator.iter_errors(value), 20))
+        if errors:
+            raise errors[0]
     except SchemaError as exc:
         raise ApiError(
             code="tool_contract_invalid",
@@ -59,12 +63,53 @@ def _validate(
             details={"path": _path(exc)},
         ) from exc
     except ValidationError as exc:
+        issues: list[dict[str, str]] = []
+        for error in errors[:20]:
+            issues.extend(_validation_issues(error, schema))
+        issues = list({(issue["path"], issue["reason"]): issue for issue in issues}.values())[:20]
+        details: dict[str, Any] = dict(issues[0]) if issues else _validation_details(exc, schema)
+        if len(issues) > 1:
+            details["issues"] = issues
         raise ApiError(
             code=code,
             message=message,
             status=status,
-            details=_validation_details(exc, schema),
+            details=details,
         ) from exc
+
+
+def _validation_issues(exc: ValidationError, root_schema: dict[str, Any]) -> list[dict[str, str]]:
+    if exc.validator in {"anyOf", "oneOf"} and isinstance(exc.instance, dict):
+        selected = _selected_variant(exc, root_schema)
+        if selected is not None:
+            index, _branch, _properties = selected
+            missing: list[dict[str, str]] = []
+            for child in exc.context:
+                if child.schema_path and child.schema_path[0] == index and child.validator == "required" and isinstance(child.instance, dict):
+                    for name in child.schema.get("required", ()):
+                        if isinstance(name, str) and name not in child.instance:
+                            missing.append({"path": f"{_path(child)}.{name}", "reason": "required"})
+            if missing:
+                return missing
+    return [_validation_details(exc, root_schema)]
+
+
+def _selected_variant(exc: ValidationError, root_schema: dict[str, Any]) -> tuple[int, dict[str, Any], dict[str, Any]] | None:
+    if not isinstance(exc.instance, dict):
+        return None
+    options = exc.schema.get(exc.validator, [])
+    definitions = root_schema.get("$defs", {})
+    if not isinstance(options, list) or not isinstance(definitions, dict):
+        return None
+    matching: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    for index, option in enumerate(options):
+        if not isinstance(option, dict):
+            continue
+        branch = _resolve_variant(option, definitions)
+        properties = branch.get("properties", {})
+        if isinstance(properties, dict) and _matches_variant(exc.instance, properties, definitions):
+            matching.append((index, branch, properties))
+    return matching[0] if len(matching) == 1 else None
 
 
 def _validation_details(exc: ValidationError, root_schema: dict[str, Any]) -> dict[str, str]:
@@ -75,20 +120,10 @@ def _validation_details(exc: ValidationError, root_schema: dict[str, Any]) -> di
         definitions = root_schema.get("$defs", {})
         if not isinstance(options, list) or not isinstance(definitions, dict):
             return {"path": _path(exc), "reason": str(exc.validator)}
-        matching: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
-        for index, option in enumerate(options):
-            if not isinstance(option, dict):
-                continue
-            branch = _resolve_variant(option, definitions)
-            properties = branch.get("properties", {})
-            if not isinstance(properties, dict):
-                continue
-            if not _matches_variant(exc.instance, properties, definitions):
-                continue
-            matching.append((index, branch, properties))
-        if len(matching) != 1:
+        selected = _selected_variant(exc, root_schema)
+        if selected is None:
             return {"path": _path(exc), "reason": str(exc.validator)}
-        index, branch, properties = matching[0]
+        index, branch, properties = selected
         for child in exc.context:
             if not child.schema_path or child.schema_path[0] != index:
                 continue

@@ -694,17 +694,31 @@ class AgentLoop:
         code: str,
         details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        error: dict[str, str] = {"code": code}
+        error: dict[str, Any] = {"code": code}
         if code == "tool_input_invalid" and details:
             path = details.get("path")
             reason = details.get("reason")
-            if isinstance(path, str) and len(path) <= 160 and re.fullmatch(r"\$(?:\.[A-Za-z_][A-Za-z_0-9]*|\[\d{1,3}\])*", path):
-                error["path"] = path
-            if isinstance(reason, str) and reason in {
+            safe_path = r"\$(?:\.[A-Za-z_][A-Za-z_0-9]*|\[\d{1,3}\])*"
+            safe_reasons = {
                 "required", "additionalProperties", "enum", "type", "format", "pattern",
                 "minimum", "maximum", "minItems", "maxItems", "minLength", "maxLength", "anyOf", "oneOf", "date_window", "invalid_field", "future_time",
-            }:
+            }
+            if isinstance(path, str) and len(path) <= 160 and re.fullmatch(safe_path, path):
+                error["path"] = path
+            if isinstance(reason, str) and reason in safe_reasons:
                 error["reason"] = reason
+            candidate_issues = details.get("issues")
+            if isinstance(candidate_issues, list):
+                issues = [
+                    {"path": item["path"], "reason": item["reason"]}
+                    for item in candidate_issues[:20]
+                    if isinstance(item, dict)
+                    and isinstance(item.get("path"), str) and len(item["path"]) <= 160
+                    and re.fullmatch(safe_path, item["path"])
+                    and isinstance(item.get("reason"), str) and item["reason"] in safe_reasons
+                ]
+                if len(issues) > 1:
+                    error["issues"] = issues
         output = json.dumps(
             {"ok": False, "error": error},
             ensure_ascii=False,
