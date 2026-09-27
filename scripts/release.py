@@ -28,7 +28,7 @@ DEPLOYMENT_TARGET_ENVIRONMENTS = {
     "production": "production",
 }
 RELEASE_ROOTS = {
-    "staging": Path("/opt/momcozy-lab"),  # Existing host path; no staging data migration.
+    "staging": Path("/opt/momcozy-lab-staging"),  # Fresh isolated root; legacy test releases remain untouched.
     "production": Path("/opt/momcozy-lab-production"),
 }
 OPENAPI_PATH = Path("docs/openapi.generated.json")

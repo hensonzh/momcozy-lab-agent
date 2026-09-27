@@ -34,6 +34,7 @@ def test_b_target_must_have_separate_root_lock_env_and_host(tmp_path: Path) -> N
     assert check().returncode == 0
     for field, bad in (
         ("release_root", "/opt/momcozy-lab"),
+        ("release_root", "/opt/momcozy-lab-staging"),
         ("release_root", "/opt/momcozy-lab/shared/north-america-staging"),
         ("release_lock", "/opt/momcozy-lab/shared/staging-release.lock"),
         ("service_env_file", "/opt/momcozy-lab/shared/agent/staging.env"),

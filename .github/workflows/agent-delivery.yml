@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Validate the manual release operator
         env:
-          RELEASE_APPROVERS: ${{ vars.RELEASE_APPROVERS }}
+          RELEASE_APPROVERS: ${{ vars.RELEASE_APPROVERS || (inputs.environment == 'staging' && vars.STAGING_APPROVERS) }}
         run: |
           set -euo pipefail
           IFS=',' read -r -a raw_approvers <<< "${RELEASE_APPROVERS}"
@@ -99,11 +99,11 @@ jobs:
 
       - name: Validate target environment configuration
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || (inputs.environment == 'staging' && secrets.STAGING_SSH_PRIVATE_KEY) }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS || (inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS) }}
         run: |
           set -euo pipefail
           for name in DEPLOY_RELEASE_ROOT DEPLOY_ENV_FILE DEPLOY_CA_FILE DEPLOY_PUBLIC_URL PRODUCT_RELEASE_MANIFEST DEPLOY_RELEASE_LOCK DEPLOY_SSH_HOST DEPLOY_SSH_PORT DEPLOY_SSH_USER DEPLOY_SSH_PRIVATE_KEY DEPLOY_SSH_KNOWN_HOSTS; do
@@ -189,8 +189,8 @@ jobs:
 
       - name: Configure verified SSH host access
         env:
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || (inputs.environment == 'staging' && secrets.STAGING_SSH_PRIVATE_KEY) }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS || (inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS) }}
         run: |
           install -d -m 0700 "${HOME}/.ssh"
           install -m 0600 /dev/null "${HOME}/.ssh/id_ed25519"
@@ -201,9 +201,9 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           test -n "${GHCR_TOKEN}"
           printf '%s' "${GHCR_TOKEN}" | ssh -p "${DEPLOY_SSH_PORT}" \
@@ -212,9 +212,9 @@ jobs:
 
       - name: Install the trusted main release tool on the host
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           scp -P "${DEPLOY_SSH_PORT}" scripts/release.py \
             "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}:${REMOTE_RELEASE_TOOL}"
@@ -222,9 +222,9 @@ jobs:
       - name: Stage the exact commit without uncommitted files
         if: inputs.operation == 'deploy'
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           archive="${RUNNER_TEMP}/agent-${RELEASE_COMMIT_SHA}.tar.gz"
           git archive --format=tar.gz --output "${archive}" "${RELEASE_COMMIT_SHA}"
@@ -238,9 +238,9 @@ jobs:
       - name: Deploy the immutable runtime under the host lock
         if: inputs.operation == 'deploy'
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           release_dir="${DEPLOY_RELEASE_ROOT}/releases/agent/${RELEASE_COMMIT_SHA}"
           ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
@@ -249,9 +249,9 @@ jobs:
       - name: Roll back application code without downgrading the database
         if: inputs.operation == 'rollback'
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
             "/usr/bin/flock --exclusive --timeout 1800 '${DEPLOY_RELEASE_LOCK}' env DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' python3 '${REMOTE_RELEASE_TOOL}' rollback --environment '${DEPLOY_ENVIRONMENT}' --env-file '${DEPLOY_ENV_FILE}' --release-root '${DEPLOY_RELEASE_ROOT}' --public-url '${DEPLOY_PUBLIC_URL}' --ca-file '${DEPLOY_CA_FILE}' --confirm-schema-compatible"
@@ -259,9 +259,9 @@ jobs:
       - name: Remove ephemeral host registry credentials
         if: always()
         env:
-          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST }}
-          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT }}
-          DEPLOY_SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_HOST: ${{ secrets.SSH_HOST || (inputs.environment == 'staging' && secrets.STAGING_SSH_HOST) }}
+          DEPLOY_SSH_PORT: ${{ secrets.SSH_PORT || (inputs.environment == 'staging' && secrets.STAGING_SSH_PORT) }}
+          DEPLOY_SSH_USER: ${{ secrets.SSH_USER || (inputs.environment == 'staging' && secrets.STAGING_SSH_USER) }}
         run: |
           ssh -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
             "DOCKER_CONFIG='${REMOTE_DOCKER_CONFIG}' docker logout ghcr.io >/dev/null 2>&1 || true; rm -f '${REMOTE_DOCKER_CONFIG}/config.json'; rmdir '${REMOTE_DOCKER_CONFIG}' 2>/dev/null || true" || true

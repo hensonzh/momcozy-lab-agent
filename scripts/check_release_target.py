@@ -26,7 +26,7 @@ def validate_target(config: dict[str, str]) -> None:
     if config["deployment_target"] != "north-america-staging" or config["app_env"] != "staging":
         raise ValueError("B deployment target must be north-america-staging with APP_ENV=staging")
     root = Path(config["release_root"])
-    a_roots = (Path("/opt/momcozy-lab"), Path("/opt/momcozy-lab-production"))
+    a_roots = (Path("/opt/momcozy-lab"), Path("/opt/momcozy-lab-staging"), Path("/opt/momcozy-lab-production"))
     if (
         not root.is_absolute()
         or not root.resolve().is_relative_to(Path("/opt").resolve())

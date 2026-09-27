@@ -80,9 +80,9 @@ GitHub Environment variables:
 
 ```text
 staging:
-  RELEASE_ROOT=/opt/momcozy-lab
-  SERVICE_ENV_FILE=/opt/momcozy-lab/shared/agent/staging.env
-  RELEASE_LOCK_PATH=/opt/momcozy-lab/shared/staging-release.lock
+  RELEASE_ROOT=/opt/momcozy-lab-staging
+  SERVICE_ENV_FILE=/opt/momcozy-lab-staging/shared/agent/staging.env
+  RELEASE_LOCK_PATH=/opt/momcozy-lab-staging/shared/staging-release.lock
 production:
   RELEASE_ROOT=/opt/momcozy-lab-production
   SERVICE_ENV_FILE=/opt/momcozy-lab-production/shared/agent/production.env
@@ -105,8 +105,10 @@ SSH_PRIVATE_KEY
 SSH_KNOWN_HOSTS
 ```
 
-`RELEASE_APPROVERS` is a repository variable. Keep GitHub Environment required
-reviewers enabled, especially for production.
+`RELEASE_APPROVERS` is a repository variable; staging can reuse the existing
+`STAGING_APPROVERS` variable and `STAGING_SSH_*` repository secrets when
+environment-scoped values are absent. Keep GitHub Environment required reviewers
+enabled, especially for production.
 
 ## Release safety sequence
 

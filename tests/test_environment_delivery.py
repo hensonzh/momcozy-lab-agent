@@ -92,6 +92,8 @@ def test_delivery_is_environment_scoped_serial_and_host_key_checked() -> None:
     assert "name: ${{ inputs.environment }}" in workflow
     assert "group: momcozy-lab-agent-${{ inputs.environment }}" in workflow
     assert "RELEASE_APPROVERS" in workflow
+    assert "vars.STAGING_APPROVERS" in workflow
+    assert "inputs.environment == 'staging' && secrets.STAGING_SSH_PRIVATE_KEY" in workflow
     assert "secrets.SSH_KNOWN_HOSTS" in workflow
     assert "StrictHostKeyChecking=no" not in workflow
     assert "scripts/release.py" in workflow
@@ -106,9 +108,10 @@ def test_release_identifiers_and_environment_are_strict() -> None:
     assert validate_image_ref(IMAGE_REF) == IMAGE_REF
     assert validate_environment("staging") == "staging"
     assert validate_environment("production") == "production"
-    assert validate_release_root(Path("/opt/momcozy-lab"), "staging") == Path("/opt/momcozy-lab")
+    assert validate_release_root(Path("/opt/momcozy-lab-staging"), "staging") == Path("/opt/momcozy-lab-staging")
     assert validate_release_root(Path("/opt/momcozy-lab-production"), "production") == Path("/opt/momcozy-lab-production")
     for environment, wrong_root in (
+        ("staging", Path("/opt/momcozy-lab")),
         ("production", Path("/opt/momcozy-lab")),
         ("staging", Path("/opt/momcozy-lab-production")),
     ):
