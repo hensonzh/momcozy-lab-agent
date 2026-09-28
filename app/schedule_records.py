@@ -275,8 +275,19 @@ class BatchApplicator:
                 operations=action.apply_payload["operations"])
             response = await self.client.write_agent_schedule(
                 command=schedule_command, idempotency_key=str(action.id), request_id=str(action.run_id))
+        if self.domain == "records":
+            topics = {str(operation["topic"]) for operation in action.apply_payload["operations"]}
+            tabs = [
+                tab for tab, relevant in (
+                    ("me", {"pumping", "pain", "latch"}),
+                    ("baby", {"feeding", "diaper", "growth", "after_feeding_mood"}),
+                ) if topics & relevant
+            ]
+        else:
+            tabs = ["schedule"]
         return ActionApplyResult(resource_type=f"{self.domain}_batch", resource_id=str(response.batch_id),
-            details={"batch_id": str(response.batch_id), "items": [item.model_dump(mode="json") for item in response.items]})
+            details={"batch_id": str(response.batch_id), "items": [item.model_dump(mode="json") for item in response.items]},
+            application_events=({"type": "product.tabs.updated", "payload": {"tabs": tabs}},))
 
 
 def _handlers(deps: CapabilityDependencies) -> dict[str, Any]:

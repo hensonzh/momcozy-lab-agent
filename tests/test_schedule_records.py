@@ -306,6 +306,52 @@ def test_batch_applicators_forward_durable_action_identity_and_receipt() -> None
     assert key == str(action_id) and request == str(run_id)
 
 
+
+@pytest.mark.parametrize(('domain', 'operations', 'expected_tabs'), [
+    ('records', [
+        {'op': 'create', 'topic': 'pumping', 'fields': {'occurred_at': '2026-09-23T10:00:00Z', 'side': 'Left side', 'volume_ml': 50}},
+    ], ['me']),
+    ('records', [
+        {'op': 'create', 'topic': 'feeding', 'infant_id': str(uuid4()), 'fields': {'occurred_at': '2026-09-23T10:00:00Z', 'method': 'breastfeeding', 'side': 'left'}},
+    ], ['baby']),
+    ('records', [
+        {'op': 'create', 'topic': 'pain', 'fields': {'occurred_at': '2026-09-23T10:00:00Z', 'pain_score': 2, 'side': 'Left side', 'phase': 'When latching', 'impact': 'Could continue'}},
+        {'op': 'create', 'topic': 'diaper', 'infant_id': str(uuid4()), 'record_type': 'event', 'fields': {'occurred_at': '2026-09-23T10:00:00Z', 'diaper_kind': 'wet'}},
+    ], ['me', 'baby']),
+    ('records', [
+        {'op': 'update', 'topic': 'pumping', 'record_source': 'pumping_records',
+         'record_id': str(uuid4()), 'revision': '1', 'fields': {'volume_ml': 70}},
+    ], ['me']),
+    ('records', [
+        {'op': 'update', 'topic': 'growth', 'infant_id': str(uuid4()), 'record_source': 'growth_records',
+         'record_id': str(uuid4()), 'revision': '1', 'fields': {'weight_kg': 5.1}},
+    ], ['baby']),
+    ('schedule', _schedule()['operations'], ['schedule']),
+    ('schedule', [
+        {'op': 'update', 'task_id': str(uuid4()), 'expected_updated_at': '2026-09-23T10:00:00Z',
+         'fields': {'title': '复诊改期'}},
+    ], ['schedule']),
+])
+def test_applied_batch_emits_only_affected_primary_tabs(domain: str, operations: list[dict[str, Any]], expected_tabs: list[str]) -> None:
+    owner, action_id, run_id = uuid4(), uuid4(), uuid4()
+    action = SimpleNamespace(actor_user_id=owner, id=action_id, run_id=run_id,
+        apply_payload={'timezone': 'Asia/Shanghai', 'operations': operations})
+
+    class Client:
+        async def write_agent_records(self, *, command: Any, idempotency_key: str, request_id: str) -> AgentBatchResponse:
+            return AgentBatchResponse.model_validate({'batch_id': action_id, 'items': [
+                {'op': operation.op, 'resource_id': str(uuid4()), 'revision': '1'} for operation in command.operations
+            ]})
+
+        async def write_agent_schedule(self, *, command: Any, idempotency_key: str, request_id: str) -> AgentBatchResponse:
+            return AgentBatchResponse.model_validate({'batch_id': action_id, 'items': [
+                {'op': operation.op, 'resource_id': str(uuid4()), 'revision': '1'} for operation in command.operations
+            ]})
+
+    result = asyncio.run(BatchApplicator(Client(), domain)(action))
+    assert result.application_events == ({'type': 'product.tabs.updated', 'payload': {'tabs': expected_tabs}},)
+    assert 'volume_ml' not in str(result.application_events)
+
 def test_schedule_read_truncates_only_model_view_and_reports_has_more() -> None:
     repo = ToolRepository(permissions=frozenset({'agent:run', 'plans:read'}))
     entries = [
@@ -461,7 +507,7 @@ def test_real_action_service_executes_batch_once_and_reuses_receipt_on_tool_retr
     first = asyncio.run(ChangeHandler(service, 'records.batch.change')(context)).canonical_output
     second = asyncio.run(ChangeHandler(service, 'records.batch.change')(context)).canonical_output
     assert first == second and first['ok'] is True and first['action_status'] == 'applied'
-    assert len(client.calls) == 1 and repository.event_types == ['action.proposed', 'action.applied']
+    assert len(client.calls) == 1 and repository.event_types == ['action.proposed', 'action.applied', 'product.tabs.updated']
     assert repository.action is not None and client.calls[0][1] == str(repository.action.id)
     assert repository.committed_action_id == repository.action.id
 
