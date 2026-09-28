@@ -81,8 +81,9 @@ def test_ci_publishes_sha_tagged_runtime_after_quality_gates() -> None:
     assert "docker/build-push-action@" in workflow
     assert "ghcr.io/${{ github.repository }}:${{ github.sha }}" in workflow
     assert "org.opencontainers.image.revision=${{ github.sha }}" in workflow
-    assert "agent-image-manifest-${{ github.sha }}" in workflow
+    assert "actions/upload-artifact" not in workflow
     assert "python scripts/release.py image-manifest" in workflow
+    assert "ghcr.io/${{ github.repository }}:${{ github.sha }}" in workflow
 
 
 def test_delivery_is_environment_scoped_serial_and_host_key_checked() -> None:
@@ -97,6 +98,8 @@ def test_delivery_is_environment_scoped_serial_and_host_key_checked() -> None:
     assert "secrets.SSH_KNOWN_HOSTS" in workflow
     assert "StrictHostKeyChecking=no" not in workflow
     assert "scripts/release.py" in workflow
+    assert "packages/container/momcozy-lab-agent/versions" in workflow
+    assert "gh run download" not in workflow
     assert "--environment '${DEPLOY_ENVIRONMENT}'" in workflow
     assert '"DEPLOY_ENV_FILE": root / "shared" / "agent" / f"{environment}.env"' in workflow
     assert '"DEPLOY_RELEASE_LOCK": root / "shared" / f"{environment}-release.lock"' in workflow

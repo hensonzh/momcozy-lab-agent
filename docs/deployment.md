@@ -80,8 +80,9 @@ and release manifest value are nevertheless `staging`.
 
 Run `.github/workflows/agent-delivery.yml` only after the matching Product
 Backend release is healthy. Select `staging` or `production`, then `deploy` or
-`rollback`. The workflow consumes the digest-qualified image produced by a
-successful `agent-ci` run for the selected main commit.
+`rollback`. The workflow requires a successful `agent-ci` run for the selected main commit
+and resolves its digest-qualified image from GHCR tag metadata. The tiny local
+image manifest is validated by CI but is not uploaded as a quota-bound artifact.
 
 GitHub Environment variables:
 

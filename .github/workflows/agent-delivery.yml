@@ -126,7 +126,7 @@ jobs:
                   raise ValueError(f"{name} must be {path}")
           PY
 
-      - name: Resolve the authoritative successful-CI image manifest
+      - name: Resolve the authoritative successful-CI image digest
         if: inputs.operation == 'deploy'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -153,30 +153,19 @@ jobs:
               --jq '.[0].databaseId'
           )"
           [[ "${ci_run_id}" =~ ^[0-9]+$ ]]
-          manifest_dir="${RUNNER_TEMP}/agent-ci-manifest-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          install -d -m 0700 "${manifest_dir}"
-          gh run download "${ci_run_id}" \
-            --name "agent-image-manifest-${REQUESTED_COMMIT_SHA}" \
-            --dir "${manifest_dir}"
-          CI_MANIFEST_PATH="${manifest_dir}/agent-image-manifest.json" \
-            python3 - <<'PY'
-          import json
+          image_digest="$(
+            gh api --paginate "users/${GITHUB_REPOSITORY_OWNER}/packages/container/momcozy-lab-agent/versions?per_page=100" \
+              --jq '.[] | select(.metadata.container.tags[]? == env.REQUESTED_COMMIT_SHA) | .name' \
+              | head -n 1
+          )"
+          [[ "${image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          IMAGE_DIGEST="${image_digest}" python3 - <<'PY'
           import os
           from pathlib import Path
           from scripts.release import validate_commit_sha, validate_image_ref
 
           requested = validate_commit_sha(os.environ["REQUESTED_COMMIT_SHA"])
-          payload = json.loads(Path(os.environ["CI_MANIFEST_PATH"]).read_text())
-          image_ref = validate_image_ref(str(payload.get("image_ref", "")))
-          expected = {
-              "schema_version": 1,
-              "service": "agent-runtime",
-              "commit": requested,
-              "image_digest": image_ref.rsplit("@", 1)[1],
-          }
-          observed = {key: payload.get(key) for key in expected}
-          if observed != expected:
-              raise SystemExit(f"CI image manifest identity mismatch: {observed}")
+          image_ref = validate_image_ref(f"ghcr.io/{os.environ['GITHUB_REPOSITORY']}@{os.environ['IMAGE_DIGEST']}")
           with Path(os.environ["GITHUB_ENV"]).open("a") as output:
               output.write(f"RELEASE_COMMIT_SHA={requested}\n")
               output.write(f"RELEASE_IMAGE_REF={image_ref}\n")
