@@ -99,3 +99,21 @@ def test_makefile_has_local_and_read_only_deploy_helpers() -> None:
     assert "agent-deploy-validate" in makefile
     assert "$(DEPLOY_COMPOSE) up" not in makefile
     assert "$(DEPLOY_COMPOSE) down" not in makefile
+
+
+def test_pinned_minio_ci_build_reuses_main_only_layer_cache() -> None:
+    text = CI_WORKFLOW.read_text()
+    section = text.split('      - name: Build the pinned community MinIO image\n', 1)[1].split('      - name:', 1)[0]
+    for line in (
+        'uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4',
+        'context: deploy/shared',
+        'file: deploy/shared/Minio.Dockerfile',
+        'load: true',
+        'push: false',
+        'tags: momcozy-staging-minio:9e49d5e7a648f00e',
+        'cache-from: type=gha,scope=momcozy-minio-9e49d5e7a648f00e',
+        "github.ref == 'refs/heads/main'",
+        'cache-to:',
+    ):
+        assert line in section
+    assert 'Smoke-test migration-gated readiness' in text
