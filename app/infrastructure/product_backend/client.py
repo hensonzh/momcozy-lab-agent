@@ -171,10 +171,34 @@ class ProductBackendClient:
             raise _invalid_response()
         return result
 
-
-
-
-
+    async def fetch_local_model_image(
+        self, *, actor_user_id: UUID, file_id: UUID, request_id: str,
+    ) -> tuple[str, bytes]:
+        """Fetch image bytes over the authenticated internal API (local only)."""
+        try:
+            response = await self.http_client.get(
+                f"/v1/internal/agent/files/{file_id}/model-image",
+                params={"actor_user_id": str(actor_user_id)},
+                headers={"X-Service-Key": self.service_key, "X-Request-ID": request_id},
+            )
+        except httpx.TimeoutException as exc:
+            raise DependencyError(code="product_backend_timeout", message="Product Backend request timed out.",
+                                  status=504, retryable=True) from exc
+        except httpx.RequestError as exc:
+            raise DependencyError(code="product_backend_unavailable", message="Product Backend is unavailable.",
+                                  retryable=True) from exc
+        if response.is_error:
+            if response.status_code in {401, 403}:
+                raise DependencyError(code="product_backend_service_auth_failed",
+                                      message="Product Backend rejected the Agent Runtime service identity.",
+                                      status=502, retryable=False, dependency_status=response.status_code)
+            raise DependencyError(code="product_backend_image_unavailable", message="Image is unavailable.",
+                                  retryable=response.status_code >= 500 or response.status_code == 429,
+                                  dependency_status=response.status_code)
+        content_type = response.headers.get("content-type", "").split(";", 1)[0].lower().strip()
+        if content_type not in {"image/gif", "image/jpeg", "image/png", "image/webp"} or not 0 < len(response.content) <= 10 * 1024 * 1024:
+            raise _invalid_response()
+        return content_type, response.content
 
     async def _request_model(
         self,

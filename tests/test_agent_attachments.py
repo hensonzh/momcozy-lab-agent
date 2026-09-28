@@ -505,3 +505,37 @@ def _form_artifact() -> Any:
             }
         },
     )
+
+
+def test_local_image_materialization_inlines_owned_image_only_for_model_call() -> None:
+    image_id = uuid4()
+    owner = uuid4()
+    client = LocalImageProductClient(image_id=image_id, owner=owner)
+    service = AgentAttachmentService(
+        repository=CachedAssetRepository(),  # type: ignore[arg-type]
+        product_client=client,
+        inline_local_images=True,
+    )
+    items = ({"role": "user", "content": [
+        {"type": "input_text", "text": "What is in this photo?"},
+        {"type": "input_image", "asset_id": str(image_id), "detail": "high"},
+    ]},)
+    result = asyncio.run(service.resolve_for_model(
+        input_items=items, thread_id=uuid4(), actor_user_id=owner, request_id="local-photo",
+    ))
+    assert result[0]["content"][1] == {
+        "type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo=", "detail": "high",
+    }
+    assert items[0]["content"][1] == {"type": "input_image", "asset_id": str(image_id), "detail": "high"}
+    assert client.calls == [(owner, image_id)]
+
+
+class LocalImageProductClient:
+    def __init__(self, *, image_id: UUID, owner: UUID) -> None:
+        self.image_id, self.owner = image_id, owner
+        self.calls: list[tuple[UUID, UUID]] = []
+
+    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
+        self.calls.append((actor_user_id, file_id))
+        assert (actor_user_id, file_id) == (self.owner, self.image_id)
+        return "image/png", b"\x89PNG\r\n\x1a\n"

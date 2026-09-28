@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import math
 import re
@@ -33,6 +34,10 @@ BOOLEAN_FIELD_TYPES = frozenset({"boolean", "checkbox", "toggle"})
 
 
 class _FileResolver(Protocol):
+    async def fetch_local_model_image(
+        self, *, actor_user_id: UUID, file_id: UUID, request_id: str,
+    ) -> tuple[str, bytes]: ...
+
     async def resolve_agent_file(
         self,
         *,
@@ -49,9 +54,11 @@ class AgentAttachmentService:
         *,
         repository: RuntimeLedgerRepository,
         product_client: _FileResolver,
+        inline_local_images: bool = False,
     ) -> None:
         self.repository = repository
         self.product_client = product_client
+        self.inline_local_images = inline_local_images
 
     async def verify_for_run(
         self,
@@ -125,12 +132,18 @@ class AgentAttachmentService:
                 if block_type == "input_image" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
                     materialized = {key: value for key, value in block.items() if key != "asset_id"}
-                    materialized["image_url"] = await self.resolve_image_url(
-                        thread_id=thread_id,
-                        actor_user_id=actor_user_id,
-                        asset_id=asset_id,
-                        request_id=request_id,
-                    )
+                    if self.inline_local_images:
+                        content_type, body = await self.product_client.fetch_local_model_image(
+                            actor_user_id=actor_user_id, file_id=asset_id, request_id=request_id,
+                        )
+                        materialized["image_url"] = f"data:{content_type};base64,{base64.b64encode(body).decode('ascii')}"
+                    else:
+                        materialized["image_url"] = await self.resolve_image_url(
+                            thread_id=thread_id,
+                            actor_user_id=actor_user_id,
+                            asset_id=asset_id,
+                            request_id=request_id,
+                        )
                     content[index] = materialized
                 elif block_type == "input_file" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")

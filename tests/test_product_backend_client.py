@@ -195,3 +195,30 @@ def _profile_response(*, infant_scope: str) -> dict[str, Any]:
         "missing_fields": [],
         "data_quality_issues": [],
     }
+
+
+def test_local_model_image_client_uses_authenticated_owner_scoped_binary_endpoint() -> None:
+    actor, file_id = uuid4(), uuid4()
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/internal/agent/files/{file_id}/model-image"
+        assert request.url.params["actor_user_id"] == str(actor)
+        assert request.headers["X-Service-Key"] == "runtime-service-key"
+        return httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNG\r\n\x1a\n")
+    async def run() -> tuple[str, bytes]:
+        async with httpx.AsyncClient(base_url="https://product.test", transport=httpx.MockTransport(handler)) as http_client:
+            return await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_local_model_image(
+                actor_user_id=actor, file_id=file_id, request_id="local-image")
+    assert asyncio.run(run()) == ("image/png", b"\x89PNG\r\n\x1a\n")
+
+
+def test_local_model_image_client_rejects_unsupported_or_oversized_bytes() -> None:
+    async def run(content_type: str, content: bytes) -> None:
+        async with httpx.AsyncClient(base_url="https://product.test", transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, headers={"Content-Type": content_type}, content=content))) as http_client:
+            await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_local_model_image(
+                actor_user_id=uuid4(), file_id=uuid4(), request_id="local-image")
+    for content_type, content in (("text/plain", b"hello"), ("image/jpeg", b"a" * (10 * 1024 * 1024 + 1))):
+        with pytest.raises(DependencyError) as error:
+            asyncio.run(run(content_type, content))
+        assert error.value.code == "product_backend_invalid_response"
