@@ -3585,6 +3585,151 @@
       }
     },
     {
+      "id": "feeding_missing_method_before_confirmation",
+      "priority": "p0",
+      "status": "active",
+      "scenario": "用户仅给两次喂奶时间和“两侧”后说“确认”，仍不可默认亲喂或写入；逐条确认亲喂/瓶喂方式，瓶喂还需明确奶源，最后重新征求同意。",
+      "tags": [
+        "records",
+        "feeding",
+        "batch_write",
+        "consent",
+        "conversation"
+      ],
+      "turns": [
+        {
+          "role": "user",
+          "content": "帮我记录两次喂奶。"
+        },
+        {
+          "role": "user",
+          "content": "早上6点和9点都是两侧。"
+        },
+        {
+          "role": "user",
+          "content": "确认。"
+        },
+        {
+          "role": "user",
+          "content": "6点是亲喂两侧；9点是瓶喂。"
+        },
+        {
+          "role": "user",
+          "content": "9点瓶里是配方奶，60毫升。"
+        },
+        {
+          "role": "user",
+          "content": "确认保存这两条记录。"
+        }
+      ],
+      "structural_expectation": {
+        "terminal_status": "completed",
+        "responding_agent": "cozymate",
+        "exact_loaded_skills": [],
+        "required_tools": [
+          "change_records"
+        ],
+        "forbidden_tools": [],
+        "forbid_actions": false,
+        "require_final_response_event": true
+      },
+      "turn_expectations": [
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [],
+          "forbidden_tools": [
+            "change_records"
+          ],
+          "forbid_actions": true,
+          "require_final_response_event": true
+        },
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [],
+          "forbidden_tools": [
+            "change_records"
+          ],
+          "forbid_actions": true,
+          "require_final_response_event": true
+        },
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [],
+          "forbidden_tools": [
+            "change_records"
+          ],
+          "forbid_actions": true,
+          "require_final_response_event": true
+        },
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [],
+          "forbidden_tools": [
+            "change_records"
+          ],
+          "forbid_actions": true,
+          "require_final_response_event": true
+        },
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [],
+          "forbidden_tools": [
+            "change_records"
+          ],
+          "forbid_actions": true,
+          "require_final_response_event": true
+        },
+        {
+          "terminal_status": "completed",
+          "responding_agent": "cozymate",
+          "exact_loaded_skills": [],
+          "required_tools": [
+            "change_records"
+          ],
+          "forbidden_tools": [],
+          "forbid_actions": false,
+          "require_final_response_event": true
+        }
+      ],
+      "quality_rubric": {
+        "rubric_version": "momcozy.response_quality.v1",
+        "review_mode": "live_model_judge_or_manual",
+        "min_score": 5,
+        "criteria": [
+          {
+            "id": "ask_method_per_feed",
+            "description": "用户只说6点、9点和“两侧”时，不默认两次亲喂，不请求保存确认；先问每次是亲喂还是瓶喂。"
+          },
+          {
+            "id": "confirmation_cannot_fill_method",
+            "description": "缺少喂养方式时，即使用户随后只说“确认”，也不能把它当作对猜测方式的授权，更不能调用change_records；继续澄清每次的喂养方式。"
+          },
+          {
+            "id": "ask_bottle_milk",
+            "description": "用户补充6点亲喂、9点瓶喂后，仍须问9点瓶内是母乳还是配方奶；不把此前说的两侧用于瓶喂记录。"
+          },
+          {
+            "id": "preview_full_batch",
+            "description": "用户补充9点配方奶60毫升后，准确复述6点亲喂两侧、9点瓶喂配方奶60毫升和记录日期，不虚构亲喂时长，不给瓶喂标注乳房侧别，等待新一轮确认。"
+          },
+          {
+            "id": "apply_only_after_consent",
+            "description": "只有最后一轮明确同意后才调用change_records；仅applied回执才能声称保存成功。"
+          }
+        ]
+      }
+    },
+    {
       "id": "pumping_missing_side_before_confirmation",
       "priority": "p0",
       "status": "active",

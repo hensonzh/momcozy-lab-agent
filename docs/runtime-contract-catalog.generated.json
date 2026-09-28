@@ -46,7 +46,7 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "436f784fa00b57468b46cae8cbf4fe6c8efecb1c0a191eef79fa7d6e7d2a9cf8"
   },
-  "catalog_sha256": "91ca1ff7dfdd4f3cc09c3f8e6a3edf4695e2e3f917294925cd64a07c6641a101",
+  "catalog_sha256": "a6c219cdda045899b6f7b1ede37d289d29a7111eb900a16d2c7bd0b3b565df78",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -129,7 +129,7 @@
               "additionalProperties": false,
               "properties": {
                 "method": {
-                  "description": "Recorded feeding method; breastfeeding and bottle fields differ.",
+                  "description": "Bottle feeding: expressed breast milk or formula. Ask which milk was in the bottle if the user has not said; never infer it from her usual feeding pattern.",
                   "enum": [
                     "expressed_milk",
                     "formula"
@@ -221,7 +221,7 @@
                 },
                 "method": {
                   "const": "breastfeeding",
-                  "description": "Recorded feeding method; breastfeeding and bottle fields differ.",
+                  "description": "Direct nursing only. Ask whether this feed was directly at the breast before choosing this method; a side, including both sides, does not establish it.",
                   "title": "Method",
                   "type": "string"
                 },
@@ -2836,6 +2836,6 @@
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "69f3317a46f993009ef53f11bb3013bc93a42f3dabed8b1eedbc3625b1029a3d"
+    "sha256": "bddd2df0f305ad0971b2ff8a8645c9a0bfa73a954cc0f2bd49b4fa54631fc030"
   }
 }

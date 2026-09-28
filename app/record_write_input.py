@@ -32,14 +32,14 @@ class _MotherCreate(Strict):
 
 class BreastfeedingFields(Strict):
     occurred_at: AwareDatetime
-    method: Literal["breastfeeding"]
+    method: Literal["breastfeeding"] = Field(description="Direct nursing only. Ask whether this feed was directly at the breast before choosing this method; a side, including both sides, does not establish it.")
     side: BabySide
     duration_minutes: int | None = Field(default=None, gt=0, le=240)
 
 
 class BottleFeedingFields(Strict):
     occurred_at: AwareDatetime
-    method: Literal["expressed_milk", "formula"]
+    method: Literal["expressed_milk", "formula"] = Field(description="Bottle feeding: expressed breast milk or formula. Ask which milk was in the bottle if the user has not said; never infer it from her usual feeding pattern.")
     volume_ml: float | None = Field(default=None, gt=0, le=1000)
 
 

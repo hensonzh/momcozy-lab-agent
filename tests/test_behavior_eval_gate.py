@@ -106,6 +106,7 @@ def test_versioned_behavior_catalog_is_strict_and_covers_release_scenarios() -> 
         "lactation_case_return_to_work_sustainable_plan",
         "record_batch_request_requires_next_turn_consent",
         "pumping_missing_side_before_confirmation",
+        "feeding_missing_method_before_confirmation",
         "record_batch_confirm_then_apply",
         "record_batch_changed_consent_requires_new_preview",
         "schedule_batch_request_requires_next_turn_consent",

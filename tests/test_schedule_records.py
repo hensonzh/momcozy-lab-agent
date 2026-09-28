@@ -75,6 +75,7 @@ def test_schedule_read_restricts_owner_timezone_window_and_pagination() -> None:
 
 @pytest.mark.parametrize('tool,operation,field', [
     ('change_records', {'op':'create','topic':'pumping','fields':{'occurred_at':'2026-09-23T10:00:00Z','volume_ml':60}}, 'side'),
+    ('change_records', {'op':'create','topic':'feeding','infant_id':str(uuid4()),'fields':{'occurred_at':'2026-09-23T10:00:00Z','side':'both'}}, 'method'),
     ('change_records', {'op':'create','topic':'pain','fields':{'occurred_at':'2026-09-23T10:00:00Z','pain_score':2}}, 'side'),
     ('change_records', {'op':'create','topic':'latch','fields':{'occurred_at':'2026-09-23T10:00:00Z'}}, 'latch_status'),
     ('change_schedule', {'op':'create','fields':{'title':'复诊','date':'2026-09-28'}}, 'start_time'),
@@ -118,6 +119,14 @@ def test_all_record_create_variants_require_their_topic_fields_in_model_schema()
         with pytest.raises(ApiError) as error:
             validate_tool_input(schema=schema, value={'operations':[operation]})
         assert error.value.code == 'tool_input_invalid'
+
+
+def test_feeding_tool_descriptions_require_explicit_method_before_preview() -> None:
+    schema = registry().get('change_records').input_schema
+    descriptions = schema['$defs']
+    assert 'ask' in descriptions['BreastfeedingFields']['properties']['method']['description'].lower()
+    assert 'both sides' in descriptions['BreastfeedingFields']['properties']['method']['description'].lower()
+    assert 'ask' in descriptions['BottleFeedingFields']['properties']['method']['description'].lower()
 
 
 def test_invalid_pumping_side_reports_only_field_path_not_submitted_value() -> None:
