@@ -28,9 +28,16 @@ environment's private service env; do not add another `env_file` to Compose.
 ## Ownership boundary
 
 Product Backend owns the shared PostgreSQL, Redis, MinIO, and Docker network.
+CI builds the same pinned MinIO source image as the Backend release instead of
+pulling retired public server/client tags; Agent deployment does not start a
+second object-storage service.
 Agent Runtime joins the environment network as an external consumer and must
 never create a second stateful stack. It owns only its API, worker, migrations,
 database schema, Redis identity/DB, output bucket and release manifest.
+
+Staging Agent mounts an HTTPS trust bundle (`MOMCOZY_AGENT_TRUST_BUNDLE_FILE`)
+containing system roots plus the App staging CA. Keep the Product and JWKS URLs
+on the reviewed public HTTPS origin; do not point deployed Agent at plain HTTP.
 
 The following values in Agent's private env must match Backend's private env:
 

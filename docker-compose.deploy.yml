@@ -6,6 +6,7 @@ x-runtime-service: &runtime-service
     - ${MOMCOZY_AGENT_ENV_FILE:?Set MOMCOZY_AGENT_ENV_FILE}
   environment:
     APP_ENV: ${APP_ENV:?Set APP_ENV}
+    SSL_CERT_FILE: /run/momcozy/trust-bundle.pem
     DATABASE_URL: postgresql+asyncpg://${MOMCOZY_AGENT_POSTGRES_USER:?Set MOMCOZY_AGENT_POSTGRES_USER}:${MOMCOZY_AGENT_POSTGRES_PASSWORD:?Set MOMCOZY_AGENT_POSTGRES_PASSWORD}@postgres:5432/${MOMCOZY_AGENT_POSTGRES_DB:?Set MOMCOZY_AGENT_POSTGRES_DB}
     REDIS_URL: redis://agent-runtime:${MOMCOZY_AGENT_REDIS_PASSWORD:?Set MOMCOZY_AGENT_REDIS_PASSWORD}@redis:6379/1
     RUNTIME_OUTPUT_STORE_BUCKET: ${MOMCOZY_AGENT_MINIO_BUCKET:?Set MOMCOZY_AGENT_MINIO_BUCKET}
@@ -17,6 +18,8 @@ x-runtime-service: &runtime-service
     MOMCOZY_AGENT_REDIS_PASSWORD: ""
     MOMCOZY_AGENT_MINIO_ACCESS_KEY: ""
     MOMCOZY_AGENT_MINIO_SECRET_KEY: ""
+  volumes:
+    - ${MOMCOZY_AGENT_TRUST_BUNDLE_FILE:-/etc/ssl/certs/ca-certificates.crt}:/run/momcozy/trust-bundle.pem:ro
   init: true
   read_only: true
   tmpfs:

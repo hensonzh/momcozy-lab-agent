@@ -105,7 +105,7 @@ jobs:
       contents: read
       packages: write
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
     env:
       MOMCOZY_AGENT_ENV_FILE: env/local.env.example
       IMMUTABLE_IMAGE_TAG: ghcr.io/${{ github.repository }}:${{ github.sha }}
@@ -163,6 +163,9 @@ jobs:
               --validate-only \
               --output-json /tmp/behavior-eval.json \
               --junit /tmp/behavior-eval.xml
+
+      - name: Build the pinned community MinIO image
+        run: docker build --file deploy/shared/Minio.Dockerfile --tag momcozy-staging-minio:9e49d5e7a648f00e deploy/shared
 
       - name: Smoke-test migration-gated readiness
         run: |
