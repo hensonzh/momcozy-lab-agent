@@ -416,6 +416,9 @@ class ResolvingProductClient:
         self.urls = urls
         self.resolutions: list[tuple[UUID, UUID, str]] = []
 
+    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
+        raise AssertionError("this test uses the remote model URL path")
+
     async def resolve_agent_file(self, *, command: Any, **_kwargs: Any) -> Any:
         self.resolutions.append(
             (command.actor_user_id, command.file_id, command.purpose)
@@ -426,6 +429,9 @@ class ResolvingProductClient:
 
 
 class NeverCalledProductClient:
+    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
+        raise AssertionError("a valid cached asset URL should be reused")
+
     async def resolve_agent_file(self, **_kwargs: Any) -> Any:
         raise AssertionError("a valid cached asset URL should be reused")
 
@@ -534,6 +540,9 @@ class LocalImageProductClient:
     def __init__(self, *, image_id: UUID, owner: UUID) -> None:
         self.image_id, self.owner = image_id, owner
         self.calls: list[tuple[UUID, UUID]] = []
+
+    async def resolve_agent_file(self, **_kwargs: Any) -> Any:
+        raise AssertionError("local image materialization must not resolve a remote URL")
 
     async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
         self.calls.append((actor_user_id, file_id))
