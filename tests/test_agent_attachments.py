@@ -416,7 +416,7 @@ class ResolvingProductClient:
         self.urls = urls
         self.resolutions: list[tuple[UUID, UUID, str]] = []
 
-    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
+    async def fetch_model_asset(self, *, actor_user_id: UUID, file_id: UUID, purpose: str, request_id: str) -> tuple[str, bytes]:
         raise AssertionError("this test uses the remote model URL path")
 
     async def resolve_agent_file(self, *, command: Any, **_kwargs: Any) -> Any:
@@ -429,7 +429,7 @@ class ResolvingProductClient:
 
 
 class NeverCalledProductClient:
-    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
+    async def fetch_model_asset(self, *, actor_user_id: UUID, file_id: UUID, purpose: str, request_id: str) -> tuple[str, bytes]:
         raise AssertionError("a valid cached asset URL should be reused")
 
     async def resolve_agent_file(self, **_kwargs: Any) -> Any:
@@ -513,38 +513,47 @@ def _form_artifact() -> Any:
     )
 
 
-def test_local_image_materialization_inlines_owned_image_only_for_model_call() -> None:
-    image_id = uuid4()
-    owner = uuid4()
-    client = LocalImageProductClient(image_id=image_id, owner=owner)
+def test_staging_materialization_inlines_owned_image_and_pdf_only_for_model_call() -> None:
+    image_id, file_id, owner = uuid4(), uuid4(), uuid4()
+    client = InlineAssetProductClient(image_id=image_id, file_id=file_id, owner=owner)
     service = AgentAttachmentService(
         repository=CachedAssetRepository(),  # type: ignore[arg-type]
         product_client=client,
-        inline_local_images=True,
+        inline_model_assets=True,
     )
     items = ({"role": "user", "content": [
-        {"type": "input_text", "text": "What is in this photo?"},
+        {"type": "input_text", "text": "What do these show?"},
         {"type": "input_image", "asset_id": str(image_id), "detail": "high"},
+        {"type": "input_file", "asset_id": str(file_id), "filename": "guide.pdf"},
     ]},)
     result = asyncio.run(service.resolve_for_model(
-        input_items=items, thread_id=uuid4(), actor_user_id=owner, request_id="local-photo",
+        input_items=items, thread_id=uuid4(), actor_user_id=owner, request_id="staging-attachments",
     ))
-    assert result[0]["content"][1] == {
-        "type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo=", "detail": "high",
-    }
-    assert items[0]["content"][1] == {"type": "input_image", "asset_id": str(image_id), "detail": "high"}
-    assert client.calls == [(owner, image_id)]
+    assert result[0]["content"] == [
+        {"type": "input_text", "text": "What do these show?"},
+        {"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo=", "detail": "high"},
+        {"type": "input_file", "file_data": "data:application/pdf;base64,JVBERi0xLjQ=", "filename": "guide.pdf"},
+    ]
+    assert items[0]["content"][1:] == [
+        {"type": "input_image", "asset_id": str(image_id), "detail": "high"},
+        {"type": "input_file", "asset_id": str(file_id), "filename": "guide.pdf"},
+    ]
+    assert client.calls == [(owner, image_id, "model_image"), (owner, file_id, "model_file")]
 
 
-class LocalImageProductClient:
-    def __init__(self, *, image_id: UUID, owner: UUID) -> None:
-        self.image_id, self.owner = image_id, owner
-        self.calls: list[tuple[UUID, UUID]] = []
+class InlineAssetProductClient:
+    def __init__(self, *, image_id: UUID, file_id: UUID, owner: UUID) -> None:
+        self.image_id, self.file_id, self.owner = image_id, file_id, owner
+        self.calls: list[tuple[UUID, UUID, str]] = []
 
     async def resolve_agent_file(self, **_kwargs: Any) -> Any:
-        raise AssertionError("local image materialization must not resolve a remote URL")
+        raise AssertionError("inline materialization must not resolve a remote URL")
 
-    async def fetch_local_model_image(self, *, actor_user_id: UUID, file_id: UUID, request_id: str) -> tuple[str, bytes]:
-        self.calls.append((actor_user_id, file_id))
-        assert (actor_user_id, file_id) == (self.owner, self.image_id)
-        return "image/png", b"\x89PNG\r\n\x1a\n"
+    async def fetch_model_asset(self, *, actor_user_id: UUID, file_id: UUID, purpose: str, request_id: str) -> tuple[str, bytes]:
+        self.calls.append((actor_user_id, file_id, purpose))
+        assert actor_user_id == self.owner
+        if file_id == self.image_id and purpose == "model_image":
+            return "image/png", b"\x89PNG\r\n\x1a\n"
+        if file_id == self.file_id and purpose == "model_file":
+            return "application/pdf", b"%PDF-1.4"
+        raise AssertionError("unexpected asset or purpose")

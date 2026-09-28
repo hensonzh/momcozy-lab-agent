@@ -147,7 +147,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     or AgentAttachmentService(
                         repository=repository,
                         product_client=product_client,
-                        inline_local_images=settings.app_env == "local",
+                        inline_model_assets=settings.app_env in {"local", "staging"},
                     )
                 )
                 return ContextCompactionService(
@@ -212,7 +212,7 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                 attachments = AgentAttachmentService(
                     repository=repository,
                     product_client=product_client,
-                    inline_local_images=settings.app_env == "local",
+                    inline_model_assets=settings.app_env in {"local", "staging"},
                 )
                 executor = ToolExecutor(
                     repository=repository,

@@ -10306,8 +10306,90 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/internal/agent/files/{file_id}/model-asset": {
+      "get": {
+        "operationId": "get_model_asset_bytes_v1_internal_agent_files__file_id__model_asset_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Actor User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": true,
+            "schema": {
+              "enum": [
+                "model_image",
+                "model_file"
+              ],
+              "title": "Purpose",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Service-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model Asset Bytes",
+        "tags": [
+          "internal-agent"
+        ],
+        "x-momcozy-api-surface": "internal_service_api",
+        "x-momcozy-client": [
+          "agent-runtime"
+        ],
+        "x-momcozy-owner": "files",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/internal/agent/files/{file_id}/model-image": {
       "get": {
+        "description": "Keep the previously published local-only internal endpoint compatible.",
         "operationId": "get_local_model_image_v1_internal_agent_files__file_id__model_image_get",
         "parameters": [
           {

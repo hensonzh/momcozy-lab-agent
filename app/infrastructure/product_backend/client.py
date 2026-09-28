@@ -12,6 +12,7 @@ from app.core.errors import ApiError, DependencyError
 from .contracts import (
     AgentReplyReadyRequest,
     AgentReplyReadyResponse,
+    AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
     ProfileReadRequest,
@@ -171,14 +172,14 @@ class ProductBackendClient:
             raise _invalid_response()
         return result
 
-    async def fetch_local_model_image(
-        self, *, actor_user_id: UUID, file_id: UUID, request_id: str,
+    async def fetch_model_asset(
+        self, *, actor_user_id: UUID, file_id: UUID, purpose: AgentFilePurpose, request_id: str,
     ) -> tuple[str, bytes]:
-        """Fetch image bytes over the authenticated internal API (local only)."""
+        """Fetch owner-scoped model bytes over the authenticated internal API."""
         try:
             response = await self.http_client.get(
-                f"/v1/internal/agent/files/{file_id}/model-image",
-                params={"actor_user_id": str(actor_user_id)},
+                f"/v1/internal/agent/files/{file_id}/model-asset",
+                params={"actor_user_id": str(actor_user_id), "purpose": purpose},
                 headers={"X-Service-Key": self.service_key, "X-Request-ID": request_id},
             )
         except httpx.TimeoutException as exc:
@@ -192,11 +193,12 @@ class ProductBackendClient:
                 raise DependencyError(code="product_backend_service_auth_failed",
                                       message="Product Backend rejected the Agent Runtime service identity.",
                                       status=502, retryable=False, dependency_status=response.status_code)
-            raise DependencyError(code="product_backend_image_unavailable", message="Image is unavailable.",
+            raise DependencyError(code="product_backend_asset_unavailable", message="Attachment is unavailable.",
                                   retryable=response.status_code >= 500 or response.status_code == 429,
                                   dependency_status=response.status_code)
         content_type = response.headers.get("content-type", "").split(";", 1)[0].lower().strip()
-        if content_type not in {"image/gif", "image/jpeg", "image/png", "image/webp"} or not 0 < len(response.content) <= 10 * 1024 * 1024:
+        allowed = {"model_image": {"image/gif", "image/jpeg", "image/png", "image/webp"}, "model_file": {"application/pdf"}}
+        if content_type not in allowed.get(purpose, set()) or not 0 < len(response.content) <= 10 * 1024 * 1024:
             raise _invalid_response()
         return content_type, response.content
 

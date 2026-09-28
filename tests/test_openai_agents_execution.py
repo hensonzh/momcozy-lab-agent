@@ -347,6 +347,33 @@ def test_streaming_model_call_has_a_total_wall_clock_timeout(
     assert fields["error_code"] == "model_provider_timeout"
 
 
+def test_openai_sdk_receives_inline_image_and_pdf_without_persisting_bytes() -> None:
+    client = RecordingOpenAIClient()
+    port = InlineMaterializingExecutionPort()
+    engine = _engine(OpenAIResponsesModel(
+        model="gpt-5.6-terra", openai_client=client,  # type: ignore[arg-type]
+    ))
+
+    result = asyncio.run(engine.execute(
+        input_items=({"role": "user", "content": [
+            {"type": "input_image", "asset_id": "image-reference"},
+            {"type": "input_file", "asset_id": "pdf-reference", "filename": "guide.pdf"},
+        ]},),
+        port=port,
+        authorization_permissions=_all_tool_permissions(),
+    ))
+
+    assert result.text == "完成。"
+    assert client.responses.kwargs["input"][1]["content"] == [
+        {"type": "input_image", "image_url": "data:image/png;base64,aW1hZ2U="},
+        {"type": "input_file", "file_data": "data:application/pdf;base64,cGRm", "filename": "guide.pdf"},
+    ]
+    serialized_manifest = json.dumps(port.manifests)
+    assert "aW1hZ2U=" not in serialized_manifest
+    assert "cGRm" not in serialized_manifest
+    assert "file_data" not in serialized_manifest
+
+
 def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     client = RecordingOpenAIClient()
     engine = OpenAIAgentsExecutionEngine(
@@ -861,6 +888,17 @@ class MaterializingExecutionPort(RecordingExecutionPort):
             ],
         }
         return (item,)
+
+
+class InlineMaterializingExecutionPort(RecordingExecutionPort):
+    async def resolve_model_input(
+        self, *, input_items: tuple[dict[str, Any], ...],
+    ) -> tuple[dict[str, Any], ...]:
+        assert input_items[0]["content"][0]["asset_id"] == "image-reference"
+        return ({"role": "user", "content": [
+            {"type": "input_image", "image_url": "data:image/png;base64,aW1hZ2U="},
+            {"type": "input_file", "file_data": "data:application/pdf;base64,cGRm", "filename": "guide.pdf"},
+        ]},)
 
 
 class RecordingResponses:

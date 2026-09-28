@@ -155,7 +155,7 @@ def _evaluate_assertion(
         )
     if assertion.type == "persistence.no_materialized_urls":
         persisted = _json(trace.get("persisted_context", {}))
-        return "image_url" not in persisted and "file_url" not in persisted
+        return all(field not in persisted for field in ("image_url", "file_url", "file_data", "data:image/", "data:application/pdf"))
     if assertion.type == "checkpoint.low_trust":
         item = trace.get("checkpoint_provider_item", {})
         return isinstance(item, dict) and item.get("role") == "user" and "untrusted_historical_context" in _json(item.get("content"))

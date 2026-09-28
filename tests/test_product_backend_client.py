@@ -11,6 +11,7 @@ import pytest
 
 from app.core.errors import DependencyError
 from app.infrastructure.product_backend import (
+    AgentFilePurpose,
     ProductBackendClient,
     ProfileReadRequest,
     ProfileReadResponse,
@@ -197,28 +198,43 @@ def _profile_response(*, infant_scope: str) -> dict[str, Any]:
     }
 
 
-def test_local_model_image_client_uses_authenticated_owner_scoped_binary_endpoint() -> None:
+@pytest.mark.parametrize(
+    ("purpose", "content_type", "body"),
+    (("model_image", "image/png", b"\x89PNG\r\n\x1a\n"),
+     ("model_file", "application/pdf", b"%PDF-1.4")),
+)
+def test_model_asset_client_uses_authenticated_owner_scoped_binary_endpoint(
+    purpose: AgentFilePurpose, content_type: str, body: bytes,
+) -> None:
     actor, file_id = uuid4(), uuid4()
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
-        assert request.url.path == f"/v1/internal/agent/files/{file_id}/model-image"
+        assert request.url.path == f"/v1/internal/agent/files/{file_id}/model-asset"
         assert request.url.params["actor_user_id"] == str(actor)
+        assert request.url.params["purpose"] == purpose
         assert request.headers["X-Service-Key"] == "runtime-service-key"
-        return httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNG\r\n\x1a\n")
+        return httpx.Response(200, headers={"Content-Type": content_type}, content=body)
     async def run() -> tuple[str, bytes]:
         async with httpx.AsyncClient(base_url="https://product.test", transport=httpx.MockTransport(handler)) as http_client:
-            return await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_local_model_image(
-                actor_user_id=actor, file_id=file_id, request_id="local-image")
-    assert asyncio.run(run()) == ("image/png", b"\x89PNG\r\n\x1a\n")
+            return await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_model_asset(
+                actor_user_id=actor, file_id=file_id, purpose=purpose, request_id="staging-asset")
+    assert asyncio.run(run()) == (content_type, body)
 
 
-def test_local_model_image_client_rejects_unsupported_or_oversized_bytes() -> None:
-    async def run(content_type: str, content: bytes) -> None:
+@pytest.mark.parametrize(
+    ("purpose", "content_type", "body"),
+    (("model_image", "application/pdf", b"%PDF-1.4"),
+     ("model_file", "image/png", b"image"),
+     ("model_file", "application/pdf", b"x" * (10 * 1024 * 1024 + 1))),
+)
+def test_model_asset_client_rejects_mismatched_or_oversized_bytes(
+    purpose: AgentFilePurpose, content_type: str, body: bytes,
+) -> None:
+    async def run() -> None:
         async with httpx.AsyncClient(base_url="https://product.test", transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, headers={"Content-Type": content_type}, content=content))) as http_client:
-            await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_local_model_image(
-                actor_user_id=uuid4(), file_id=uuid4(), request_id="local-image")
-    for content_type, content in (("text/plain", b"hello"), ("image/jpeg", b"a" * (10 * 1024 * 1024 + 1))):
-        with pytest.raises(DependencyError) as error:
-            asyncio.run(run(content_type, content))
-        assert error.value.code == "product_backend_invalid_response"
+            lambda _: httpx.Response(200, headers={"Content-Type": content_type}, content=body))) as http_client:
+            await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_model_asset(
+                actor_user_id=uuid4(), file_id=uuid4(), purpose=purpose, request_id="staging-asset")
+    with pytest.raises(DependencyError) as error:
+        asyncio.run(run())
+    assert error.value.code == "product_backend_invalid_response"

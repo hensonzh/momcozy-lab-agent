@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.core.errors import ApiError
 from app.infrastructure.product_backend import (
+    AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
 )
@@ -34,8 +35,8 @@ BOOLEAN_FIELD_TYPES = frozenset({"boolean", "checkbox", "toggle"})
 
 
 class _FileResolver(Protocol):
-    async def fetch_local_model_image(
-        self, *, actor_user_id: UUID, file_id: UUID, request_id: str,
+    async def fetch_model_asset(
+        self, *, actor_user_id: UUID, file_id: UUID, purpose: AgentFilePurpose, request_id: str,
     ) -> tuple[str, bytes]: ...
 
     async def resolve_agent_file(
@@ -54,11 +55,11 @@ class AgentAttachmentService:
         *,
         repository: RuntimeLedgerRepository,
         product_client: _FileResolver,
-        inline_local_images: bool = False,
+        inline_model_assets: bool = False,
     ) -> None:
         self.repository = repository
         self.product_client = product_client
-        self.inline_local_images = inline_local_images
+        self.inline_model_assets = inline_model_assets
 
     async def verify_for_run(
         self,
@@ -132,9 +133,9 @@ class AgentAttachmentService:
                 if block_type == "input_image" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
                     materialized = {key: value for key, value in block.items() if key != "asset_id"}
-                    if self.inline_local_images:
-                        content_type, body = await self.product_client.fetch_local_model_image(
-                            actor_user_id=actor_user_id, file_id=asset_id, request_id=request_id,
+                    if self.inline_model_assets:
+                        content_type, body = await self.product_client.fetch_model_asset(
+                            actor_user_id=actor_user_id, file_id=asset_id, purpose="model_image", request_id=request_id,
                         )
                         materialized["image_url"] = f"data:{content_type};base64,{base64.b64encode(body).decode('ascii')}"
                     else:
@@ -148,12 +149,18 @@ class AgentAttachmentService:
                 elif block_type == "input_file" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
                     materialized = {key: value for key, value in block.items() if key != "asset_id"}
-                    materialized["file_url"] = await self.resolve_file_url(
-                        thread_id=thread_id,
-                        actor_user_id=actor_user_id,
-                        asset_id=asset_id,
-                        request_id=request_id,
-                    )
+                    if self.inline_model_assets:
+                        content_type, body = await self.product_client.fetch_model_asset(
+                            actor_user_id=actor_user_id, file_id=asset_id, purpose="model_file", request_id=request_id,
+                        )
+                        materialized["file_data"] = f"data:{content_type};base64,{base64.b64encode(body).decode('ascii')}"
+                    else:
+                        materialized["file_url"] = await self.resolve_file_url(
+                            thread_id=thread_id,
+                            actor_user_id=actor_user_id,
+                            asset_id=asset_id,
+                            request_id=request_id,
+                        )
                     content[index] = materialized
         return resolved_items
 

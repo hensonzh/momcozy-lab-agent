@@ -91,6 +91,19 @@ def test_context_eval_assertion_engine_detects_asset_and_trust_regressions() -> 
     assert trust_failures[0].assertion == "checkpoint.low_trust"
 
 
+def test_context_eval_rejects_persisted_inline_file_bytes() -> None:
+    suite = load_context_eval_suite(CATALOG_PATH)
+    case = next(case for case in suite.cases if case.id == "attachment_materialization")
+    trace = _release_trace()
+    trace["persisted_context"] = {
+        "content": [{"type": "input_file", "file_data": "data:application/pdf;base64,fixture"}],
+    }
+
+    failures = evaluate_context_case(case=case, trace=trace)
+
+    assert [failure.assertion for failure in failures] == ["persistence.no_materialized_urls"]
+
+
 def test_context_eval_assertion_engine_detects_stale_business_snapshot_regression() -> None:
     suite = load_context_eval_suite(CATALOG_PATH)
     case = next(

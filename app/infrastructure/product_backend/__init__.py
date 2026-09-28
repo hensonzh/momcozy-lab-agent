@@ -1,5 +1,6 @@
 from .client import ProductBackendClient
 from .contracts import (
+    AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
     ProfileReadRequest,
@@ -9,6 +10,7 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentFilePurpose",
     "AgentFileResolveRequest",
     "AgentFileResolveResponse",
     "ProductBackendClient",
