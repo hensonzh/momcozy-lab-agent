@@ -1,32 +1,37 @@
+from __future__ import annotations
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import cast
 from uuid import uuid4
 
 import httpx
+from sqlalchemy import Table
 from sqlalchemy.dialects import postgresql
 
+from app.agent_runtime.ledger.models import AgentRun
 from app.infrastructure.product_backend import ProductBackendClient
 from app.workers.notification_dispatch import AgentNotificationReceipt, completed_runs_query, dispatch_one
 
 
-def test_completed_runs_query_is_durable_and_lock_safe():
-    sql = str(completed_runs_query(datetime.now(timezone.utc), 8).compile(dialect=postgresql.dialect()))
+def test_completed_runs_query_is_durable_and_lock_safe() -> None:
+    sql = str(completed_runs_query(datetime.now(timezone.utc), 8).compile(dialect=postgresql.dialect()))  # type: ignore[no-untyped-call]
     assert "agent_runs.status =" in sql
     assert "agent_notification_receipts" in sql
     assert "FOR UPDATE OF agent_runs SKIP LOCKED" in sql
 
 
-def test_dispatch_replays_same_ids_and_records_retry_only_on_failure():
-    async def run():
+def test_dispatch_replays_same_ids_and_records_retry_only_on_failure() -> None:
+    async def run() -> None:
         ids = [uuid4() for _ in range(3)]
-        calls = []
-        def handler(request):
+        calls: list[tuple[str, str | None, bytes]] = []
+        def handler(request: httpx.Request) -> httpx.Response:
             calls.append((request.url.path, request.headers.get("x-service-key"), request.content))
             return httpx.Response(200, json={"notification_id": str(uuid4()), "send_status": "pending"})
         async with httpx.AsyncClient(base_url="https://backend.example", transport=httpx.MockTransport(handler)) as http:
             client = ProductBackendClient(http_client=http, service_key="service")
-            run = SimpleNamespace(id=ids[0], actor_user_id=ids[1], thread_id=ids[2], completed_at=datetime.now(timezone.utc))
+            run = AgentRun(id=ids[0], actor_user_id=ids[1], thread_id=ids[2], status="completed", completed_at=datetime.now(timezone.utc))
             receipt = AgentNotificationReceipt(run_id=run.id, attempts=0)
             await dispatch_one(run, receipt, client)
             assert receipt.delivered_at is not None
@@ -44,14 +49,14 @@ def test_dispatch_replays_same_ids_and_records_retry_only_on_failure():
     asyncio.run(run())
 
 
-def test_idle_worker_dispatches_notifications_without_claiming_new_runs():
+def test_idle_worker_dispatches_notifications_without_claiming_new_runs() -> None:
     from app.workers.agent_run import AgentRunWorker
     from tests.test_agent_run_worker import SessionFactory, ClaimRepository, RecordingProcessor
     sessions = SessionFactory(())
     worker = AgentRunWorker(session_factory=sessions,
         processor_factory=lambda _repository: RecordingProcessor([]),
         repository_factory=lambda session: ClaimRepository(session.run_ids),
-        notification_client=SimpleNamespace(),
+        notification_client=cast(ProductBackendClient, SimpleNamespace()),
     )
     from unittest.mock import AsyncMock, patch
     with patch("app.workers.agent_run.dispatch_batch", new_callable=AsyncMock, return_value=3) as dispatch:
@@ -59,7 +64,7 @@ def test_idle_worker_dispatches_notifications_without_claiming_new_runs():
     dispatch.assert_awaited_once()
 
 
-def test_notification_scan_error_does_not_stop_agent_run_worker():
+def test_notification_scan_error_does_not_stop_agent_run_worker() -> None:
     from app.workers.agent_run import AgentRunWorker
     from tests.test_agent_run_worker import SessionFactory, ClaimRepository, RecordingProcessor
     from unittest.mock import AsyncMock, patch
@@ -68,24 +73,24 @@ def test_notification_scan_error_does_not_stop_agent_run_worker():
     worker = AgentRunWorker(session_factory=sessions,
         processor_factory=lambda _repository: RecordingProcessor([]),
         repository_factory=lambda session: ClaimRepository(session.run_ids),
-        notification_client=SimpleNamespace(),
+        notification_client=cast(ProductBackendClient, SimpleNamespace()),
     )
     with patch("app.workers.agent_run.dispatch_batch", new_callable=AsyncMock, side_effect=RuntimeError("database offline")):
         assert asyncio.run(worker.run_once()) == 0
 
 
-def test_handoff_retries_ambiguous_failure_with_the_same_run_identity():
-    async def run():
+def test_handoff_retries_ambiguous_failure_with_the_same_run_identity() -> None:
+    async def run() -> None:
         run_id, owner_id, thread_id = uuid4(), uuid4(), uuid4()
-        payloads = []
-        def handler(request):
+        payloads: list[bytes] = []
+        def handler(request: httpx.Request) -> httpx.Response:
             payloads.append(request.content)
             if len(payloads) == 1:
                 return httpx.Response(503, json={"error": {"code": "unavailable", "message": "retry"}})
             return httpx.Response(200, json={"notification_id": str(uuid4()), "send_status": "sent"})
         async with httpx.AsyncClient(base_url="https://backend.example", transport=httpx.MockTransport(handler)) as http:
             client = ProductBackendClient(http_client=http, service_key="service")
-            agent_run = SimpleNamespace(id=run_id, actor_user_id=owner_id, thread_id=thread_id, completed_at=datetime.now(timezone.utc))
+            agent_run = AgentRun(id=run_id, actor_user_id=owner_id, thread_id=thread_id, status="completed", completed_at=datetime.now(timezone.utc))
             receipt = AgentNotificationReceipt(run_id=run_id, attempts=0)
             await dispatch_one(agent_run, receipt, client)
             assert receipt.delivered_at is None and receipt.attempts == 1
@@ -95,7 +100,7 @@ def test_handoff_retries_ambiguous_failure_with_the_same_run_identity():
     asyncio.run(run())
 
 
-def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
+def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres() -> None:
     import os
     import pytest
     from sqlalchemy import select, text
@@ -108,7 +113,7 @@ def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
     if not url:
         pytest.skip("Set MOMCOZY_AGENT_TEST_DATABASE_URL to an isolated PostgreSQL test database")
 
-    async def run():
+    async def run() -> None:
         schema = f"notification_dispatch_{uuid4().hex}"
         admin = create_async_engine(url)
         async with admin.begin() as connection:
@@ -116,7 +121,7 @@ def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
         engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
         try:
             async with engine.begin() as connection:
-                await connection.run_sync(Base.metadata.create_all, tables=[AgentThread.__table__, AgentRun.__table__, AgentNotificationReceipt.__table__])
+                await connection.run_sync(Base.metadata.create_all, tables=[cast(Table, AgentThread.__table__), cast(Table, AgentRun.__table__), cast(Table, AgentNotificationReceipt.__table__)])
             sessions = async_sessionmaker(engine, expire_on_commit=False)
             owner_id = uuid4()
             async with sessions.begin() as session:
@@ -130,8 +135,8 @@ def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
                     status="completed", completed_at=datetime.now(timezone.utc) - timedelta(days=2), authorization_context={}))
                 await session.flush()
                 run_id = entry.id
-            payloads = []
-            def handler(request):
+            payloads: list[bytes] = []
+            def handler(request: httpx.Request) -> httpx.Response:
                 payloads.append(request.content)
                 return httpx.Response(200, json={"notification_id": str(uuid4()), "send_status": "in_app"})
             async with httpx.AsyncClient(base_url="https://backend.example", transport=httpx.MockTransport(handler)) as http:
@@ -140,6 +145,7 @@ def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
                 assert await dispatch_batch(sessions, client) == 0
             async with sessions.begin() as session:
                 receipt = await session.get(AgentNotificationReceipt, run_id)
+                assert receipt is not None
                 assert receipt.delivered_at is not None and receipt.attempts == 0
                 assert len(list(await session.scalars(select(AgentNotificationReceipt)))) == 1
             assert len(payloads) == 1
@@ -151,12 +157,13 @@ def test_completed_run_is_projected_once_across_dispatch_cycles_with_postgres():
     asyncio.run(run())
 
 
-def test_notification_handoff_migration_seeds_historical_runs():
+def test_notification_handoff_migration_seeds_historical_runs() -> None:
     import os
     import pytest
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
     from sqlalchemy import text
+    from sqlalchemy.engine import Connection
     from sqlalchemy.ext.asyncio import create_async_engine
     from app.agent_runtime.ledger.models import AgentRun, AgentThread
     from app.infrastructure.db.base import Base
@@ -166,7 +173,7 @@ def test_notification_handoff_migration_seeds_historical_runs():
     if not url:
         pytest.skip("Set MOMCOZY_AGENT_TEST_DATABASE_URL to an isolated PostgreSQL test database")
 
-    async def run():
+    async def run() -> None:
         schema = f"notification_migration_{uuid4().hex}"
         admin = create_async_engine(url)
         async with admin.begin() as connection:
@@ -174,13 +181,13 @@ def test_notification_handoff_migration_seeds_historical_runs():
         engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
         try:
             async with engine.begin() as connection:
-                await connection.run_sync(Base.metadata.create_all, tables=[AgentThread.__table__, AgentRun.__table__])
+                await connection.run_sync(Base.metadata.create_all, tables=[cast(Table, AgentThread.__table__), cast(Table, AgentRun.__table__)])
                 await connection.execute(text("DROP INDEX ix_agent_runs_completed_notification"))
                 old_id, thread_id, owner_id = uuid4(), uuid4(), uuid4()
-                await connection.execute(AgentThread.__table__.insert().values(id=thread_id, owner_user_id=owner_id))
-                await connection.execute(AgentRun.__table__.insert().values(id=old_id, thread_id=thread_id,
+                await connection.execute(cast(Table, AgentThread.__table__).insert().values(id=thread_id, owner_user_id=owner_id))
+                await connection.execute(cast(Table, AgentRun.__table__).insert().values(id=old_id, thread_id=thread_id,
                     actor_user_id=owner_id, status="completed", completed_at=datetime.now(timezone.utc), authorization_context_json={}))
-                def upgrade(sync_connection):
+                def upgrade(sync_connection: Connection) -> None:
                     migration = import_module("migrations.versions.20260926_0003_agent_notification_receipts")
                     with Operations.context(MigrationContext.configure(sync_connection)):
                         migration.upgrade()

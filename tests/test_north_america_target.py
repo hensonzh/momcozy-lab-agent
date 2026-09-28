@@ -28,7 +28,7 @@ def test_b_target_must_have_separate_root_lock_env_and_host(tmp_path: Path) -> N
         "public_url": "https://agent.na-reviewed.org",
     }
     config = tmp_path / "target.json"
-    def check():
+    def check() -> subprocess.CompletedProcess[str]:
         config.write_text(json.dumps(values))
         return subprocess.run([sys.executable, str(SCRIPT), "--config", str(config)], cwd=ROOT, capture_output=True, text=True)
     assert check().returncode == 0
