@@ -1,0 +1,76 @@
+# B-only Kubernetes workload template. Supply a reviewed namespace, immutable
+# Agent image digest and private ConfigMap/Secret before any deployment.
+# The Agent worker resources MUST be approved for 10 concurrent runs first.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: momcozy-agent-api-uat
+  namespace: REPLACE_WITH_APPROVED_US_EAST_UAT_NAMESPACE
+  labels: {app.kubernetes.io/part-of: momcozy-us-east-uat}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: momcozy-agent-api-uat}
+  template:
+    metadata:
+      labels: {app: momcozy-agent-api-uat}
+    spec:
+      containers:
+        - name: api
+          image: REPLACE_WITH_AGENT_IMAGE_DIGEST
+          ports: [{name: http, containerPort: 8000}]
+          envFrom:
+            - configMapRef: {name: momcozy-agent-uat-config}
+            - secretRef: {name: momcozy-agent-api-uat-secrets}
+          startupProbe:
+            httpGet: {path: /v1/health/live, port: http}
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: {path: /v1/health/live, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /v1/health/ready, port: http}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: momcozy-agent-api-uat
+  namespace: REPLACE_WITH_APPROVED_US_EAST_UAT_NAMESPACE
+  labels: {app.kubernetes.io/part-of: momcozy-us-east-uat}
+spec:
+  selector: {app: momcozy-agent-api-uat}
+  ports: [{name: http, port: 8000, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: momcozy-agent-worker-uat
+  namespace: REPLACE_WITH_APPROVED_US_EAST_UAT_NAMESPACE
+  labels: {app.kubernetes.io/part-of: momcozy-us-east-uat}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: momcozy-agent-worker-uat}
+  template:
+    metadata:
+      labels: {app: momcozy-agent-worker-uat}
+    spec:
+      containers:
+        - name: worker
+          image: REPLACE_WITH_AGENT_IMAGE_DIGEST
+          command: [python, -m, app.workers.agent_run]
+          envFrom:
+            - configMapRef: {name: momcozy-agent-uat-config}
+            - secretRef: {name: momcozy-agent-worker-uat-secrets}
+          resources:
+            requests:
+              cpu: REPLACE_WITH_APPROVED_WORKER_CPU_REQUEST
+              memory: REPLACE_WITH_APPROVED_WORKER_MEMORY_REQUEST
+            limits:
+              cpu: REPLACE_WITH_APPROVED_WORKER_CPU_LIMIT
+              memory: REPLACE_WITH_APPROVED_WORKER_MEMORY_LIMIT

@@ -117,3 +117,56 @@ def test_pinned_minio_ci_build_reuses_main_only_layer_cache() -> None:
     ):
         assert line in section
     assert 'Smoke-test migration-gated readiness' in text
+
+
+def test_us_east_uat_codeup_deploy_files_match_runtime_contract() -> None:
+    config = (ROOT / "deploy/config_us-east-uat").read_text()
+    entries = dict(
+        line.split("=", 1)
+        for line in config.splitlines()
+        if line and not line.startswith("#")
+    )
+
+    assert entries == {
+        "APP_ENV": "staging",
+        "LOG_LEVEL": "INFO",
+        "WORKER_HEARTBEATS_REQUIRED": "true",
+        "RUNTIME_OUTPUT_STORE_REGION": "us-east-1",
+        "AGENT_WORKER_BATCH_SIZE": "10",
+        "AGENT_WORKER_CONCURRENCY": "10",
+    }
+    assert "cozy-ai.clm4o6oqe8vg.us-east-1.rds.amazonaws.com" in config
+    assert "Agent database and role: pending" in config
+    assert "master.cozy-application-pre.po3nd4.use1.cache.amazonaws.com" in config
+    assert "Redis port/database: 6379 / DB 0" in config
+    assert "DATABASE_URL" not in entries and "REDIS_URL" not in entries
+    dockerfile = (ROOT / "deploy/Dockerfile").read_text()
+    root_dockerfile = (ROOT / "Dockerfile").read_text()
+    assert 'org.momcozy.release-target="north-america-staging"' in dockerfile
+    assert "python:3.13-slim@sha256:" in dockerfile
+    assert 'CMD ["uvicorn", "app.main:app"' in dockerfile
+    assert 'org.momcozy.release-target' not in root_dockerfile
+    workloads = (ROOT / "deploy/us-east-uat/workloads.yaml").read_text()
+    migration = (ROOT / "deploy/us-east-uat/migration-job.yaml").read_text()
+    assert workloads.count("kind: Deployment") == 2
+    assert "momcozy-agent-api-uat-secrets" in workloads
+    assert "momcozy-agent-worker-uat-secrets" in workloads
+    assert "momcozy-agent-migrate-uat-secrets" in migration
+    assert "REPLACE_WITH_APPROVED_US_EAST_UAT_NAMESPACE" in workloads + migration
+    assert "REPLACE_WITH_AGENT_IMAGE_DIGEST" in workloads + migration
+    assert "REPLACE_WITH_APPROVED_WORKER_MEMORY_LIMIT" in workloads
+    assert "kind: Job" in migration and "alembic.ini, upgrade, head" in migration
+    assert "kind: Deployment" not in migration
+    assert "postgres:" not in workloads and "minio:" not in workloads
+    import json
+
+    source = json.loads((ROOT / "deploy/us-east-uat/release-source.json").read_text())
+    assert source == {
+        "deployment_target": "north-america-staging",
+        "source_branch": "uat",
+        "build_context": ".",
+        "dockerfile": "deploy/Dockerfile",
+        "non_secret_config": "deploy/config_us-east-uat",
+        "migration_template": "deploy/us-east-uat/migration-job.yaml",
+        "workloads_template": "deploy/us-east-uat/workloads.yaml",
+    }

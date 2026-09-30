@@ -1,0 +1,9 @@
+{
+  "deployment_target": "north-america-staging",
+  "source_branch": "uat",
+  "build_context": ".",
+  "dockerfile": "deploy/Dockerfile",
+  "non_secret_config": "deploy/config_us-east-uat",
+  "migration_template": "deploy/us-east-uat/migration-job.yaml",
+  "workloads_template": "deploy/us-east-uat/workloads.yaml"
+}
