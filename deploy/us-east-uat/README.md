@@ -72,7 +72,11 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `https://agent-us-dev.lute-momcozylab.luteos.cloud`, while the shared
   Backend origin is `https://backend-us-dev.lute-momcozylab.luteos.cloud`.
   Both DNS A records resolved to `32.199.186.149` on 2026-10-01, but HTTPS
-  :443 timed out from both the operator Mac and target. No business
+  :443 timed out from both the operator Mac and target. The attached
+  `launch-wizard-25` security group had no inbound TCP 80/443 rule on the
+  subsequent read-only check; short-lived port listeners did not receive
+  external connections. Do not attempt public TLS until approved ingress
+  rules are in place and independently re-tested. No business
   containers or `current` pointer exist. B outbound HTTPS uses the host
   system CA bundle, not A's internal CA; this does not provision a
   certificate for the B ingress. TLS ingress, external exposure, isolated
@@ -82,7 +86,7 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `staging` CLI at the US-East host.
 - The versioned, **not installed** B Nginx template
   `deploy/us-east-uat/nginx-agent.conf` listens on :443 with the B Agent
-  hostname and proxies to `127.0.0.1:8102`, preserving SSE buffering rules.
+  hostname and proxies to `127.0.0.1:8002`, preserving SSE buffering rules.
   Its `/etc/letsencrypt/live/` certificate paths are prerequisites, not
   existing files. Do not enable without public trust and readiness checks.
 
