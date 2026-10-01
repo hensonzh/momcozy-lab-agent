@@ -13,8 +13,10 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   not launch or own PostgreSQL, Redis or MinIO containers.
 - Both services use the same **B-only** PostgreSQL container. Agent connects
   to `momcozy_lab_agent_uat`; Product uses `momcozy_lab_backend_uat`, with
-  separate roles and migrations. Previously discussed RDS databases are not
-  automatically copied to the new local service; plan data transfer if needed.
+  separate roles and migrations. On 2026-10-01 the operator confirmed that
+  **no historical managed RDS, Redis or S3 data will be migrated**. Bootstrap
+  only fresh B-owned state after Product's first-start check; do not connect
+  to the managed resources or inherit their credentials.
 - B Redis has Product and Agent on DB 0 with disjoint existing key prefixes
   and separately scoped ACL identities; DB 0/prefixes are not authorization.
   B MinIO has two private buckets, with Agent using only its own bucket and
