@@ -32,8 +32,11 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   verified image digest to the approved B host. B Compose and private env
   templates exist. The B-only GitHub `dev` `agent-b-validation.yml` checks
   contracts and admission, renders Compose and locally builds the B Dockerfile.
-  Verify the exact commit's CI result before release. This workflow neither
-  publishes images nor deploys; release integration and live validation remain.
+  After the validation job passes on a GitHub `dev` push, its separate
+  `b-image` job publishes only the B Dockerfile image to private GHCR as
+  `b-dev-<full SHA>` and records the immutable digest. Verify the exact
+  commit's CI and digest before release. It does not deploy; release
+  integration and live validation remain.
   B Compose requires `MOMCOZY_B_ENV_MARKER` so A env cannot pass static
   rendering by accident; `scripts/check_b_env.py` checks B identity, loopback
   ports, DB 0, 10-run settings, private file mode and no placeholders. The
@@ -55,8 +58,10 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   Re-measure CPU, memory, DB connections, model rate limits, queue latency
   and OOM at 10 simultaneous runs before finalizing worker limits/replicas.
 - The US-East host identity, Docker/Compose and B-only root/backup mount were
-  verified on 2026-10-01; the clean GitHub `dev` Agent snapshot was built
-  locally, but not published by immutable registry digest. The mode-0600 Agent
+  verified on 2026-10-01; the clean GitHub `dev` Agent snapshot
+  `a689e662a21e91bcb95d4180e671cd5869c94154` was built locally after
+  its B validation CI passed. The local image is not a registry digest;
+  verify the B-only CI-published image separately. The mode-0600 Agent
   private env and target JSON are still placeholders, and no business
   containers or `current` pointer exist. Domains/TLS, external exposure,
   isolated persistent volumes, final bucket names and credentials, provider
