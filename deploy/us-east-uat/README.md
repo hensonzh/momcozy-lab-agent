@@ -64,7 +64,9 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `a689e662a21e91bcb95d4180e671cd5869c94154` was built locally after
   its B validation CI passed. The local image is not a registry digest;
   verify the B-only CI-published image separately. The mode-0600 Agent
-  private env still has secret placeholders; its target JSON now declares
+  private env now holds newly generated B-only DB/Redis/MinIO and internal
+  service credentials (mode 0600); the Agent model provider key was still
+  pending at this check. Its target JSON declares
   `https://agent-us-dev.lute-momcozylab.luteos.cloud`, while the shared
   Backend origin is `https://backend-us-dev.lute-momcozylab.luteos.cloud`.
   Both DNS A records resolved to `32.199.186.149` on 2026-10-01, but HTTPS
