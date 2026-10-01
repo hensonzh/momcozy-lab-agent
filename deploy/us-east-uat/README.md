@@ -65,8 +65,10 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   its B validation CI passed. The local image is not a registry digest;
   verify the B-only CI-published image separately. The mode-0600 Agent
   private env now holds newly generated B-only DB/Redis/MinIO and internal
-  service credentials (mode 0600); the Agent model provider key was still
-  pending at this check. Its target JSON declares
+  service credentials (mode 0600). Later on 2026-10-01 the approved A-chain
+  OpenAI key was installed into the B Agent env and `/v1/models` authentication
+  passed from the target host. No model inference was run, and static env/pair
+  checks passed. Its target JSON declares
   `https://agent-us-dev.lute-momcozylab.luteos.cloud`, while the shared
   Backend origin is `https://backend-us-dev.lute-momcozylab.luteos.cloud`.
   Both DNS A records resolved to `32.199.186.149` on 2026-10-01, but HTTPS
