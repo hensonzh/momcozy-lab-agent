@@ -30,11 +30,10 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
 - B source: GitHub `dev`, declared in `release-source.json`. Build
   from repo root with `docker build -f deploy/Dockerfile .` and deploy the
   verified image digest to the approved B host. B Compose and private env
-  templates exist. The B-only GitHub `dev` `agent-b-validation.yml` has
-  run successfully on GitHub; the previous revision checked contracts,
-  rendered Compose and locally built the B Dockerfile. This worktree adds
-  further admission tests but has not been pushed; CI neither publishes
-  images nor deploys. Release integration and live validation remain.
+  templates exist. The B-only GitHub `dev` `agent-b-validation.yml` checks
+  contracts and admission, renders Compose and locally builds the B Dockerfile.
+  Verify the exact commit's CI result before release. This workflow neither
+  publishes images nor deploys; release integration and live validation remain.
   B Compose requires `MOMCOZY_B_ENV_MARKER` so A env cannot pass static
   rendering by accident; `scripts/check_b_env.py` checks B identity, loopback
   ports, DB 0, 10-run settings, private file mode and no placeholders. The
