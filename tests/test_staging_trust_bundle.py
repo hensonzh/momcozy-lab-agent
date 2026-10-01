@@ -16,3 +16,11 @@ def test_staging_runtime_trusts_public_backend_without_disabling_tls() -> None:
     assert "MOMCOZY_AGENT_TRUST_BUNDLE_FILE=/opt/momcozy-lab-staging/shared/trust-bundle.pem" in template
     assert "PRODUCT_BACKEND_BASE_URL=https://backend-test.lute-momcozylab.luteos.cloud:8443" in template
     assert "AUTH_JWKS_URL=https://backend-test.lute-momcozylab.luteos.cloud:8443/.well-known/jwks.json" in template
+
+
+def test_b_uses_system_ca_without_reusing_a_internal_ca() -> None:
+    compose = (ROOT / "docker-compose.us-east-uat.yml").read_text()
+    template = (ROOT / "env/us-east-uat.env.example").read_text()
+    assert "MOMCOZY_AGENT_TRUST_BUNDLE_FILE=/etc/ssl/certs/ca-certificates.crt" in template
+    assert "SSL_CERT_FILE: /run/momcozy/trust-bundle.pem" in compose
+    assert "${MOMCOZY_AGENT_TRUST_BUNDLE_FILE:-/etc/ssl/certs/ca-certificates.crt}" in compose

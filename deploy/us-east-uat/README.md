@@ -62,11 +62,23 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `a689e662a21e91bcb95d4180e671cd5869c94154` was built locally after
   its B validation CI passed. The local image is not a registry digest;
   verify the B-only CI-published image separately. The mode-0600 Agent
-  private env and target JSON are still placeholders, and no business
-  containers or `current` pointer exist. Domains/TLS, external exposure,
-  isolated persistent volumes, final bucket names and credentials, provider
-  egress, live backup/restore and 10-run load evidence remain to be verified. Do not enable the B release merely by removing its
-  guard or pointing A's `staging` CLI at the US-East host.
+  private env still has secret placeholders; its target JSON now declares
+  `https://agent-us-dev.lute-momcozylab.luteos.cloud`, while the shared
+  Backend origin is `https://backend-us-dev.lute-momcozylab.luteos.cloud`.
+  Both DNS A records resolved to `32.199.186.149` on 2026-10-01, but HTTPS
+  :443 timed out from both the operator Mac and target. No business
+  containers or `current` pointer exist. B outbound HTTPS uses the host
+  system CA bundle, not A's internal CA; this does not provision a
+  certificate for the B ingress. TLS ingress, external exposure, isolated
+  persistent volumes, final bucket names and credentials, provider egress,
+  live backup/restore and 10-run load evidence remain to be verified. Do not
+  enable the B release merely by removing its guard or pointing A's
+  `staging` CLI at the US-East host.
+- The versioned, **not installed** B Nginx template
+  `deploy/us-east-uat/nginx-agent.conf` listens on :443 with the B Agent
+  hostname and proxies to `127.0.0.1:8102`, preserving SSE buffering rules.
+  Its `/etc/letsencrypt/live/` certificate paths are prerequisites, not
+  existing files. Do not enable without public trust and readiness checks.
 
 Cross-repository plan: `app/docs/deployment/b-us-east-single-host-uat.md`.
 
@@ -79,9 +91,9 @@ Cross-repository plan: `app/docs/deployment/b-us-east-single-host-uat.md`.
 - Keep B secrets only at `/opt/momcozy-lab-us-east-uat/shared/agent/north-america-staging.env`
   (mode 0600), separate from the Backend env in the same B-only root.
   `config/release-targets/north-america-staging.json.example` has B root,
-  lock and env paths but intentionally leaves its public URL `TBD`. Copy to
-  a private mode-0600 target declaration on the US-East host only after
-  the domain and TLS are approved.
+  lock, env paths and the approved non-secret public URL. Keep the host's
+  separate private target declaration mode 0600. A static metadata check
+  passing does not verify HTTPS/TLS or authorize a release.
 - Match Product and Agent service credentials, JWT issuer and public URL
   across their private files without copying A identities. B will not be
   started by the read-only admission command.

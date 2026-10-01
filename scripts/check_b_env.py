@@ -24,6 +24,11 @@ EXPECTED = {
     "RUNTIME_OUTPUT_STORE_ENDPOINT_URL": "http://minio:9000",
     "AGENT_WORKER_BATCH_SIZE": "10",
     "AGENT_WORKER_CONCURRENCY": "10",
+    "MOMCOZY_BACKEND_PUBLIC_URL": "https://backend-us-dev.lute-momcozylab.luteos.cloud",
+    "MOMCOZY_AGENT_PUBLIC_URL": "https://agent-us-dev.lute-momcozylab.luteos.cloud",
+    "PRODUCT_BACKEND_BASE_URL": "https://backend-us-dev.lute-momcozylab.luteos.cloud",
+    "AUTH_JWKS_URL": "https://backend-us-dev.lute-momcozylab.luteos.cloud/.well-known/jwks.json",
+    "MOMCOZY_AGENT_TRUST_BUNDLE_FILE": "/etc/ssl/certs/ca-certificates.crt",
 }
 REQUIRED_SECRETS = (
     "MOMCOZY_AGENT_POSTGRES_PASSWORD", "MOMCOZY_AGENT_REDIS_PASSWORD",
@@ -49,7 +54,7 @@ def validate(path: Path) -> None:
         values[key] = value.strip()
     for key, expected in EXPECTED.items():
         if values.get(key) != expected:
-            raise ValueError(f"B env {key} does not match the isolated topology")
+            raise ValueError(f"B env {key} does not match the approved B origin or isolated topology")
     if values.get("DATABASE_URL", "").split("@")[-1] != "postgres:5432/momcozy_lab_agent_uat":
         raise ValueError("B env DATABASE_URL must use the B Agent database")
     if not values.get("DATABASE_URL", "").startswith("postgresql+asyncpg://momcozy_lab_agent_uat:"):

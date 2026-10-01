@@ -49,6 +49,8 @@ def validate_target(config: dict[str, str]) -> None:
     }
     if host in a_hosts or host.endswith((".test", ".example", ".invalid", ".localhost")):
         raise ValueError("B public_url must not reuse an A hostname or a placeholder domain")
+    if config["public_url"] != "https://agent-us-dev.lute-momcozylab.luteos.cloud":
+        raise ValueError("B public_url must match the approved B Agent origin")
 
 
 def main() -> int:

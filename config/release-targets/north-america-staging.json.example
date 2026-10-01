@@ -4,5 +4,5 @@
   "release_root": "/opt/momcozy-lab-us-east-uat",
   "release_lock": "/opt/momcozy-lab-us-east-uat/shared/north-america-staging-release.lock",
   "service_env_file": "/opt/momcozy-lab-us-east-uat/shared/agent/north-america-staging.env",
-  "public_url": "TBD"
+  "public_url": "https://agent-us-dev.lute-momcozylab.luteos.cloud"
 }
