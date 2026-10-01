@@ -1,8 +1,8 @@
 {
   "deployment_target": "north-america-staging",
   "app_env": "staging",
-  "release_root": "TBD",
-  "release_lock": "TBD",
-  "service_env_file": "TBD",
+  "release_root": "/opt/momcozy-lab-us-east-uat",
+  "release_lock": "/opt/momcozy-lab-us-east-uat/shared/north-america-staging-release.lock",
+  "service_env_file": "/opt/momcozy-lab-us-east-uat/shared/agent/north-america-staging.env",
   "public_url": "TBD"
 }

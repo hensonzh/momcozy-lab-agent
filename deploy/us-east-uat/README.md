@@ -30,15 +30,19 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
 - B source: GitHub `dev`, declared in `release-source.json`. Build
   from repo root with `docker build -f deploy/Dockerfile .` and deploy the
   verified image digest to the approved B host. B Compose and private env
-  templates exist. The B-only GitHub `dev` `agent-b-validation.yml` is
-  prepared locally; after commit/push it will check contracts, render Compose
-  and locally build the B Dockerfile; it neither
-  pushes an image nor deploys. Release integration and live validation remain.
+  templates exist. The B-only GitHub `dev` `agent-b-validation.yml` has
+  run successfully on GitHub; the previous revision checked contracts,
+  rendered Compose and locally built the B Dockerfile. This worktree adds
+  further admission tests but has not been pushed; CI neither publishes
+  images nor deploys. Release integration and live validation remain.
   B Compose requires `MOMCOZY_B_ENV_MARKER` so A env cannot pass static
   rendering by accident; `scripts/check_b_env.py` checks B identity, loopback
   ports, DB 0, 10-run settings, private file mode and no placeholders. The
   marker alone does not prove isolation. `scripts/release.py` still
-  intentionally refuses B deployment.
+  intentionally refuses B deployment. B-only `scripts/b_release.py` is a
+  read-only admission check for a clean `dev` source commit, immutable image
+  digest, private target/env and static Compose rendering; it does not deploy
+  or prove host state, CI provenance or source-to-image labels.
 - Run `python scripts/check_b_env.py --env-file /absolute/path/to/private-agent.env`
   before `docker compose --env-file /absolute/path/to/private-agent.env -f docker-compose.us-east-uat.yml config --quiet` (set `MOMCOZY_AGENT_ENV_FILE`,
   immutable `MOMCOZY_AGENT_IMAGE` and full SHA `MOMCOZY_AGENT_RELEASE_ID` outside
@@ -51,9 +55,29 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `AGENT_WORKER_CONCURRENCY=10`) is a target, not proven host capacity.
   Re-measure CPU, memory, DB connections, model rate limits, queue latency
   and OOM at 10 simultaneous runs before finalizing worker limits/replicas.
-- The host, ports, domains/TLS, isolated volumes, final bucket names and
-  credentials, provider egress, test evidence and Jenkins delivery details
-  remain to be verified. Do not enable the B release merely by removing its
+- The US-East host identity, Docker/Compose and B-only root/backup mount were
+  verified on 2026-10-01; the clean GitHub `dev` Agent snapshot was built
+  locally, but not published by immutable registry digest. The mode-0600 Agent
+  private env and target JSON are still placeholders, and no business
+  containers or `current` pointer exist. Domains/TLS, external exposure,
+  isolated persistent volumes, final bucket names and credentials, provider
+  egress, live backup/restore and 10-run load evidence remain to be verified. Do not enable the B release merely by removing its
   guard or pointing A's `staging` CLI at the US-East host.
 
 Cross-repository plan: `app/docs/deployment/b-us-east-single-host-uat.md`.
+
+## Private host handoff (placeholder layout now present)
+
+- `scripts/prepare_b_host.py` is an opt-in scaffold (`--apply`) for a fresh
+  host, not for overwriting this host's existing mode-0700 layout and
+  mode-0600 placeholders. Its default invocation is no-op.
+
+- Keep B secrets only at `/opt/momcozy-lab-us-east-uat/shared/agent/north-america-staging.env`
+  (mode 0600), separate from the Backend env in the same B-only root.
+  `config/release-targets/north-america-staging.json.example` has B root,
+  lock and env paths but intentionally leaves its public URL `TBD`. Copy to
+  a private mode-0600 target declaration on the US-East host only after
+  the domain and TLS are approved.
+- Match Product and Agent service credentials, JWT issuer and public URL
+  across their private files without copying A identities. B will not be
+  started by the read-only admission command.
