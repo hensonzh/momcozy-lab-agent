@@ -120,53 +120,73 @@ def test_pinned_minio_ci_build_reuses_main_only_layer_cache() -> None:
 
 
 def test_us_east_uat_codeup_deploy_files_match_runtime_contract() -> None:
+    import json
+
     config = (ROOT / "deploy/config_us-east-uat").read_text()
     entries = dict(
-        line.split("=", 1)
-        for line in config.splitlines()
+        line.split("=", 1) for line in config.splitlines()
         if line and not line.startswith("#")
     )
-
     assert entries == {
         "APP_ENV": "staging",
         "LOG_LEVEL": "INFO",
         "WORKER_HEARTBEATS_REQUIRED": "true",
+        "RUNTIME_OUTPUT_STORE_ENDPOINT_URL": "http://minio:9000",
         "RUNTIME_OUTPUT_STORE_REGION": "us-east-1",
         "AGENT_WORKER_BATCH_SIZE": "10",
         "AGENT_WORKER_CONCURRENCY": "10",
     }
-    assert "cozy-ai.clm4o6oqe8vg.us-east-1.rds.amazonaws.com" in config
-    assert "Agent database and role: pending" in config
-    assert "master.cozy-application-pre.po3nd4.use1.cache.amazonaws.com" in config
-    assert "Redis port/database: 6379 / DB 0" in config
+    assert "momcozy_lab_agent_uat" in config
+    assert "momcozy_lab_backend_uat" in config
+    assert "Both services use B Redis DB 0" in config
+    assert "agent-runtime:*" in config and "momcozy-agent-runtime:*" in config
     assert "DATABASE_URL" not in entries and "REDIS_URL" not in entries
+    assert "cozy-ai.clm4o6oqe8vg" not in config
+    assert "master.cozy-application-pre" not in config
+
     dockerfile = (ROOT / "deploy/Dockerfile").read_text()
     root_dockerfile = (ROOT / "Dockerfile").read_text()
     assert 'org.momcozy.release-target="north-america-staging"' in dockerfile
     assert "python:3.13-slim@sha256:" in dockerfile
     assert 'CMD ["uvicorn", "app.main:app"' in dockerfile
     assert 'org.momcozy.release-target' not in root_dockerfile
-    workloads = (ROOT / "deploy/us-east-uat/workloads.yaml").read_text()
-    migration = (ROOT / "deploy/us-east-uat/migration-job.yaml").read_text()
-    assert workloads.count("kind: Deployment") == 2
-    assert "momcozy-agent-api-uat-secrets" in workloads
-    assert "momcozy-agent-worker-uat-secrets" in workloads
-    assert "momcozy-agent-migrate-uat-secrets" in migration
-    assert "REPLACE_WITH_APPROVED_US_EAST_UAT_NAMESPACE" in workloads + migration
-    assert "REPLACE_WITH_AGENT_IMAGE_DIGEST" in workloads + migration
-    assert "REPLACE_WITH_APPROVED_WORKER_MEMORY_LIMIT" in workloads
-    assert "kind: Job" in migration and "alembic.ini, upgrade, head" in migration
-    assert "kind: Deployment" not in migration
-    assert "postgres:" not in workloads and "minio:" not in workloads
-    import json
-
     source = json.loads((ROOT / "deploy/us-east-uat/release-source.json").read_text())
     assert source == {
         "deployment_target": "north-america-staging",
-        "source_branch": "uat",
+        "source_branch": "dev",
         "build_context": ".",
         "dockerfile": "deploy/Dockerfile",
         "non_secret_config": "deploy/config_us-east-uat",
-        "migration_template": "deploy/us-east-uat/migration-job.yaml",
-        "workloads_template": "deploy/us-east-uat/workloads.yaml",
+        "deployment_strategy": "single-host-docker-compose",
+        "compose_file": "docker-compose.us-east-uat.yml",
+        "private_env_template": "env/us-east-uat.env.example",
     }
+    assert not (ROOT / "deploy/us-east-uat/workloads.yaml").exists()
+    assert not (ROOT / "deploy/us-east-uat/migration-job.yaml").exists()
+    assert "not an executable" in (ROOT / "deploy/us-east-uat/README.md").read_text()
+
+
+def test_us_east_uat_compose_joins_only_b_network_and_caps_worker() -> None:
+    compose = (ROOT / "docker-compose.us-east-uat.yml").read_text()
+    env = (ROOT / "env/us-east-uat.env.example").read_text()
+    assert "name: momcozy-lab-agent-us-east-uat" in compose
+    assert "name: momcozy-lab-us-east-uat" in compose
+    assert "external: true" in compose
+    assert "name: momcozy-lab-agent-staging" not in compose
+    for service in ("postgres", "redis", "minio"):
+        assert f"  {service}:\n" not in compose
+    assert "@redis:6379/0" in compose
+    assert "MOMCOZY_AGENT_WORKER_CPUS:?" in compose
+    assert "MOMCOZY_AGENT_WORKER_MEM_LIMIT:?" in compose
+    assert "MOMCOZY_AGENT_POSTGRES_DB=momcozy_lab_agent_uat" in env
+    assert "REDIS_URL=redis://agent-runtime:${MOMCOZY_AGENT_REDIS_PASSWORD}@redis:6379/0" in env
+    assert "RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://minio:9000" in env
+    assert "MOMCOZY_AGENT_MINIO_BUCKET=momcozy-agent-us-east-uat" in env
+    assert "AGENT_WORKER_BATCH_SIZE=10" in env
+    assert "AGENT_WORKER_CONCURRENCY=10" in env
+    assert "cozy-ai.clm4o6oqe8vg" not in env
+    assert "master.cozy-application-pre" not in env
+    assert "agent-test.lute-momcozylab" not in env
+    assert "MOMCOZY_NETWORK_NAME=momcozy-lab-us-east-uat" in env
+    assert "REPLACE_WITH_US_EAST_UAT_" in env
+    assert "env/*.env" in (ROOT / ".gitignore").read_text()

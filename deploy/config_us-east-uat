@@ -1,21 +1,21 @@
-# US East UAT: non-secret container startup defaults for Agent API and worker.
-# UAT uses APP_ENV=staging because the application has no separate uat mode.
-# IT must inject environment-specific URLs, database/Redis/S3 credentials,
-# model provider key, and service keys via managed Secrets.
-# This file alone is not a deployable environment configuration.
-# IT-confirmed US East UAT managed endpoints (not connection URLs):
-# PostgreSQL host: cozy-ai.clm4o6oqe8vg.us-east-1.rds.amazonaws.com
-# Agent database and role: pending; do not reuse Product's momcozy_lab_pre.
-# Redis host: master.cozy-application-pre.po3nd4.use1.cache.amazonaws.com
-# Redis port/database: 6379 / DB 0 (not the existing A staging DB 1).
-# Confirm Agent-specific Redis permissions/key isolation and DB/Redis TLS mode.
-# Inject complete DATABASE_URL and REDIS_URL through the approved Secret path;
-# never commit passwords.
+# US-East UAT (B) non-secret defaults for the planned single-host Compose stack.
+# This file is not a complete env_file and does not start the stack by itself.
+# Agent joins the B Backend-owned network and shares its PostgreSQL, Redis and
+# MinIO containers; it never starts a second stateful stack.
+# Its independent database is momcozy_lab_agent_uat; Product uses
+# momcozy_lab_backend_uat in the same self-hosted PostgreSQL instance.
+# Both services use B Redis DB 0 with distinct key prefixes and ACL users:
+# Product rate-limit:* and product:*; Agent agent-runtime:* and
+# momcozy-agent-runtime:*.
+# Both use B MinIO, with separate private buckets and scoped credentials.
+# Inject complete DATABASE_URL, REDIS_URL, bucket and credentials only via
+# the private B runtime env; do not reuse former managed-service credentials.
 APP_ENV=staging
 LOG_LEVEL=INFO
 WORKER_HEARTBEATS_REQUIRED=true
+RUNTIME_OUTPUT_STORE_ENDPOINT_URL=http://minio:9000
 RUNTIME_OUTPUT_STORE_REGION=us-east-1
-# One worker can claim and process up to 10 runs concurrently.
-# Validate memory/CPU limits, queue time, and latency with a load test.
+# Per worker process, not a promise of 10-run throughput; measure CPU/RSS,
+# provider limits and latency on the US-East host before enabling release.
 AGENT_WORKER_BATCH_SIZE=10
 AGENT_WORKER_CONCURRENCY=10

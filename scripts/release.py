@@ -1464,7 +1464,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         target = validate_deployment_target(args.deployment_target, args.environment)
         if target == "north-america-staging":
-            raise ValueError("B deployment is not enabled: managed DB/Redis/S3 topology and separate release root/lock are not implemented")
+            raise ValueError("B deployment is not enabled: isolated US-East single-host Compose, private env and separate release root/lock are not implemented")
         if args.command == "stage-snapshot":
             stage_release_snapshot(
                 archive=args.archive,

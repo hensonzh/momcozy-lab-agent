@@ -60,7 +60,7 @@ def main() -> int:
     except (OSError, ValueError, TypeError, KeyError) as error:
         print(f"FAIL {error}", file=sys.stderr)
         return 1
-    print("B target metadata passes static checks; managed topology, credentials and cloud state remain unverified. No deployment performed.")
+    print("B target metadata passes static checks; single-host Compose topology, credentials and host state remain unverified. No deployment performed.")
     return 0
 
 
