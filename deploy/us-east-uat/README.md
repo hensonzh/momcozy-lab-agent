@@ -107,3 +107,14 @@ Cross-repository plan: `app/docs/deployment/b-us-east-single-host-uat.md`.
 - Match Product and Agent service credentials, JWT issuer and public URL
   across their private files without copying A identities. B will not be
   started by the read-only admission command.
+
+## 2026-10-01 port and ingress update
+
+- B Agent now publishes only to `127.0.0.1:8002`; Product uses
+  `127.0.0.1:8001`. The B-only private env files were updated without changing
+  any credentials and retain mode 0600. Both static checks and read-only B
+  release admissions pass; no services or pointers were started.
+- The attached EC2 group `launch-wizard-25` has no TCP 80/443 inbound rule.
+  Nginx/Certbot packages are installed but Nginx is stopped/disabled, with no
+  public certificate or enabled B site. External ingress and private GHCR
+  image pull authorization remain prerequisites for deployment.
