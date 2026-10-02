@@ -27,7 +27,7 @@ jobs:
       - name: Check B contracts and retain A release guard
         run: |
           python -m ruff check app tests scripts
-          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_b_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_b_ingress_contract.py tests/test_b_host_layout.py tests/test_b_release_admission.py tests/test_b_validation_workflow.py tests/test_release_target_guard.py
+          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_b_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_b_ingress_contract.py tests/test_b_host_layout.py tests/test_b_release_admission.py tests/test_b_validation_workflow.py tests/test_b_compose_environment.py tests/test_b_published_image.py tests/test_release_target_guard.py
 
       - name: Validate B Compose without private values
         env:
@@ -70,12 +70,19 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile
+          platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.repository }}:b-dev-${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.momcozy.release-target=north-america-staging
+
+      - name: Inspect and smoke the exact published B digest
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          python3 scripts/check_b_published_image.py --repo agent --commit "${GITHUB_SHA}" --digest "${IMAGE_DIGEST}"
 
       - name: Record immutable B image reference (no deployment)
         id: digest

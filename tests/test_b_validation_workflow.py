@@ -38,6 +38,7 @@ def test_b_image_publication_is_dev_only_after_validation() -> None:
     assert "secrets.GITHUB_TOKEN" in publish
     assert "deploy/Dockerfile" in publish
     assert "push: true" in publish
+    assert "platforms: linux/amd64" in publish
     assert "b-dev-${{ github.sha }}" in publish
     assert "org.opencontainers.image.revision=${{ github.sha }}" in publish
     assert "org.momcozy.release-target=north-america-staging" in publish
@@ -46,3 +47,10 @@ def test_b_image_publication_is_dev_only_after_validation() -> None:
     assert "docker buildx imagetools inspect" in publish
     for forbidden in ("docker compose up", "scripts/release.py", "ssh ", "kubectl"):
         assert forbidden not in publish
+
+
+def test_published_b_digest_has_runtime_verification() -> None:
+    publish = WORKFLOW.read_text().split("\n  b-image:\n", 1)[1]
+    assert "scripts/check_b_published_image.py" in publish
+    assert "IMAGE_DIGEST" in publish
+    assert "docker pull" not in publish  # helper pulls only the immutable digest

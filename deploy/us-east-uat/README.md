@@ -1,9 +1,11 @@
 # Agent Runtime — US-East UAT (B) single-host strategy
 
-Decision: 2026-09-30. This is a **design and handoff**, not an executable
-release. The retired B Kubernetes workloads and migration Job templates were
-removed. A's root Dockerfile, Compose files, private env and GitHub delivery
-workflow remain unchanged; B must not call A's `staging` release entrypoint.
+Decision: 2026-09-30. Updated 2026-10-02. B's first-release orchestration
+is implemented in Backend but unverified on the target host; later update and
+rollback remain unfinished. Retired B Kubernetes workloads and migration Job
+templates were removed. A's root Dockerfile, Compose files, private
+env and GitHub delivery workflow remain unchanged; B must not call A's
+`staging` release entrypoint.
 
 ## Ownership and isolation
 
@@ -36,10 +38,13 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   contracts and admission, renders Compose and locally builds the B Dockerfile.
   After the validation job passes on a GitHub `dev` push, its separate
   `b-image` job publishes only the B Dockerfile image to private GHCR as
-  `b-dev-<full SHA>` and records the immutable digest. Verify the exact
-  commit's CI and digest before release. It does not deploy; release
+  `b-dev-<full SHA>`, then runs offline identity and entrypoint checks of the
+  exact published digest. Verify that commit's successful CI and digest before
+  release. It does not deploy; release
   integration and live validation remain.
-  B Compose requires `MOMCOZY_B_ENV_MARKER` so A env cannot pass static
+  Compose admission uses a B-only allowlisted subprocess environment so A
+  shell/Compose variables cannot override B's private file. B Compose still
+  requires `MOMCOZY_B_ENV_MARKER` so A env cannot pass static
   rendering by accident; `scripts/check_b_env.py` checks B identity, loopback
   ports, DB 0, 10-run settings, private file mode and no placeholders. The
   marker alone does not prove isolation. `scripts/release.py` still
@@ -47,14 +52,23 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   read-only admission check for a clean `dev` source commit, immutable image
   digest, private target/env and static Compose rendering; it does not deploy
   or prove host state, CI provenance or source-to-image labels.
+- The Backend-owned `scripts/b_first_release.py` coordinates both service
+  digests, B-only self-hosted state, fresh on-host isolated recovery, Product
+  then Agent activation and trusted public HTTPS readiness. The read-only
+  `--preflight` checks target isolation/TLS/image identity; the mutating path
+  requires an explicit `--apply` and a clean, prepared target. It is not an updater or
+  rollback executor. The target-host dry run and real rollout have **not**
+  occurred. Provider E2E and 10-run load require separate acceptance.
 - Run `python scripts/check_b_env.py --env-file /absolute/path/to/private-agent.env`
-  before `docker compose --env-file /absolute/path/to/private-agent.env -f docker-compose.us-east-uat.yml config --quiet` (set `MOMCOZY_AGENT_ENV_FILE`,
-  immutable `MOMCOZY_AGENT_IMAGE` and full SHA `MOMCOZY_AGENT_RELEASE_ID` outside
-  the file). Static checks do not verify real services, limits or credentials.
-- Bootstrap B stateful services via Product first. After the Product schema
-  and API are healthy, migrate Agent's database with its own DDL rights, then
-  start API and worker. Verify ready endpoint and worker heartbeat. Preserve
-  B-only backup, rollback, lock and compatibility checks.
+  and the B-only read-only `scripts/b_release.py` admission. Do not render B
+  Compose directly from an interactive shell: it might override the private
+  env with unrelated A variables. Static checks do not verify real services,
+  resource limits or provider credentials.
+- For the first empty B environment, bootstrap the shared stores, migrate both
+  databases with their own DDL roles, verify fresh isolated recovery, then
+  activate Product and Agent in order. Product must pass public HTTPS readiness
+  before Agent activation. Verify Agent worker heartbeat and cross-service calls
+  separately; later upgrades need their own backup, rollback and compatibility checks.
 - **10 concurrent Agent runs per worker** (`AGENT_WORKER_BATCH_SIZE=10`,
   `AGENT_WORKER_CONCURRENCY=10`) is a target, not proven host capacity.
   Re-measure CPU, memory, DB connections, model rate limits, queue latency
@@ -88,7 +102,10 @@ workflow remain unchanged; B must not call A's `staging` release entrypoint.
   `deploy/us-east-uat/nginx-agent.conf` listens on :443 with the B Agent
   hostname and proxies to `127.0.0.1:8002`, preserving SSE buffering rules.
   Its `/etc/letsencrypt/live/` certificate paths are prerequisites, not
-  existing files. Do not enable without public trust and readiness checks.
+  existing files. With a publicly trusted certificate and reviewed unknown-host
+  policy, install the B site before first release; a temporary 502 while the
+  service is absent is expected, never a readiness success. The release runner
+  checks public HTTPS readiness after activation.
 
 Cross-repository plan: `app/docs/deployment/b-us-east-single-host-uat.md`.
 

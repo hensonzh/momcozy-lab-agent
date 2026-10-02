@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import stat
 import subprocess
@@ -22,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.b_compose_env import compose_env  # noqa: E402
 from scripts.check_b_env import validate as validate_agent_env  # noqa: E402
 from scripts.check_release_target import validate_target  # noqa: E402
 
@@ -93,7 +93,7 @@ def preflight(args: argparse.Namespace) -> None:
     if read_public_origin(args.agent_env, "MOMCOZY_AGENT_PUBLIC_URL") != target["public_url"]:
         raise ValueError("B private env origin differs from the target declaration")
     validate_inputs(args.source, args.commit, args.image)
-    env = {**os.environ, "MOMCOZY_AGENT_IMAGE": args.image, "MOMCOZY_AGENT_ENV_FILE": str(args.agent_env), "MOMCOZY_AGENT_RELEASE_ID": args.commit}
+    env = compose_env(args.agent_env, image_variable="MOMCOZY_AGENT_IMAGE", image=args.image, release_id=args.commit)
     result = subprocess.run(
         ["docker", "compose", "--env-file", str(args.agent_env), "-f", "docker-compose.us-east-uat.yml", "config", "--quiet"],
         cwd=args.source, env=env, capture_output=True, check=False,
