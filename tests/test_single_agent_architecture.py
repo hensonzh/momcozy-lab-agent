@@ -27,7 +27,7 @@ def test_runtime_exposes_one_agent_and_a_global_tool_catalog() -> None:
     assert RUNTIME_DEFINITION.agent is AGENT
     assert RUNTIME_DEFINITION.tools is TOOL_CATALOG
     assert not hasattr(AGENT, "tool_names")
-    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME, "read_topical_records", "read_schedule", "change_records", "change_schedule")
+    assert EAGER_TOOL_NAMES == (LOAD_SERVICE_SKILL_TOOL_NAME, "analyze_baby_cry", "read_topical_records", "read_schedule", "change_records", "change_schedule")
 
     namespace_tools = tuple(
         tool_name

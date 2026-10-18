@@ -46,7 +46,7 @@
     "schema_version": "agent.action_catalog.v1",
     "sha256": "436f784fa00b57468b46cae8cbf4fe6c8efecb1c0a191eef79fa7d6e7d2a9cf8"
   },
-  "catalog_sha256": "a6c219cdda045899b6f7b1ede37d289d29a7111eb900a16d2c7bd0b3b565df78",
+  "catalog_sha256": "df2fbb95c08ed70a72b0dfb1ab516824ff7c762db338e375eaa81508ef4fb379",
   "runtime_metadata": {
     "action_catalog_schema_version": "agent.action_catalog.v1",
     "action_policy_schema_version": "agent.action_policy.v1",
@@ -82,6 +82,59 @@
   "tools": {
     "contract_schema_version": "agent.tool_contract.v1",
     "items": [
+      {
+        "action_types": [],
+        "description": "Analyze current or freshly confirmed prior baby-cry WAV. Use when requested or audio clearly contains baby crying.",
+        "domain": "cry",
+        "input_schema": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "internal_input_schema": null,
+        "model_output_max_bytes": 16384,
+        "name": "analyze_baby_cry",
+        "operation": "read",
+        "output_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "answer": {
+              "enum": [
+                "burp",
+                "hungry",
+                "no_cry",
+                "pain",
+                "sleep",
+                "uncomfortable"
+              ],
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "done",
+                "incomplete"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "type": "object"
+        },
+        "owner_scope": "actor",
+        "required_permissions": [
+          "agent:run"
+        ],
+        "retry_policy": "safe_read",
+        "safe_arg_fields": [],
+        "safe_output_fields": [
+          "answer",
+          "status"
+        ],
+        "schema_version": "agent.tool_contract.v1",
+        "timeout_seconds": 90
+      },
       {
         "action_types": [
           "records.batch.change"
@@ -2836,6 +2889,6 @@
       }
     ],
     "schema_version": "agent.tool_catalog.v1",
-    "sha256": "bddd2df0f305ad0971b2ff8a8645c9a0bfa73a954cc0f2bd49b4fa54631fc030"
+    "sha256": "fce31f930cc2c8cfd38957190a5ac4027298385731b08b26ffbefea1d4c287f3"
   }
 }

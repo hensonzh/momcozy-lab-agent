@@ -155,4 +155,4 @@ def test_history_queries_enforce_owner_deletion_cursor_and_safe_event_scope() ->
     asyncio.run(repository.list_history_events_for_owner(thread_id=thread, owner_user_id=owner, run_ids=[uuid4()]))
     sql = str(session.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))  # type: ignore[no-untyped-call]
     assert str(owner) in sql and "agent_events.run_id IN" in sql
-    assert "message.completed" in sql and "model.request" not in sql
+    assert "message.completed" in sql and "cry.analysis.completed" in sql and "model.request" not in sql

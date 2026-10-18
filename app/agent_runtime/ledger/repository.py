@@ -752,6 +752,7 @@ class RuntimeLedgerRepository:
                         "run.expired",
                         "run.waiting_for_confirmation",
                         "message.completed",
+                        "cry.analysis.completed",
                     )
                 ),
             )

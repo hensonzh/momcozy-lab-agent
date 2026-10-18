@@ -69,6 +69,8 @@ class Settings:
     agent_run_owner_active_ttl_seconds: int = 2_100
     product_backend_base_url: str = "http://localhost:8000"
     product_backend_service_key: str = ""
+    zoundream_endpoint: str = ""
+    zoundream_api_key: str = ""
     product_backend_timeout_seconds: float = 5.0
     runtime_output_store_bucket: str = ""
     runtime_output_store_prefix: str = "agent-runtime"
@@ -178,6 +180,8 @@ class Settings:
                 "PRODUCT_BACKEND_SERVICE_KEY",
                 cls.product_backend_service_key,
             ),
+            zoundream_endpoint=_env("ZOUNDREAM_ENDPOINT", cls.zoundream_endpoint),
+            zoundream_api_key=_env("ZOUNDREAM_API_KEY", cls.zoundream_api_key),
             product_backend_timeout_seconds=_env_float(
                 "PRODUCT_BACKEND_TIMEOUT_SECONDS",
                 cls.product_backend_timeout_seconds,

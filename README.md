@@ -21,9 +21,11 @@ Human-facing documentation uses the canonical service names `Product Backend
   through typed `/v1/internal/agent/*` HTTPS APIs using its service identity.
 - Agent Runtime has its own PostgreSQL database and never imports Product Backend
   implementation modules or reads product tables.
-- `app/agent/` owns CozyMate, its system prompt, the lactation consultation Skill,
-  and the `load_service_skill` plus owner-scoped `read_topical_records` tools.
-  `app/capability_catalog.py` registers both; no business write tools or product Actions are composed.
+- `app/agent/` owns CozyMate, its system prompt, and the lactation consultation Skill.
+  `app/capability_catalog.py` registers the service Skill, read-only baby-cry analysis,
+  and owner-scoped records/schedule capabilities. Baby-cry analysis requires
+  `ZOUNDREAM_ENDPOINT` and `ZOUNDREAM_API_KEY` in the worker environment; no
+  recording or vendor result is accepted from a model-supplied asset ID.
 
 ## Processes
 
