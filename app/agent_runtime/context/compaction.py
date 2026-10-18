@@ -453,7 +453,7 @@ class ContextCompactionService:
         for record in records:
             item = (
                 deepcopy(record.item) if record.run_id == run.id else self.history_adapter.project_item(
-                    record.item,
+                    _without_historical_audio(record.item),
                     source_manifest=manifests.get(record.run_id),
                 )
             )
@@ -782,7 +782,7 @@ class ContextCompactionService:
         entries.extend(
             ContextSourceEntry(
                 source_ref=(f"context_item:{record.id}:sequence:{record.sequence}"),
-                item=deepcopy(record.item),
+                item=_without_historical_audio(record.item),
                 execution_manifest=manifests.get(record.run_id),
             )
             for record in records
@@ -1277,6 +1277,18 @@ def _checkpoint_state(checkpoint: Any | None) -> dict[str, Any] | None:
         "source_sha256": str(checkpoint.source_sha256),
         "summary_sha256": str(checkpoint.summary_sha256),
     }
+
+
+def _without_historical_audio(item: dict[str, Any]) -> dict[str, Any]:
+    """Retain prior user text but do not replay previously analyzed recordings."""
+    projected = deepcopy(item)
+    content = projected.get("content")
+    if isinstance(content, list):
+        projected["content"] = [
+            block for block in content
+            if not isinstance(block, dict) or block.get("type") != "input_audio"
+        ]
+    return projected
 
 
 def _stable_asset_versions(item: dict[str, Any]) -> list[dict[str, str]]:

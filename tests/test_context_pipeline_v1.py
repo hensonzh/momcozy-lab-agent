@@ -993,3 +993,35 @@ class RecordingClaimSession:
 
     async def flush(self) -> None:
         return None
+
+
+def test_prior_cry_audio_is_not_replayed_or_rematerialized_in_later_runs() -> None:
+    repository = PipelineRepository()
+    audio_id = uuid4()
+    repository.records[0].item = {
+        "role": "user", "content": [
+            {"type": "input_text", "text": "第三方哭声线索：sleep"},
+            {"type": "input_audio", "asset_id": str(audio_id)},
+        ],
+    }
+    repository.current.item = {"role": "user", "content": "宝宝现在还在哭怎么办？"}
+
+    class RejectHistoricalAudio:
+        version = MATERIALIZER_VERSION
+        async def resolve_for_model(self, *, input_items: tuple[dict[str, Any], ...], **_kwargs: Any) -> tuple[dict[str, Any], ...]:
+            assert str(audio_id) not in str(input_items)
+            return input_items
+
+    counter = RecordingCounter(input_tokens=50)
+    service = ContextCompactionService(
+        history_adapter=PassthroughHistoryAdapter(), repository=repository,  # type: ignore[arg-type]
+        token_counter=counter, compactor=NeverCompactor(), model_input_resolver=RejectHistoricalAudio(),
+        model="gpt-5.6-terra", provider_identity=_provider_identity(),
+    )
+
+    asyncio.run(service.prepare_run(run=repository.run))
+    records = asyncio.run(service.list_context_records(run=repository.run))
+    assert counter.calls[0][0]["content"] == [{"type": "input_text", "text": "第三方哭声线索：sleep"}]
+    assert records[0].item["content"] == [{"type": "input_text", "text": "第三方哭声线索：sleep"}]
+    assert records[-1].item == repository.current.item
+    assert repository.records[0].item["content"][1]["asset_id"] == str(audio_id)
