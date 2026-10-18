@@ -77,6 +77,8 @@ class AgentAttachmentService:
                 message="Too many Agent attachments.",
                 status=422,
             )
+        if sum(item.get("type") == "audio" for item in attachments) > 1:
+            raise ApiError(code="invalid_agent_attachment", message="Only one recording is allowed per Run.", status=422)
         verified: list[dict[str, Any]] = []
         for attachment in attachments:
             attachment_type = str(attachment.get("type") or "").strip()

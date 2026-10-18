@@ -657,3 +657,17 @@ def _valid_wav() -> bytes:
         audio.setframerate(16000)
         audio.writeframes(b"\x01\x00" * 16000)
     return output.getvalue()
+
+
+def test_audio_attachment_limit_is_one_recording_per_run() -> None:
+    actor, asset = uuid4(), uuid4()
+    service = AgentAttachmentService(
+        repository=CachedAssetRepository(),
+        product_client=AudioProductClient(actor=actor, asset=asset, content_type="audio/wav", body=_valid_wav()),
+    )
+    with pytest.raises(ApiError) as error:
+        asyncio.run(service.verify_for_run(
+            actor_user_id=actor, thread_id=uuid4(), request_id="too-many-cry-recordings",
+            attachments=[{"type": "audio", "asset_id": str(asset)}] * 2,
+        ))
+    assert error.value.code == "invalid_agent_attachment"
