@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import math
 import re
+import wave
 from copy import deepcopy
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -87,6 +89,10 @@ class AgentAttachmentService:
                         request_id=request_id,
                     )
                 )
+            elif attachment_type == "audio":
+                verified.append(await self._verify_audio(
+                    actor_user_id=actor_user_id, attachment=attachment, request_id=request_id,
+                ))
             elif attachment_type == "file":
                 verified.append(
                     await self._verify_file(
@@ -146,6 +152,16 @@ class AgentAttachmentService:
                             request_id=request_id,
                         )
                     content[index] = materialized
+                elif block_type == "input_audio" and "asset_id" in block:
+                    asset_id = _uuid(block["asset_id"], field="asset_id")
+                    content_type, body = await self.product_client.fetch_model_asset(
+                        actor_user_id=actor_user_id, file_id=asset_id, purpose="model_audio", request_id=request_id,
+                    )
+                    if content_type != "audio/wav" or not _valid_model_wav(body):
+                        raise ApiError(code="invalid_agent_attachment", message="Audio attachment is unavailable.", status=422)
+                    content[index] = {"type": "input_audio", "input_audio": {
+                        "data": base64.b64encode(body).decode("ascii"), "format": "wav",
+                    }}
                 elif block_type == "input_file" and "asset_id" in block:
                     asset_id = _uuid(block["asset_id"], field="asset_id")
                     materialized = {key: value for key, value in block.items() if key != "asset_id"}
@@ -239,6 +255,24 @@ class AgentAttachmentService:
             "original_filename": resolved.original_filename[:255],
             "detail": detail if detail in {"auto", "low", "high"} else "auto",
             "runtime_validated": True,
+        }
+
+    async def _verify_audio(
+        self, *, actor_user_id: UUID, attachment: dict[str, Any], request_id: str,
+    ) -> dict[str, Any]:
+        _require_exact_keys(attachment, allowed={"type", "asset_id"})
+        asset_id = _uuid(attachment.get("asset_id"), field="asset_id")
+        resolved = await self.product_client.resolve_agent_file(
+            command=AgentFileResolveRequest(
+                actor_user_id=actor_user_id, file_id=asset_id, purpose="model_audio",
+            ),
+            request_id=request_id,
+        )
+        if resolved.content_type.lower() != "audio/wav":
+            raise ApiError(code="invalid_agent_attachment", message="Agent audio attachment must be a WAV.", status=422)
+        return {
+            "type": "audio", "asset_id": str(asset_id), "content_type": "audio/wav",
+            "original_filename": resolved.original_filename[:255], "runtime_validated": True,
         }
 
     async def _verify_file(
@@ -549,3 +583,18 @@ def _invalid_form_submission(message: str) -> ApiError:
         message=message,
         status=422,
     )
+
+
+def _valid_model_wav(body: bytes) -> bool:
+    if not 44 <= len(body) <= 1_000_000 or body[:4] != b"RIFF" or body[8:12] != b"WAVE":
+        return False
+    if int.from_bytes(body[4:8], "little") + 8 != len(body):
+        return False
+    try:
+        with wave.open(io.BytesIO(body), "rb") as audio:
+            frames = audio.getnframes()
+            return (audio.getcomptype() == "NONE" and audio.getnchannels() == 1
+                    and audio.getsampwidth() == 2 and audio.getframerate() == 16000
+                    and 16000 <= frames <= 480000 and len(audio.readframes(frames)) == 2 * frames)
+    except (wave.Error, EOFError):
+        return False

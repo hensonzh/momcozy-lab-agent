@@ -212,15 +212,18 @@ class EstimatedContextTokenCounter:
 def _multimodal_token_reserve(items: tuple[dict[str, Any], ...]) -> int:
     images = 0
     files = 0
+    audio = 0
 
     def visit(value: Any) -> None:
-        nonlocal images, files
+        nonlocal images, files, audio
         if isinstance(value, dict):
             item_type = value.get("type")
             if item_type == "input_image":
                 images += 1
             elif item_type == "input_file":
                 files += 1
+            elif item_type == "input_audio":
+                audio += 1
             for child in value.values():
                 visit(child)
         elif isinstance(value, list | tuple):
@@ -228,7 +231,7 @@ def _multimodal_token_reserve(items: tuple[dict[str, Any], ...]) -> int:
                 visit(child)
 
     visit(items)
-    return images * ESTIMATED_IMAGE_RESERVE_TOKENS + files * ESTIMATED_FILE_RESERVE_TOKENS
+    return images * ESTIMATED_IMAGE_RESERVE_TOKENS + files * ESTIMATED_FILE_RESERVE_TOKENS + audio * 12_000
 
 
 class ResponsesContextCompactor:
@@ -396,7 +399,7 @@ def _untrusted_compaction_input(
         if isinstance(content, list):
             text_content: list[Any] = []
             for block in content:
-                if isinstance(block, dict) and block.get("type") in {"input_image", "input_file"}:
+                if isinstance(block, dict) and block.get("type") in {"input_image", "input_file", "input_audio"}:
                     media.append(deepcopy(block))
                 else:
                     text_content.append(deepcopy(block))

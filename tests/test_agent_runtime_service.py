@@ -746,3 +746,34 @@ class FakeRunAdmission:
         run_id: UUID,
     ) -> None:
         self.released.append((owner_user_id, run_id))
+
+
+def test_audio_attachment_is_persisted_as_asset_reference_not_audio_data() -> None:
+    owner, asset = uuid4(), uuid4()
+    repository = FakeLedgerRepository(owner_user_id=owner)
+    verifier = StaticAttachmentVerifier(verified=[{
+        "type": "audio", "asset_id": str(asset), "content_type": "audio/wav",
+        "original_filename": "baby.wav", "runtime_validated": True,
+    }])
+    service = AgentRuntimeService(repository=repository, attachment_verifier=verifier)
+    asyncio.run(service.create_run(
+        actor_user_id=owner, authorization_context=_authorization_context(owner),
+        thread_id=None, message="分析哭声", attachments=[{"type": "audio", "asset_id": str(asset)}],
+    ))
+    assert repository.context_items[1].item == {
+        "role": "user", "content": [
+            {"type": "input_text", "text": "分析哭声"},
+            {"type": "input_audio", "asset_id": str(asset)},
+        ],
+    }
+    assert repository.message_content["attachments"][0]["asset_id"] == str(asset)
+
+
+def test_run_schema_accepts_only_audio_asset_reference() -> None:
+    asset = uuid4()
+    request = AgentRunCreate(message="分析哭声", attachments=[{"type": "audio", "asset_id": asset}])
+    assert request.attachments[0].asset_id == asset
+    with pytest.raises(ValidationError):
+        AgentRunCreate(message="分析哭声", attachments=[{
+            "type": "audio", "asset_id": asset, "input_audio": {"data": "forged", "format": "wav"},
+        }])

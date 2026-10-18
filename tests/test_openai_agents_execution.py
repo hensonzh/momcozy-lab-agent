@@ -946,3 +946,32 @@ class RecordingOpenAIClient:
     def __init__(self) -> None:
         self.base_url = "https://api.openai.com/v1"
         self.responses = RecordingResponses()
+
+
+def test_openai_sdk_receives_original_audio_and_verified_signal_without_persisting_audio_bytes() -> None:
+    client = RecordingOpenAIClient()
+
+    class AudioPort(RecordingExecutionPort):
+        async def resolve_model_input(self, *, input_items: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], ...]:
+            assert input_items[0]["content"][1] == {"type": "input_audio", "asset_id": "owned-cry"}
+            return ({"role": "user", "content": [
+                {"type": "input_text", "text": "第三方结果：sleep"},
+                {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}},
+            ]},)
+
+    port = AudioPort()
+    result = asyncio.run(_engine(OpenAIResponsesModel(
+        model="gpt-5.6-terra", openai_client=client,  # type: ignore[arg-type]
+    )).execute(
+        input_items=({"role": "user", "content": [
+            {"type": "input_text", "text": "第三方结果：sleep"},
+            {"type": "input_audio", "asset_id": "owned-cry"},
+        ]},), port=port, authorization_permissions=_all_tool_permissions(),
+    ))
+    assert result.text == "完成。"
+    assert client.responses.kwargs["input"][1]["content"] == [
+        {"type": "input_text", "text": "第三方结果：sleep"},
+        {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}},
+    ]
+    assert "UklGRg==" not in json.dumps(port.manifests)
+    assert "input_audio" not in str(port.manifests[0]["context"]["resolved"])

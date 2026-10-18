@@ -238,3 +238,19 @@ def test_model_asset_client_rejects_mismatched_or_oversized_bytes(
     with pytest.raises(DependencyError) as error:
         asyncio.run(run())
     assert error.value.code == "product_backend_invalid_response"
+
+
+def test_audio_asset_client_rejects_wrong_media_type_and_oversize() -> None:
+    for content_type, body in (("audio/wav", b"RIFFtestWAVE"), ("application/pdf", b"%PDF"), ("audio/wav", b"a" * 1_000_001)):
+        def handler(_request: httpx.Request, *, media: str = content_type, payload: bytes = body) -> httpx.Response:
+            return httpx.Response(200, headers={"Content-Type": media}, content=payload)
+        async def run(handler: Callable[[httpx.Request], httpx.Response] = handler) -> tuple[str, bytes]:
+            async with httpx.AsyncClient(base_url="https://product.test", transport=httpx.MockTransport(handler)) as http_client:
+                return await ProductBackendClient(http_client=http_client, service_key="runtime-service-key").fetch_model_asset(
+                    actor_user_id=uuid4(), file_id=uuid4(), purpose="model_audio", request_id="cry-model",
+                )
+        if content_type == "audio/wav" and len(body) <= 1_000_000:
+            assert asyncio.run(run()) == (content_type, body)
+        else:
+            with pytest.raises(DependencyError):
+                asyncio.run(run())

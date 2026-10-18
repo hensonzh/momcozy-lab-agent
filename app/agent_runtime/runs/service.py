@@ -576,6 +576,8 @@ def _attachment_context_block(
             "asset_id": str(attachment["asset_id"]),
             "detail": str(attachment.get("detail") or "auto"),
         }
+    if attachment.get("type") == "audio":
+        return {"type": "input_audio", "asset_id": str(attachment["asset_id"])}
     if attachment.get("type") == "file":
         return {
             "type": "input_file",

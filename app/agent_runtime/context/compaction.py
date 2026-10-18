@@ -1290,7 +1290,7 @@ def _stable_asset_versions(item: dict[str, Any]) -> list[dict[str, str]]:
         if not isinstance(block, dict):
             continue
         asset_id = block.get("asset_id")
-        if asset_id and block.get("type") in {"input_image", "input_file"}:
+        if asset_id and block.get("type") in {"input_image", "input_file", "input_audio"}:
             versions.append(
                 {
                     "asset_id": str(asset_id),

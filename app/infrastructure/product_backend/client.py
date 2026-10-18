@@ -197,8 +197,8 @@ class ProductBackendClient:
                                   retryable=response.status_code >= 500 or response.status_code == 429,
                                   dependency_status=response.status_code)
         content_type = response.headers.get("content-type", "").split(";", 1)[0].lower().strip()
-        allowed = {"model_image": {"image/gif", "image/jpeg", "image/png", "image/webp"}, "model_file": {"application/pdf"}}
-        if content_type not in allowed.get(purpose, set()) or not 0 < len(response.content) <= 10 * 1024 * 1024:
+        allowed = {"model_image": {"image/gif", "image/jpeg", "image/png", "image/webp"}, "model_file": {"application/pdf"}, "model_audio": {"audio/wav"}}
+        if content_type not in allowed.get(purpose, set()) or not 0 < len(response.content) <= (1_000_000 if purpose == "model_audio" else 10 * 1024 * 1024):
             raise _invalid_response()
         return content_type, response.content
 

@@ -909,7 +909,7 @@ def _contains_internal_asset_reference(
 ) -> bool:
     def contains(value: Any) -> bool:
         if isinstance(value, dict):
-            if value.get("type") in {"input_image", "input_file"} and "asset_id" in value:
+            if value.get("type") in {"input_image", "input_file", "input_audio"} and "asset_id" in value:
                 return True
             return any(contains(item) for item in value.values())
         if isinstance(value, list | tuple):

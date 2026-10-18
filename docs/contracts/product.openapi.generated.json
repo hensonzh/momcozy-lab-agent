@@ -140,7 +140,8 @@
           "purpose": {
             "enum": [
               "model_image",
-              "model_file"
+              "model_file",
+              "model_audio"
             ],
             "title": "Purpose",
             "type": "string"
@@ -841,6 +842,212 @@
           "file"
         ],
         "title": "Body_upload_file_v1_files_upload_post",
+        "type": "object"
+      },
+      "ChatFirstOnboardingInput": {
+        "additionalProperties": false,
+        "description": "Only facts actually collected by the conversation-first flow.",
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 45.0,
+                "minimum": 18.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "baby_count": {
+            "anyOf": [
+              {
+                "maximum": 4.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baby Count"
+          },
+          "client_timezone_offset_minutes": {
+            "anyOf": [
+              {
+                "maximum": 840.0,
+                "minimum": -720.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Timezone Offset Minutes"
+          },
+          "concerns": {
+            "items": {
+              "enum": [
+                "milk-supply",
+                "feeding-enough",
+                "crying",
+                "stool",
+                "baby-sleep",
+                "growth",
+                "recovery",
+                "mood",
+                "fatigue",
+                "support"
+              ],
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Concerns",
+            "type": "array"
+          },
+          "delivery_count": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Count"
+          },
+          "delivery_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Date"
+          },
+          "gestation_days": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Days"
+          },
+          "gestation_weeks": {
+            "anyOf": [
+              {
+                "maximum": 42.0,
+                "minimum": 24.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gestation Weeks"
+          },
+          "role": {
+            "enum": [
+              "mother",
+              "father",
+              "paternal-grandparent",
+              "maternal-grandparent",
+              "other-family"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "const": "postpartum",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "ChatFirstOnboardingInput",
+        "type": "object"
+      },
+      "ChatFirstStateOutput": {
+        "properties": {
+          "can_enter_app": {
+            "title": "Can Enter App",
+            "type": "boolean"
+          },
+          "primary_infant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Infant Id"
+          },
+          "profile_scope": {
+            "enum": [
+              "none",
+              "chat_first",
+              "legacy_full"
+            ],
+            "title": "Profile Scope",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mother",
+                  "father",
+                  "paternal-grandparent",
+                  "maternal-grandparent",
+                  "other-family"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "enum": [
+              "required",
+              "completed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "can_enter_app",
+          "profile_scope"
+        ],
+        "title": "ChatFirstStateOutput",
         "type": "object"
       },
       "Concern": {
@@ -3232,13 +3439,18 @@
       },
       "MilkTrendDayRead": {
         "properties": {
+          "complete": {
+            "description": "False when the bounded owner-scoped read may have omitted pumping records; totals and counts are then lower bounds.",
+            "title": "Complete",
+            "type": "boolean"
+          },
           "date": {
             "format": "date",
             "title": "Date",
             "type": "string"
           },
           "measured_only": {
-            "default": true,
+            "description": "True only when all included pumping sessions have a recorded milk volume and the window is complete.",
             "title": "Measured Only",
             "type": "boolean"
           },
@@ -3254,7 +3466,9 @@
         "required": [
           "date",
           "pumped_milk_volume_ml",
-          "pumping_count"
+          "pumping_count",
+          "measured_only",
+          "complete"
         ],
         "title": "MilkTrendDayRead",
         "type": "object"
@@ -4754,6 +4968,23 @@
           }
         },
         "title": "PlanTaskUpdate",
+        "type": "object"
+      },
+      "PrivateSpeechSynthesisRequest": {
+        "additionalProperties": false,
+        "description": "Keep private assistant text in the authenticated request body, not URLs.",
+        "properties": {
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PrivateSpeechSynthesisRequest",
         "type": "object"
       },
       "ProductAssetListResponse": {
@@ -10337,7 +10568,8 @@
             "schema": {
               "enum": [
                 "model_image",
-                "model_file"
+                "model_file",
+                "model_audio"
               ],
               "title": "Purpose",
               "type": "string"
@@ -11380,6 +11612,12 @@
                   "type": "string"
                 }
               },
+              "audio/wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
               "image/gif": {
                 "schema": {
                   "format": "binary",
@@ -11405,7 +11643,7 @@
                 }
               }
             },
-            "description": "Authorized model asset bytes. Content-Type matches the validated image or PDF."
+            "description": "Authorized model asset bytes. Content-Type matches the validated image, PDF, or WAV."
           },
           "404": {
             "description": "Capability is unknown, expired, revoked, or no longer matches authoritative file state."
@@ -11979,6 +12217,88 @@
           }
         ],
         "summary": "Read Onboarding",
+        "tags": [
+          "onboarding"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "onboarding",
+        "x-momcozy-stability": "stable"
+      }
+    },
+    "/v1/onboarding/me/chat-first": {
+      "get": {
+        "operationId": "read_chat_first_onboarding_v1_onboarding_me_chat_first_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatFirstStateOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Chat First Onboarding",
+        "tags": [
+          "onboarding"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "onboarding",
+        "x-momcozy-stability": "stable"
+      },
+      "put": {
+        "operationId": "complete_chat_first_onboarding_v1_onboarding_me_chat_first_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatFirstOnboardingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatFirstStateOutput"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Chat First Onboarding",
         "tags": [
           "onboarding"
         ],
@@ -13175,11 +13495,14 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "audio/pcm": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "PCM16 mono audio stream"
           },
           "422": {
             "content": {
@@ -13198,6 +13521,58 @@
           }
         ],
         "summary": "Realtime Voice Stream",
+        "tags": [
+          "voice"
+        ],
+        "x-momcozy-api-surface": "runtime_stream_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-notes": "Use POST to keep synthesized text out of URLs.",
+        "x-momcozy-owner": "voice",
+        "x-momcozy-stability": "deprecated"
+      },
+      "post": {
+        "operationId": "private_realtime_voice_stream_v1_realtime_voice_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivateSpeechSynthesisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "audio/pcm": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "PCM16 mono audio stream"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Private Realtime Voice Stream",
         "tags": [
           "voice"
         ],
@@ -13705,6 +14080,18 @@
               "default": true,
               "title": "Include Today",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Timezone",
+              "type": "string"
             }
           }
         ],
@@ -14353,12 +14740,13 @@
         "tags": [
           "support"
         ],
-        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-api-surface": "deprecated_api",
         "x-momcozy-client": [
-          "flutter"
+          "legacy-flutter"
         ],
+        "x-momcozy-notes": "Retained for released clients; the chat-first App has no support-ticket API dependency.",
         "x-momcozy-owner": "support",
-        "x-momcozy-stability": "stable"
+        "x-momcozy-stability": "deprecated"
       },
       "post": {
         "operationId": "create_support_ticket_v1_support_tickets_post",
@@ -14421,12 +14809,13 @@
         "tags": [
           "support"
         ],
-        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-api-surface": "deprecated_api",
         "x-momcozy-client": [
-          "flutter"
+          "legacy-flutter"
         ],
+        "x-momcozy-notes": "Retained for released clients; the chat-first App has no support-ticket API dependency.",
         "x-momcozy-owner": "support",
-        "x-momcozy-stability": "stable"
+        "x-momcozy-stability": "deprecated"
       }
     },
     "/v1/support/tickets/{ticket_id}": {
@@ -14475,12 +14864,13 @@
         "tags": [
           "support"
         ],
-        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-api-surface": "deprecated_api",
         "x-momcozy-client": [
-          "flutter"
+          "legacy-flutter"
         ],
+        "x-momcozy-notes": "Retained for released clients; the chat-first App has no support-ticket API dependency.",
         "x-momcozy-owner": "support",
-        "x-momcozy-stability": "stable"
+        "x-momcozy-stability": "deprecated"
       }
     }
   },

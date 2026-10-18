@@ -149,6 +149,27 @@
         "title": "AgentActionReject",
         "type": "object"
       },
+      "AgentAudioAttachmentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "audio",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "asset_id"
+        ],
+        "title": "AgentAudioAttachmentCreate",
+        "type": "object"
+      },
       "AgentClientContext": {
         "additionalProperties": false,
         "properties": {
@@ -763,6 +784,7 @@
             "items": {
               "discriminator": {
                 "mapping": {
+                  "audio": "#/components/schemas/AgentAudioAttachmentCreate",
                   "file": "#/components/schemas/AgentFileAttachmentCreate",
                   "form_submission": "#/components/schemas/AgentFormSubmissionAttachmentCreate",
                   "image": "#/components/schemas/AgentImageAttachmentCreate"
@@ -775,6 +797,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/AgentFileAttachmentCreate"
+                },
+                {
+                  "$ref": "#/components/schemas/AgentAudioAttachmentCreate"
                 },
                 {
                   "$ref": "#/components/schemas/AgentFormSubmissionAttachmentCreate"

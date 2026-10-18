@@ -182,7 +182,7 @@ class ProfileReadResponse(_StrictContract):
     data_quality_issues: list[ProfileDataQualityIssue]
 
 
-AgentFilePurpose = Literal["model_image", "model_file"]
+AgentFilePurpose = Literal["model_image", "model_file", "model_audio"]
 
 
 class AgentFileResolveRequest(_StrictContract):
