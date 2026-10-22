@@ -21,6 +21,7 @@ from app.agent_runtime.context import (
     ContextCompactionService,
     RuntimeContextCoordinator,
 )
+from app.agent_runtime.context.stool_followup import StoolFollowupRunResolver
 from app.agent_runtime.events import RuntimeTransientStream
 from app.agent_runtime.ledger.repository import RuntimeLedgerRepository
 from app.agent_runtime.orchestration import (
@@ -186,6 +187,9 @@ async def worker_application() -> AsyncIterator[AgentRunWorker]:
                     compaction=context_compaction_service(
                         repository,
                         model_input_resolver,
+                    ),
+                    stool_followup=StoolFollowupRunResolver(
+                        product_client=product_client,
                     ),
                 )
 

@@ -294,6 +294,14 @@ async def create_run(
     principal: RuntimePrincipal = Depends(require_runtime_principal),
     service: AgentRuntimeService = Depends(get_agent_service),
 ) -> AgentRunRead:
+    # Retire the old photo shortcut: medical photo analysis must use the
+    # dedicated, reviewed specialty service, never the general chat model.
+    if payload.message.lstrip().startswith("[momcozy_internal_poop_v1]"):
+        raise ApiError(
+            code="stool_specialty_required",
+            message="Stool photo analysis is unavailable until the specialty service is ready.",
+            status=409,
+        )
     request_id = str(getattr(request.state, "request_id", "") or "")
     trace_id = str(
         getattr(request.state, "trace_id", "") or request_id
@@ -305,6 +313,7 @@ async def create_run(
         message=payload.message,
         attachments=payload.attachments,
         client_context=payload.client_context,
+        stool_followup=payload.stool_followup,
         runtime_pattern=payload.runtime_pattern,
         runtime_version=payload.runtime_version,
         request_id=request_id,

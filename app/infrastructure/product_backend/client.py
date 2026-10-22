@@ -15,6 +15,7 @@ from .contracts import (
     AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
+    StoolContextReadRequest, StoolContextReadResponse,
     ProfileReadRequest,
     ProfileReadResponse,
     TopicalRecordsReadRequest,
@@ -171,6 +172,19 @@ class ProductBackendClient:
         if result.file_id != command.file_id:
             raise _invalid_response()
         return result
+
+    async def resolve_stool_context(
+        self, *, command: StoolContextReadRequest, request_id: str,
+    ) -> StoolContextReadResponse:
+        response = await self._request_model(
+            "POST", "/v1/internal/agent/stool-analyses/context/resolve",
+            response_model=StoolContextReadResponse,
+            json=command.model_dump(mode="json"), request_id=request_id,
+        )
+        if (response.analysis_id != command.analysis_id or response.owner_user_id != command.actor_user_id
+            or response.baby_id != command.baby_id or response.thread_id != command.thread_id):
+            raise _invalid_response()
+        return response
 
     async def fetch_model_asset(
         self, *, actor_user_id: UUID, file_id: UUID, purpose: AgentFilePurpose, request_id: str,

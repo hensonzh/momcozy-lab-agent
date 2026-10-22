@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.agent_runtime.audit import (
     IdempotencyKey,
@@ -15,6 +15,7 @@ from app.agent_runtime.audit import (
     request_hash,
 )
 from app.agent_runtime.context import normalize_client_context
+from app.agent_runtime.context.stool_followup import StoolFollowupReference
 from app.agent_runtime.ledger.contracts import ContextItemAppend
 from app.agent_runtime.ledger.models import (
     AgentEvent,
@@ -130,6 +131,7 @@ class AgentRuntimeService:
         message: str,
         attachments: Sequence[Mapping[str, Any] | BaseModel] | None = None,
         client_context: Mapping[str, Any] | BaseModel | None = None,
+        stool_followup: StoolFollowupReference | Mapping[str, Any] | None = None,
         runtime_pattern: str | None = None,
         runtime_version: str | None = None,
         request_id: str = "",
@@ -165,6 +167,19 @@ class AgentRuntimeService:
             max_length=8000,
             required=True,
         )
+        if normalized_message.startswith("[momcozy_internal_poop_v1]"):
+            raise ApiError(
+                code="stool_specialty_required",
+                message="Stool photo analysis is unavailable until the specialty service is ready.",
+                status=409,
+            )
+        try:
+            safe_followup = (StoolFollowupReference.model_validate(stool_followup)
+                             if stool_followup is not None else None)
+        except ValidationError as exc:
+            raise ApiError(code="validation_failed", message="Stool follow-up reference is invalid.", status=422) from exc
+        if safe_followup is not None and thread_id is None:
+            raise ApiError(code="stool_followup_thread_required", message="An existing conversation is required.", status=422)
         requested_attachments = [_normalize_requested_attachment(item) for item in (attachments or ())]
         safe_client_context = normalize_client_context(
             client_context,
@@ -175,6 +190,7 @@ class AgentRuntimeService:
             "message": normalized_message,
             "attachments": requested_attachments,
             "client_context": safe_client_context.data,
+            "stool_followup": safe_followup.model_dump(mode="json") if safe_followup else None,
             "runtime_pattern": pattern,
             "runtime_version": version,
         }
@@ -265,6 +281,8 @@ class AgentRuntimeService:
                     runtime_pattern=pattern,
                     runtime_version=version,
                     authorization_context=safe_authorization_context,
+                    stool_analysis_id=(safe_followup.analysis_id if safe_followup else None),
+                    stool_baby_id=(safe_followup.baby_id if safe_followup else None),
                     request_id=_normalize_text(request_id, max_length=80),
                     trace_id=_normalize_text(trace_id, max_length=120),
                 )
@@ -281,6 +299,8 @@ class AgentRuntimeService:
             }
             if safe_client_context.data:
                 message_content["client_context"] = safe_client_context.data
+            if safe_followup is not None:
+                message_content["stool_followup"] = safe_followup.model_dump(mode="json")
             message_record = await self.repository.create_message(
                 thread_id=thread.id,
                 owner_user_id=actor_user_id,

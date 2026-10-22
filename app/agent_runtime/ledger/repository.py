@@ -155,6 +155,8 @@ class RuntimeLedgerRepository:
         authorization_context: dict[str, Any],
         request_id: str,
         trace_id: str,
+        stool_analysis_id: UUID | None = None,
+        stool_baby_id: UUID | None = None,
     ) -> AgentRun:
         thread = await self._get_thread_for_owner(
             thread_id=thread_id,
@@ -174,6 +176,8 @@ class RuntimeLedgerRepository:
             id=run_id or uuid4(),
             thread_id=thread.id,
             actor_user_id=actor_user_id,
+            stool_analysis_id=stool_analysis_id,
+            stool_baby_id=stool_baby_id,
             runtime_pattern=runtime_pattern,
             runtime_version=runtime_version,
             authorization_context=dict(authorization_context),

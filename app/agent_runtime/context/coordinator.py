@@ -32,6 +32,12 @@ class ContextCompactionCoordinator(Protocol):
     ) -> None: ...
 
 
+class StoolFollowupModelResolver(Protocol):
+    async def ensure_authorized(self, *, run: Any) -> None: ...
+
+    async def resolve_for_model(self, *, run: Any) -> tuple[dict[str, Any], ...]: ...
+
+
 class RuntimeContextCoordinator:
     """Compose current-Run business facts with durable history handling."""
 
@@ -40,11 +46,15 @@ class RuntimeContextCoordinator:
         *,
         business_context: BusinessContextPreparer,
         compaction: ContextCompactionCoordinator,
+        stool_followup: StoolFollowupModelResolver | None = None,
     ) -> None:
         self.business_context = business_context
         self.compaction = compaction
+        self.stool_followup = stool_followup
 
     async def prepare_run(self, *, run: Any) -> None:
+        if self.stool_followup is not None:
+            await self.stool_followup.ensure_authorized(run=run)
         await self.business_context.prepare_run(run=run)
         await self.compaction.prepare_run(run=run)
 
@@ -74,10 +84,14 @@ class RuntimeContextCoordinator:
         run: Any,
         input_items: tuple[dict[str, Any], ...],
     ) -> tuple[dict[str, Any], ...]:
-        return await self.compaction.resolve_model_input(
+        materialized = await self.compaction.resolve_model_input(
             run=run,
             input_items=input_items,
         )
+        if self.stool_followup is None:
+            return materialized
+        # Re-resolve even on later tool turns; do not retain raw images/results.
+        return (*materialized, *await self.stool_followup.resolve_for_model(run=run))
 
     async def ensure_model_request_fits(
         self,
