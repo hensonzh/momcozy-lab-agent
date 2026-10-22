@@ -44,12 +44,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
+      actions: read
       contents: read
       packages: write
     outputs:
       image_ref: ${{ steps.digest.outputs.image_ref }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require successful core CI for the exact main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            run_id="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/agent-ci.yml/runs" \
+              -f head_sha="${GITHUB_SHA}" -f branch=main -f event=push -f status=success -f per_page=20 \
+              --jq "[.workflow_runs[] | select(.head_sha == \"${GITHUB_SHA}\" and .head_branch == \"main\" and .event == \"push\" and .conclusion == \"success\") | .id] | first // empty")"
+            if [[ "$run_id" =~ ^[0-9]+$ ]]; then
+              break
+            fi
+            sleep 15
+          done
+          [[ "$run_id" =~ ^[0-9]+$ ]] || {
+            echo 'No successful Agent core CI for this main commit' >&2
+            exit 1
+          }
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

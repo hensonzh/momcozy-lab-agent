@@ -35,6 +35,13 @@ def test_north_america_image_publication_is_main_only_after_validation() -> None
     assert "permissions:\n  contents: read" in validation
     assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in publish
     assert "needs: north-america-contract" in publish
+    assert "actions: read" in publish
+    assert "Require successful core CI for the exact main commit" in publish
+    assert 'actions/workflows/agent-ci.yml/runs' in publish
+    assert '.head_sha == \\"${GITHUB_SHA}\\"' in publish
+    assert '.event == \\"push\\"' in publish
+    assert 'No successful Agent core CI for this main commit' in publish
+    assert publish.index('Require successful core CI for the exact main commit') < publish.index('Build and publish North America-only image')
     assert "packages: write" in publish
     assert "secrets.GITHUB_TOKEN" in publish
     assert "deploy/Dockerfile" in publish
