@@ -13,8 +13,8 @@ output bucket and mode-`0600` private env derived from
 `config/release-targets/north-america-staging.json.example`. Never load
 Singapore's env or invoke its delivery workflow against this host.
 
-The Agent private env must include `ZOUNDREAM_ENDPOINT` and
-`ZOUNDREAM_API_KEY` to enable the baby-cry tool. Check structure with
+The cry classifier credentials belong only to the private Product Backend env.
+Check the Agent env structure with
 `python scripts/check_north_america_env.py --env-file <private-agent-env>`;
 `scripts/north_america_release.py` is read-only admission, not an activation
 command. Require Product readiness and matching contracts, image provenance,

@@ -1,5 +1,6 @@
 from .client import ProductBackendClient
 from .contracts import (
+    CryAnalysisReadRequest,
     AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
@@ -10,6 +11,7 @@ from .contracts import (
 )
 
 __all__ = [
+    "CryAnalysisReadRequest",
     "AgentFilePurpose",
     "AgentFileResolveRequest",
     "AgentFileResolveResponse",

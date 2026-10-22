@@ -18,9 +18,8 @@ settings or deploy from a development branch. `docker-compose.ci.yml` is
 never installed on a host.
 
 Copy exactly one regional template into a mode-`0600` private host file and
-replace every placeholder. `ZOUNDREAM_ENDPOINT` and `ZOUNDREAM_API_KEY` are
-required for the read-only baby-cry tool in **each** region; no key is committed.
-The release preflight rejects missing cry configuration. Image digest and
+replace every placeholder. The independent cry classifier is called by Product Backend; Agent Runtime
+receives only a verified result reference. Its env has no cry vendor credentials. Image digest and
 `RUNTIME_RELEASE_ID` are release-owned, never copied into the private env.
 
 Local entrypoint: `cd ../app && make local-dev-up`. Static Singapore Compose

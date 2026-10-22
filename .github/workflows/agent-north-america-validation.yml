@@ -24,7 +24,7 @@ jobs:
       - name: Check North America contracts and retain Singapore release guard
         run: |
           python -m ruff check app tests scripts
-          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_north_america_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_north_america_ingress_contract.py tests/test_north_america_host_layout.py tests/test_north_america_release_admission.py tests/test_north_america_validation_workflow.py tests/test_north_america_compose_environment.py tests/test_north_america_published_image.py tests/test_release_target_guard.py
+          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_north_america_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_north_america_ingress_contract.py tests/test_north_america_host_layout.py tests/test_north_america_release_admission.py tests/test_north_america_validation_workflow.py tests/test_north_america_compose_environment.py tests/test_north_america_published_image.py tests/test_release_target_guard.py tests/test_agent_attachments.py tests/test_product_backend_openapi_contract.py
 
       - name: Validate North America Compose without private values
         env:

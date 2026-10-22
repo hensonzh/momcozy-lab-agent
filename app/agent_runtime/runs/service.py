@@ -27,6 +27,7 @@ from app.agent_runtime.ledger.repository import (
 )
 from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
+from app.cry_result_context import cry_result_context
 
 from .admission import RunAdmission
 from .registry import (
@@ -166,6 +167,11 @@ class AgentRuntimeService:
             required=True,
         )
         requested_attachments = [_normalize_requested_attachment(item) for item in (attachments or ())]
+        # Product Backend binds the result on first read. Do not claim it for
+        # a newly-created, still-uncommitted Agent thread: a later rollback
+        # would strand the result on a thread that never existed.
+        if thread_id is None and any(item.get("type") == "cry_analysis" for item in requested_attachments):
+            raise ApiError(code="cry_thread_required", message="Create a conversation before using a cry result.", status=422)
         safe_client_context = normalize_client_context(
             client_context,
             now=self.clock(),
@@ -576,6 +582,12 @@ def _attachment_context_block(
             "asset_id": str(attachment["asset_id"]),
             "detail": str(attachment.get("detail") or "auto"),
         }
+    if attachment.get("type") == "cry_analysis":
+        return {"type": "input_text", "text": cry_result_context(
+            UUID(attachment["analysis_id"]),
+            {"status": attachment["status"], "answer": attachment.get("answer")},
+            analyzed_at=str(attachment["analyzed_at"]),
+        )}
     if attachment.get("type") == "audio":
         return {"type": "input_audio", "asset_id": str(attachment["asset_id"])}
     if attachment.get("type") == "file":

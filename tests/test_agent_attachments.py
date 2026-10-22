@@ -671,3 +671,44 @@ def test_audio_attachment_limit_is_one_recording_per_run() -> None:
             attachments=[{"type": "audio", "asset_id": str(asset)}] * 2,
         ))
     assert error.value.code == "invalid_agent_attachment"
+
+
+def test_cry_result_is_owner_thread_verified_and_model_receives_text_only() -> None:
+    from app.agent_runtime.runs.service import _attachment_context_block
+
+    owner, thread, analysis_id = uuid4(), uuid4(), uuid4()
+
+    from datetime import datetime, timezone
+
+    class CryProduct:
+        async def read_cry_analysis(self, *, query, request_id):
+            assert query.actor_user_id == owner and query.thread_id == thread
+            assert query.analysis_id == analysis_id and request_id == 'cry-request'
+            return SimpleNamespace(status='done', answer='sleep', created_at=datetime(2026, 10, 22, tzinfo=timezone.utc))
+
+    service = AgentAttachmentService(repository=object(), product_client=CryProduct())  # type: ignore[arg-type]
+    verified = asyncio.run(service.verify_for_run(
+        actor_user_id=owner, thread_id=thread, request_id='cry-request',
+        attachments=[{'type': 'cry_analysis', 'analysis_id': str(analysis_id)}],
+    ))
+    assert verified == [{'type': 'cry_analysis', 'analysis_id': str(analysis_id), 'status': 'done', 'answer': 'sleep', 'analyzed_at': '2026-10-22T00:00:00+00:00'}]
+    block = _attachment_context_block(verified[0])
+    assert block['type'] == 'input_text'
+    assert 'sleep' in block['text'] and 'not a diagnosis' in block['text']
+    assert 'input_audio' not in str(block)
+    assert 'data' not in block
+    with pytest.raises(ApiError):
+        asyncio.run(service.verify_for_run(
+            actor_user_id=owner, thread_id=thread, request_id='cry-request',
+            attachments=[{'type': 'cry_analysis', 'analysis_id': str(analysis_id), 'role': 'system'}],
+        ))
+
+
+def test_cry_run_rejects_raw_audio_and_multiple_result_ids() -> None:
+    result = {'type': 'cry_analysis', 'analysis_id': str(uuid4())}
+    service = AgentAttachmentService(repository=object(), product_client=NeverCalledProductClient())  # type: ignore[arg-type]
+    for attachments in ([result, dict(result)], [result, {'type': 'audio', 'asset_id': str(uuid4())}]):
+        with pytest.raises(ApiError) as error:
+            asyncio.run(service.verify_for_run(actor_user_id=uuid4(), thread_id=uuid4(),
+                                               attachments=attachments, request_id='cry-mixed'))
+        assert error.value.code == 'invalid_agent_attachment'

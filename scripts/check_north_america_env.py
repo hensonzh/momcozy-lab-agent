@@ -33,7 +33,7 @@ EXPECTED = {
 REQUIRED_SECRETS = (
     "MOMCOZY_AGENT_POSTGRES_PASSWORD", "MOMCOZY_AGENT_REDIS_PASSWORD",
     "MOMCOZY_AGENT_MINIO_ACCESS_KEY", "MOMCOZY_AGENT_MINIO_SECRET_KEY",
-    "PRODUCT_BACKEND_SERVICE_KEY", "RUNTIME_ADMIN_SERVICE_KEY", "ZOUNDREAM_API_KEY",
+    "PRODUCT_BACKEND_SERVICE_KEY", "RUNTIME_ADMIN_SERVICE_KEY",
 )
 
 
@@ -94,8 +94,6 @@ def validate(path: Path) -> None:
         raise ValueError("North America env model provider must be an approved explicit provider")
     if not values.get(model_secret) or "REPLACE_WITH" in values[model_secret]:
         raise ValueError(f"North America env {model_secret} is missing or a placeholder")
-    if not values.get("ZOUNDREAM_ENDPOINT", "").startswith("https://"):
-        raise ValueError("North America cry service requires a public HTTPS endpoint")
     for key, value in values.items():
         if "REPLACE_WITH" in value or "example.invalid" in value:
             raise ValueError(f"North America env {key} still contains a placeholder")

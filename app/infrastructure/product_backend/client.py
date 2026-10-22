@@ -10,6 +10,8 @@ from pydantic import BaseModel, ValidationError
 from app.core.errors import ApiError, DependencyError
 
 from .contracts import (
+    CryAnalysisResult,
+    CryAnalysisReadRequest,
     AgentReplyReadyRequest,
     AgentReplyReadyResponse,
     AgentFilePurpose,
@@ -169,6 +171,17 @@ class ProductBackendClient:
             request_id=request_id,
         )
         if result.file_id != command.file_id:
+            raise _invalid_response()
+        return result
+
+    async def read_cry_analysis(self, *, query: CryAnalysisReadRequest, request_id: str) -> CryAnalysisResult:
+        result = await self._request_model(
+            "POST", "/v1/internal/agent/cry-analyses/resolve",
+            response_model=CryAnalysisResult,
+            json=query.model_dump(mode="json"),
+            request_id=request_id,
+        )
+        if result.id != query.analysis_id or result.thread_id != query.thread_id:
             raise _invalid_response()
         return result
 

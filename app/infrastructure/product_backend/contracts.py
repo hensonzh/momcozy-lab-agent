@@ -38,6 +38,24 @@ ProfileDataQualityIssueCode = Literal[
     "infant_birth_date_mismatch",
     "infant_birth_date_is_in_future",
 ]
+class CryAnalysisReadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    analysis_id: UUID
+    actor_user_id: UUID
+    thread_id: UUID
+
+
+class CryAnalysisResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    status: Literal["done", "incomplete"]
+    answer: Literal["sleep", "pain", "burp", "uncomfortable", "hungry", "no_cry"] | None = None
+    thread_id: UUID
+    created_at: datetime
+
+
 class _StrictContract(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

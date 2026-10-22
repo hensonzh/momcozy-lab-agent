@@ -30,42 +30,6 @@ from app.bootstrap import (
 )
 
 
-def test_audio_cry_tool_round_trip_uses_no_model_supplied_asset_id() -> None:
-    model = ScriptedAgentModel({"cozymate": [
-        ScriptedTurn.calls(ScriptedToolCall(call_id="cry-1", name="analyze_baby_cry", arguments={})),
-        ScriptedTurn.final("最像是：宝宝想休息\n现在可以试试：轻轻安抚宝宝。"),
-    ]})
-    port = AudioExecutionPort()
-    result = asyncio.run(_engine(model).execute(
-        input_items=({"role": "user", "content": [
-            {"type": "input_text", "text": "请分析这段宝宝哭声"},
-            {"type": "input_audio", "asset_id": "current-verified-audio"},
-        ]},),
-        port=port,
-        authorization_permissions=_all_tool_permissions(),
-    ))
-    assert port.tool_calls == [("cozymate", "analyze_baby_cry", "cry-1", {})]
-    assert model.requests[0].input_items[0]["content"][1] == {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}}
-    assert result.text.startswith("最像是：")
-    assert any(item.get("type") == "function_call_output" and item.get("call_id") == "cry-1"
-               for item in model.requests[1].input_items)
-
-
-def test_ambiguous_audio_can_ask_before_calling_cry_tool() -> None:
-    model = ScriptedAgentModel({"cozymate": [ScriptedTurn.final("要用听哭闹分析这段录音吗？")]})
-    port = AudioExecutionPort()
-    result = asyncio.run(_engine(model).execute(
-        input_items=({"role": "user", "content": [
-            {"type": "input_text", "text": "我发送了一段音频，请先听听。"},
-            {"type": "input_audio", "asset_id": "current-verified-audio"},
-        ]},),
-        port=port,
-        authorization_permissions=_all_tool_permissions(),
-    ))
-    assert result.text == "要用听哭闹分析这段录音吗？"
-    assert not port.tool_calls
-
-
 def test_skill_body_is_a_separate_developer_item_after_the_load_receipt() -> None:
     model = ScriptedAgentModel(
         {
@@ -372,10 +336,10 @@ def test_single_agent_omits_tools_without_snapshot_permissions() -> None:
         for tool in tools
         if isinstance(tool, FunctionTool)
     }
-    assert function_tools == {LOAD_SERVICE_SKILL_TOOL_NAME, "analyze_baby_cry"}
+    assert function_tools == {LOAD_SERVICE_SKILL_TOOL_NAME}
     assert {
         item["name"] for item in port.manifests[0]["tools"]["items"]
-    } == {LOAD_SERVICE_SKILL_TOOL_NAME, "analyze_baby_cry"}
+    } == {LOAD_SERVICE_SKILL_TOOL_NAME}
 
 
 def _engine(model: Any) -> OpenAIAgentsExecutionEngine:
@@ -477,18 +441,3 @@ class RecordingExecutionPort:
         delta: str,
     ) -> None:
         return None
-
-
-@dataclass
-class AudioExecutionPort(RecordingExecutionPort):
-    async def resolve_model_input(self, *, input_items: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], ...]:
-        from copy import deepcopy
-        resolved = deepcopy(input_items)
-        for item in resolved:
-            content = item.get("content")
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "input_audio" and "asset_id" in block:
-                        block.pop("asset_id")
-                        block["input_audio"] = {"data": "UklGRg==", "format": "wav"}
-        return resolved

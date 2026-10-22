@@ -9,7 +9,6 @@ from app.agent.skill_registry import (
 from app.agent_runtime.tools.handlers import ToolHandler
 from app.topical_records import TOPICAL_RECORDS_CAPABILITY
 from app.schedule_records import SCHEDULE_RECORDS_CAPABILITY
-from app.cry_analysis import CRY_ANALYSIS_CAPABILITY
 from app.capability_module import (
     CapabilityDependencies,
     CapabilityModule,
@@ -35,7 +34,7 @@ SERVICE_SKILL_CAPABILITY = CapabilityModule(
     handler_factory=_build_service_skill_handlers,
 )
 
-CAPABILITY_MODULES = (SERVICE_SKILL_CAPABILITY, CRY_ANALYSIS_CAPABILITY, TOPICAL_RECORDS_CAPABILITY, SCHEDULE_RECORDS_CAPABILITY)
+CAPABILITY_MODULES = (SERVICE_SKILL_CAPABILITY, TOPICAL_RECORDS_CAPABILITY, SCHEDULE_RECORDS_CAPABILITY)
 
 
 def _assemble_catalog() -> tuple[

@@ -94,6 +94,13 @@ class AgentImageAttachmentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AgentCryAnalysisAttachmentCreate(BaseModel):
+    type: Literal["cry_analysis"]
+    analysis_id: UUID
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AgentAudioAttachmentCreate(BaseModel):
     type: Literal["audio"]
     asset_id: UUID
@@ -137,6 +144,7 @@ AgentAttachmentCreate: TypeAlias = Annotated[
     AgentImageAttachmentCreate
     | AgentFileAttachmentCreate
     | AgentAudioAttachmentCreate
+    | AgentCryAnalysisAttachmentCreate
     | AgentFormSubmissionAttachmentCreate,
     Field(discriminator="type"),
 ]

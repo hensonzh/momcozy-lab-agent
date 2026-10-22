@@ -16,6 +16,7 @@ from app.infrastructure.product_backend import (
     AgentFilePurpose,
     AgentFileResolveRequest,
     AgentFileResolveResponse,
+    CryAnalysisReadRequest,
 )
 from app.agent_runtime.context.compaction import MATERIALIZER_VERSION
 
@@ -79,6 +80,10 @@ class AgentAttachmentService:
             )
         if sum(item.get("type") == "audio" for item in attachments) > 1:
             raise ApiError(code="invalid_agent_attachment", message="Only one recording is allowed per Run.", status=422)
+        if sum(item.get("type") == "cry_analysis" for item in attachments) > 1:
+            raise ApiError(code="invalid_agent_attachment", message="Only one cry result is allowed per Run.", status=422)
+        if any(item.get("type") == "cry_analysis" for item in attachments) and any(item.get("type") == "audio" for item in attachments):
+            raise ApiError(code="invalid_agent_attachment", message="Cry analysis must not attach raw audio.", status=422)
         verified: list[dict[str, Any]] = []
         for attachment in attachments:
             attachment_type = str(attachment.get("type") or "").strip()
@@ -91,6 +96,18 @@ class AgentAttachmentService:
                         request_id=request_id,
                     )
                 )
+            elif attachment_type == "cry_analysis":
+                _require_exact_keys(attachment, allowed={"type", "analysis_id"})
+                analysis_id = _uuid(attachment.get("analysis_id"), field="analysis_id")
+                result = await self.product_client.read_cry_analysis(
+                    query=CryAnalysisReadRequest(actor_user_id=actor_user_id, thread_id=thread_id,
+                                                 analysis_id=analysis_id),
+                    request_id=request_id,
+                )
+                # Construct text only from a validated enum. Never materialize audio.
+                verified.append({"type": "cry_analysis", "analysis_id": str(analysis_id),
+                                 "status": result.status, "answer": result.answer,
+                                 "analyzed_at": result.created_at.isoformat()})
             elif attachment_type == "audio":
                 verified.append(await self._verify_audio(
                     actor_user_id=actor_user_id, attachment=attachment, request_id=request_id,

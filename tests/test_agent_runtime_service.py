@@ -79,6 +79,20 @@ def test_create_run_appends_user_loop_history_and_durable_events() -> None:
     assert repository.event_types == ["run.queued", "message.completed"]
 
 
+def test_cry_result_requires_an_existing_thread_before_external_claim() -> None:
+    owner = uuid4()
+    repository = FakeLedgerRepository(owner_user_id=owner)
+    service = AgentRuntimeService(repository=repository)  # type: ignore[arg-type]
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(service.create_run(
+            actor_user_id=owner, authorization_context=_authorization_context(owner),
+            thread_id=None, message="宝宝哭声建议",
+            attachments=[{"type": "cry_analysis", "analysis_id": str(uuid4())}],
+        ))
+    assert captured.value.code == "cry_thread_required"
+    assert repository.created_run_count == 0
+
+
 def test_create_run_rejects_blocked_context_head_before_writing_run() -> None:
     owner_user_id = uuid4()
     repository = FakeLedgerRepository(owner_user_id=owner_user_id)

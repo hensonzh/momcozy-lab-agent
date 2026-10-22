@@ -22,10 +22,9 @@ Human-facing documentation uses the canonical service names `Product Backend
 - Agent Runtime has its own PostgreSQL database and never imports Product Backend
   implementation modules or reads product tables.
 - `app/agent/` owns CozyMate, its system prompt, and the lactation consultation Skill.
-  `app/capability_catalog.py` registers the service Skill, read-only baby-cry analysis,
-  and owner-scoped records/schedule capabilities. Baby-cry analysis requires
-  `ZOUNDREAM_ENDPOINT` and `ZOUNDREAM_API_KEY` in the worker environment; no
-  recording or vendor result is accepted from a model-supplied asset ID.
+  `app/capability_catalog.py` registers the service Skill and owner-scoped
+  records/schedule capabilities. Cry classification is owned by Product Backend;
+  Agent Runtime consumes only an owner- and thread-verified result ID, never audio.
 
 ## Processes
 
@@ -100,8 +99,8 @@ Deploy Product Backend first. Singapore's protected
 matching Product manifest/OpenAPI, drain, backups, worker and public readiness.
 North America's `agent-north-america-validation.yml` publishes an immutable
 image on `main` but does not deploy it; use its separate guarded host admission
-and release process. Both regional Agent envs require private
-`ZOUNDREAM_ENDPOINT` and `ZOUNDREAM_API_KEY` for baby-cry analysis. See
+and release process. Both regional Product Backend envs hold the private cry-classifier credentials;
+Agent envs do not carry them. See
 [deployment.md](docs/deployment.md); static checks are not evidence of live
 service or provider inference.
 

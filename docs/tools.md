@@ -2,11 +2,11 @@
 
 <!-- tooling-document: canonical -->
 <!-- runtime-baseline: momcozy-agent-v1 -->
-<!-- runtime-contract-catalog-sha256: df2fbb95c08ed70a72b0dfb1ab516824ff7c762db338e375eaa81508ef4fb379 -->
-<!-- tool-count: 6 -->
+<!-- runtime-contract-catalog-sha256: a6c219cdda045899b6f7b1ede37d289d29a7111eb900a16d2c7bd0b3b565df78 -->
+<!-- tool-count: 5 -->
 <!-- action-count: 2 -->
 
-Momcozy AI registers a lactation Skill loader, a read-only baby-cry tool, bounded records and personal schedule readers, and two atomic batch-write tools. Write tools require prior explicit agreement in the conversation; the backend does not interpret that agreement.
+Momcozy AI registers a lactation Skill loader, bounded records and personal schedule readers, and two atomic batch-write tools. Write tools require prior explicit agreement in the conversation; the backend does not interpret that agreement.
 
 ## 工具与技能
 
@@ -17,7 +17,7 @@ Momcozy AI registers a lactation Skill loader, a read-only baby-cry tool, bounde
 每份加载文档属于加载它的 Run：原始历史保留时可见，该 Run 进入压缩范围时，文档与调用、回执一起交给压缩模型。压缩后只保留摘要，不根据摘要恢复完整路由或专题正文，后续需要时须重新加载。历史快照保留当时原文，不受之后修改源文件影响。
 对于没有正文快照的加载回执，普通模型请求仅在回执符合当前 v1 格式且资源身份和内容指纹与当前注册表一致时补出正文。旧结构回执不再恢复完整正文，也不会改写历史账本；历史工具结果中如果含有正文，在普通模型投影中移除，不将工具返回文字直接提升为指令。
 
-`analyze_baby_cry` 是只读 eager 工具，权限为 `agent:run`，不接受模型传入文件 ID；只分析**本轮用户已验证的单段音频**，或模型发出明确询问、用户紧接着肯定确认后复用十分钟内上一轮的单段录音；按账号读取 16 kHz 单声道 PCM WAV 后交给第三方哭声服务。返回有限枚举线索；只有识别出哭声类别时才发送 `cry.analysis.completed` 事件，供会话结果卡按真实执行情况显示；不产出诊断或伪造概率。普通语音不触发哭声卡，意图不明时先询问；超时、无确认或不相邻时不得回捞旧录音。服务未配置或调用失败时不能声称分析成功。
+听哭闹由 Product Backend 的独立服务先分析音频。Agent 只读取已核验、与用户和会话绑定的结构化结果；不会收到音频或供应商凭据。结果以 `runtime_verified_cry_analysis` 的数据块携带来源、分析时间、受控类别与非诊断边界；供应商自由文本不可作为指令。卡片由 App 根据服务结果呈现，Agent 只补充情境建议。
 
 `read_topical_records` 为 eager FunctionTool，权限为 `records:read`，operation 为 `read`。仅在需要日常／历史证据时读取 `feeding`、`pumping`、`diaper`、`pain`、`growth`、`latch` 或 `after_feeding_mood` 专题。模型传 `queries`（1～3 项）；每项指定一个专题、独立的起止日期（连续且最多 30 个自然日）、可选的条数上限（1～20）。模型可见 Schema 将查询项分为两种结构：宝宝侧喂养、尿便、生长和宝宝喂后心情须提供当前分娩宝宝的 `infant_id`；妈妈侧吸奶、疼痛与含乳没有 `infant_id` 字段，传入（包括 `null`）会被拒绝。参数错误回执只给安全的字段路径和规则类型，供模型修正后重试，不回显记录数据；“最近”的日期范围由模型结合请求自行判断，不添加固定天数。一次工具调用按顺序复用 Backend 单专题只读接口，结果以 `results` 分组，不跨主题合并或推断全量历史；任一查询失败则整个工具调用失败，不发布部分结果。owner 来自 Run 冻结的授权快照，时区来自本轮已验证的 client context（缺失时 UTC），不能由模型伪造。Backend 再校验宝宝归属与本次分娩关系，按来源最多读取各项的 `limit+1` 条并合并排序。每组分别返回查询主题、宝宝与日期范围、`has_more` 和 `coverage=recorded_entries_only`：前者表示 Backend 截断或工具输出预算截断（24 KiB），后者表示无记录不等于没有发生。为避免某个主题占满预算，按各组顺序交替选取完整记录，超出预算时只略去整条并将对应组标为 `has_more`；不适用的记录字段在工具结果中省略。尿便专题同时返回单次尿布事件与 `daily_status` 的尿便汇总条目，用 `record_type` 区分，不能直接相加避免重复计数；同一 `daily_status` 中的喂后心情仅在 `after_feeding_mood` 专题返回日期与 `mental_state`。含乳专题仅返回记录时间与受控选项 `latch_status`。宝宝睡眠、发育，妈妈精力、睡眠、情绪、储奶、奶瓶等其它记录均不开放查询。返回字段白名单，不包含自由文本、原始照片或完整历史；单条生长测量不能推断趋势，旧版与新版记录保留来源，不跨日期拼接指标。
 

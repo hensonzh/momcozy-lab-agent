@@ -662,8 +662,6 @@ def _validate_env_file(path: Path, expected_environment: str) -> None:
         "PRODUCT_BACKEND_SERVICE_KEY",
         "RUNTIME_ADMIN_SERVICE_KEY",
         "AGENT_MODEL_PROVIDER",
-        "ZOUNDREAM_ENDPOINT",
-        "ZOUNDREAM_API_KEY",
     )
     missing = [name for name in required if not values.get(name, "").strip()]
     if missing:
@@ -675,15 +673,12 @@ def _validate_env_file(path: Path, expected_environment: str) -> None:
         "MOMCOZY_AGENT_MINIO_SECRET_KEY",
         "PRODUCT_BACKEND_SERVICE_KEY",
         "RUNTIME_ADMIN_SERVICE_KEY",
-        "ZOUNDREAM_API_KEY",
     )
     unsafe = [name for name in secret_names if _is_known_placeholder(values[name])]
     if unsafe:
         raise ValueError(f"deployment env contains placeholder values: {', '.join(unsafe)}")
     if values["PRODUCT_BACKEND_SERVICE_KEY"] == values["RUNTIME_ADMIN_SERVICE_KEY"]:
         raise ValueError("Product Backend and Runtime admin service keys must differ")
-    if not values["ZOUNDREAM_ENDPOINT"].startswith("https://") or _is_known_placeholder(values["ZOUNDREAM_ENDPOINT"]):
-        raise ValueError("Singapore cry service requires a public HTTPS endpoint")
     backend_url = values["MOMCOZY_BACKEND_PUBLIC_URL"].rstrip("/")
     if values["PRODUCT_BACKEND_BASE_URL"].rstrip("/") != backend_url:
         raise ValueError("PRODUCT_BACKEND_BASE_URL must match MOMCOZY_BACKEND_PUBLIC_URL")

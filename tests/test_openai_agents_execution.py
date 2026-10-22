@@ -441,7 +441,7 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
         for tool in request["tools"]
         if tool["type"] == "function"
     }
-    assert set(eager_function_tools) == {"load_service_skill", "analyze_baby_cry", "read_topical_records", "read_schedule", "change_records", "change_schedule"}
+    assert set(eager_function_tools) == {"load_service_skill", "read_topical_records", "read_schedule", "change_records", "change_schedule"}
     record_schema = eager_function_tools["read_topical_records"]["parameters"]
     query_variants = [
         record_schema["$defs"][option["$ref"].removeprefix("#/$defs/")]
