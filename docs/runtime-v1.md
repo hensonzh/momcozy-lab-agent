@@ -202,3 +202,81 @@ authorization as a compatibility workaround.
 Rollback is image-only when the candidate supports the v1 baseline. Pre-v1
 images must not be pointed at the v1 database; roll forward or recreate the
 resettable Runtime database instead.
+
+## Deprecated stool-photo general Run admission (2026-10-20)
+
+The legacy `[momcozy_internal_poop_v1]` mobile prompt must not enter the
+ordinary Agent Run path. Both the public Run endpoint and `AgentRuntimeService`
+reject new runs starting with that marker before storage/provider work with
+`409 / stool_specialty_required`. Previously committed conversation history is
+still readable and is not retrospectively reclassified as a specialty medical
+result. The separate Product photo-review API does not grant a general Agent
+image attachment permission or a medical analysis result. Ordinary user image
+chat remains a separate existing capability; it is not a certified stool
+analysis workflow.
+
+## Proposed stool specialty follow-up context (2026-10-22; offline slice only)
+
+This extends, but does **not** remove, the general Run admission block above.
+A user must first explicitly submit approved photos to the independent stool
+analysis service. Only its persisted, schema-validated **completed** result
+and exactly the 1–3 photos that produced it may be referenced by a related
+follow-up Agent conversation. Neither the old mobile marker, ordinary image
+attachments, nor a caller-supplied result establishes this authority. The
+Product Backend stool contract owns `stool_analysis_context.v1`, permissions,
+retention, and the exact result schema; this Runtime must not invent a
+medical conclusion or replace the specialty service.
+
+A future scoped resolver must recheck current owner, baby, authorized
+conversation, analysis status, linked photo fingerprints/review state,
+revocation, and retention **before each model call**. The authorized response
+is a source-labeled, structured final-result block plus ordered references
+to metadata-stripped derived JPEGs. Resolve those references to real
+`input_image` blocks only for the current request. This is a *separate*
+internal-purpose path: existing ordinary `model_image` attachments and their
+file permission are not a shortcut into stool-photo storage. Keep bytes,
+base64, reusable URLs, and raw provider text out of thread history, ledger,
+compacted checkpoints, summaries, and logs. If any photo or result cannot
+be resolved, fail closed rather than sending a partial bundle while claiming
+the model saw both. Deletion or withdrawal invalidates future resolution;
+requests already sent to a provider cannot be recalled. The Product Backend no longer age-purges original photos automatically; a passed review is valid for new submissions for 180 days, but that submission window does not by itself expire a completed analysis follow-up. Long-term result/context retention and deletion policy remain unapproved and must be aligned before Run integration.
+
+A trusted, server-owned handling instruction should identify the images as
+**observation material from the same specialty analysis** and the structured
+result as that service's **completed result**, not user or image instructions.
+The image pixels/OCR and supplier free text remain untrusted data. For a
+relevant follow-up, explain the specialty result without independently
+re-diagnosing or quietly overriding it; surface conflicts or new concerning
+symptoms as uncertainty needing reassessment or appropriate care. This
+handling rule may be a fixed, server-owned developer instruction, but it is
+not permission to promote the result or image into a system or developer
+message. Historical compaction/replay must not retain or
+resurrect a revoked asset or result.
+
+The **unwired** seam at `app/agent_runtime/context/stool_followup.py`
+now uses a typed Product client and a per-call adapter. Synthetic tests verify
+that the draft result and ordered derived images become one transient model
+request, with only the fixed server-owned handling text in a developer-role
+item; result values and images remain user-role data. Product Backend has a
+result/photo-link ledger and a resolver that checks the current account/device
+session, baby, thread, result state and photo binding. Its internal endpoint
+is **hard-disabled by default**. There is no approved clinical schema/writer,
+Run/model integration, or result-erasure policy, and no permission to transfer
+pediatric images to a provider. The adapter must eventually be constructed
+from the canonical signed Run principal, never client-supplied actor/session
+fields. Before wiring it to a Run, verify canonical-principal construction,
+revocation between Run creation and each model call, historical compaction,
+and image-borne prompt injection/conflicting evidence. Denied calls must
+cause zero model/provider invocations. See Product Backend
+`docs/stool-photo-service-contract.md` for release gates.
+
+## 看便便专项追问（2026-10-22，真实能力仍关闭）
+
+- `AgentRunCreate.stool_followup` 仅接受版本化的 `{analysis_id, baby_id}` 引用，且必须指定既有 thread。Run 的 `stool_analysis_id` / `stool_baby_id` 成对落权威数据库（迁移 `20261022_0004`），并计入创建幂等 hash；不把原图、医学结果或 data URL 存入 Run、对话历史或压缩状态。两个字段缺一时数据库与运行时均拒绝。
+- 每次相关模型请求在 `RuntimeContextCoordinator.resolve_model_input` 后调用 Product Backend 的内部结果+同源图片解析：使用冻结 Run principal 的用户/设备会话/过期时间以及 Run 的 thread/宝宝作用域，Product 再按当前账户、宝宝、照片、结果、删除/撤销状态核验。结果作为低信任 user 数据、照片作为同一 user 的多模态内容进入模型；固定的 developer handling 明确不得服从图片/结果中的指令、不得重新自行诊断。返回项目只在本次模型请求内存在，不写持久上下文。工具调用后第二次模型请求会再次解析；撤销后在第二次 provider 调用前失败。
+- 当前 Product 内部 `context_available=false`，没有签署医学结果验证器/长期保留政策，App 也不发出真实 `stool_followup` Run；此接线仅用合成结果验证权限与调用边界，**不得**解读为已开放医学追问。在业务资料读取和上下文压缩前已增加一次 Product 授权预检；之后每次回答模型调用仍重新解析。压缩器内部多次模型调用与长对话重放仍需正式 UAT、多轮安全评测，不能用合成测试替代。
+
+### 2026-10-22 Run 绑定加固与合成验证
+
+- 追问引用以成对 nullable UUID 列保存在 Run 权威表，消息中仅留同一版本化引用用于审计，不再把消息是否存在当成是否需要结果的判断条件；迁移约束拒绝半绑定，旧 Run 的两列均为空。`stool.followup.ref.v1` 必填，缺版本/未知字段由 API 拒绝。上下文压缩覆盖 `context_state` 不影响此权威引用。
+- Worker 对相关 Run 在业务资料/压缩前做一次 Product 预检，并在每次回答模型调用前重新拉取；测试覆盖第一次工具调用后撤销、第二次 provider 调用前失败，和真实 Responses SDK 的同源结果+图像输入及不进 manifest。Product 当前仍 `context_available=false`，App 未显示医学完成状态或提供追问提交入口；这是合成协议/权限接线，不是医学可用服务。

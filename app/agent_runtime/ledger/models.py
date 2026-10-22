@@ -73,6 +73,10 @@ class AgentRun(Base):
             "(lease_token IS NULL) = (locked_until IS NULL)",
             name="ck_agent_runs_lease_pair",
         ),
+        CheckConstraint(
+            "(stool_analysis_id IS NULL) = (stool_baby_id IS NULL)",
+            name="ck_agent_runs_stool_followup_pair",
+        ),
         Index("ix_agent_runs_thread_started", "thread_id", "started_at"),
         Index("ix_agent_runs_actor_status_started", "actor_user_id", "status", "started_at"),
         Index("ix_agent_runs_completed_notification", "completed_at", "id",
@@ -99,6 +103,8 @@ class AgentRun(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     thread_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("agent_threads.id"), nullable=False)
     actor_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    stool_analysis_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    stool_baby_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="queued", server_default="queued", nullable=False)
     runtime_pattern: Mapped[str] = mapped_column(
         String(64),

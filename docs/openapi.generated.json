@@ -880,6 +880,16 @@
             ],
             "title": "Runtime Version"
           },
+          "stool_followup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoolFollowupReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "thread_id": {
             "anyOf": [
               {
@@ -1153,6 +1163,34 @@
         "type": "object"
       },
       "JsonValue": {},
+      "StoolFollowupReference": {
+        "additionalProperties": false,
+        "description": "Client selects a previous analysis; Product reauthorizes it per model call.",
+        "properties": {
+          "analysis_id": {
+            "format": "uuid",
+            "title": "Analysis Id",
+            "type": "string"
+          },
+          "baby_id": {
+            "format": "uuid",
+            "title": "Baby Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "stool.followup.ref.v1",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "analysis_id",
+          "baby_id"
+        ],
+        "title": "StoolFollowupReference",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {

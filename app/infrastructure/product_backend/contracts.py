@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, date as CalendarDate, datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -324,3 +324,40 @@ class AgentScheduleReadResponse(BaseModel):
     personal: list[AgentPersonalSchedule]
     server_time: AwareDatetime
     has_more: bool
+
+
+class StoolContextReadRequest(_StrictContract):
+    """Internal-only; caller must use the canonical Run principal, not client JSON."""
+    analysis_id: UUID
+    actor_user_id: UUID
+    session_id: UUID
+    baby_id: UUID
+    thread_id: UUID
+    token_expires_at: AwareDatetime
+
+
+class StoolContextReadResponse(_StrictContract):
+    analysis_id: UUID
+    owner_user_id: UUID
+    baby_id: UUID
+    thread_id: UUID
+    status: Literal["completed"]
+    result_schema_version: Literal["stool.result.v1"]
+    result: dict[str, Any]
+    images_b64: list[str] = Field(min_length=1, max_length=3)
+
+    @field_validator("images_b64")
+    @classmethod
+    def validate_images(cls, values: list[str]) -> list[str]:
+        import base64
+        import binascii
+        for value in values:
+            if len(value) > 14_000_000:
+                raise ValueError("Derived image exceeds the limit")
+            try:
+                image = base64.b64decode(value, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise ValueError("Invalid derived image encoding") from exc
+            if not 4 <= len(image) <= 10 * 1024 * 1024 or not image.startswith(b"\xff\xd8\xff"):
+                raise ValueError("Invalid derived image")
+        return values
