@@ -811,6 +811,18 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
           }
         },
         "required": [
@@ -1167,6 +1179,22 @@
           "thread_id"
         ],
         "title": "CryAnalysisInternalRead",
+        "type": "object"
+      },
+      "CryAnalysisListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CryAnalysisRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CryAnalysisListRead",
         "type": "object"
       },
       "CryAnalysisRead": {
@@ -9496,6 +9524,70 @@
       }
     },
     "/v1/cry-analyses": {
+      "get": {
+        "operationId": "list_cry_analyses_v1_cry_analyses_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryAnalysisListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Cry Analyses",
+        "tags": [
+          "cry-analyses"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "cry-analysis",
+        "x-momcozy-stability": "stable"
+      },
       "post": {
         "operationId": "create_cry_analysis_v1_cry_analyses_post",
         "parameters": [
