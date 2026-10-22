@@ -9,7 +9,7 @@ from app.infrastructure.db.schema import RUNTIME_SCHEMA_REVISION
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_HEAD_REVISION = "20260926_0003"
+RUNTIME_HEAD_REVISION = "20261022_0004"
 
 
 def test_runtime_has_one_fresh_alembic_head() -> None:
@@ -71,6 +71,9 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "CREATE INDEX ix_agent_runs_agent_name" in sql
     assert "CREATE INDEX ix_agent_runs_completed_notification" in sql
     assert "CREATE TABLE agent_notification_receipts" in sql
+    assert "ALTER TABLE agent_runs ADD COLUMN stool_analysis_id UUID" in sql
+    assert "ALTER TABLE agent_runs ADD COLUMN stool_baby_id UUID" in sql
+    assert "stool_followup_pair CHECK" in sql
     assert "skill_id VARCHAR(64)" not in sql
     assert "CREATE INDEX ix_agent_actions_confirmation_expiry" in sql
     assert "CREATE TABLE audit_logs" in sql
@@ -78,7 +81,7 @@ def test_runtime_baseline_generates_empty_database_sql_without_product_tables() 
     assert "output_json JSONB" in sql
     assert "output_ref VARCHAR(512)" in sql
     assert "result_payload_json JSONB" in sql
-    assert "ALTER TABLE" not in sql
+    assert "DROP COLUMN" not in sql
     assert "RENAME" not in sql
     assert "safe_output_json" not in sql
     assert "raw_output_ref" not in sql

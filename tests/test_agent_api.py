@@ -516,3 +516,41 @@ def _principal() -> RuntimePrincipal:
         roles=frozenset({"user"}),
         permissions=frozenset({"agent:run"}),
     )
+
+
+def test_legacy_stool_photo_prompt_cannot_start_general_agent_run() -> None:
+    principal = _principal()
+    service = FakeAgentService(owner_user_id=principal.user_id)
+    app = _app(principal=principal, service=service)
+    response = TestClient(app).post(
+        "/v1/agent/runs",
+        json={"message": "  [momcozy_internal_poop_v1] 请分析便便照片", "attachments": []},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "stool_specialty_required"
+    assert service.create_run_kwargs == {}
+
+
+def test_typed_stool_followup_run_reference_is_forwarded_but_unknown_fields_fail_closed() -> None:
+    principal = _principal()
+    service = FakeAgentService(owner_user_id=principal.user_id)
+    client = TestClient(_app(principal=principal, service=service))
+    reference = {'schema_version': 'stool.followup.ref.v1',
+                 'analysis_id': str(uuid4()), 'baby_id': str(uuid4())}
+    accepted = client.post('/v1/agent/runs', json={
+        'thread_id': str(service.thread_id), 'message': 'Explain the previous result',
+        'stool_followup': reference,
+    })
+    assert accepted.status_code == 201
+    assert service.create_run_kwargs['stool_followup'].model_dump(mode='json') == reference
+    service.create_run_kwargs = {}
+    invalid = client.post('/v1/agent/runs', json={
+        'thread_id': str(service.thread_id), 'message': 'Explain the previous result',
+        'stool_followup': {**reference, 'object_key': 'private'},
+    })
+    assert invalid.status_code == 422 and service.create_run_kwargs == {}
+    unversioned = client.post('/v1/agent/runs', json={
+        'thread_id': str(service.thread_id), 'message': 'Explain the previous result',
+        'stool_followup': {'analysis_id': reference['analysis_id'], 'baby_id': reference['baby_id']},
+    })
+    assert unversioned.status_code == 422 and service.create_run_kwargs == {}

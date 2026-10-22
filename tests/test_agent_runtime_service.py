@@ -567,6 +567,8 @@ class FakeLedgerRepository:
             id=kwargs.get("run_id") or uuid4(),
             thread_id=kwargs["thread_id"],
             actor_user_id=kwargs["actor_user_id"],
+            stool_analysis_id=kwargs.get("stool_analysis_id"),
+            stool_baby_id=kwargs.get("stool_baby_id"),
             status="queued",
             runtime_pattern=kwargs["runtime_pattern"],
             runtime_version=kwargs["runtime_version"],
@@ -791,3 +793,44 @@ def test_run_schema_accepts_only_audio_asset_reference() -> None:
         AgentRunCreate(message="分析哭声", attachments=[{
             "type": "audio", "asset_id": asset, "input_audio": {"data": "forged", "format": "wav"},
         }])
+
+
+def test_legacy_stool_photo_marker_never_creates_a_general_run() -> None:
+    owner = uuid4()
+    repository = FakeLedgerRepository(owner_user_id=owner)
+    service = AgentRuntimeService(repository=repository)  # type: ignore[arg-type]
+    with pytest.raises(ApiError) as captured:
+        asyncio.run(service.create_run(
+            actor_user_id=owner,
+            authorization_context=_authorization_context(owner),
+            thread_id=None,
+            message=' [momcozy_internal_poop_v1] old client shortcut',
+        ))
+    assert captured.value.code == 'stool_specialty_required'
+    assert repository.created_run_count == 0
+
+
+def test_stool_followup_reference_is_bound_to_existing_thread_but_not_model_history() -> None:
+    from app.agent_runtime.context.stool_followup import StoolFollowupReference
+
+    owner = uuid4()
+    repository = FakeLedgerRepository(owner_user_id=owner)
+    service = AgentRuntimeService(repository=repository)  # type: ignore[arg-type]
+    ref = StoolFollowupReference(schema_version="stool.followup.ref.v1", analysis_id=uuid4(), baby_id=uuid4())
+    with pytest.raises(ApiError) as error:
+        asyncio.run(service.create_run(
+            actor_user_id=owner, authorization_context=_authorization_context(owner),
+            thread_id=None, message='Please explain the prior result', stool_followup=ref,
+        ))
+    assert error.value.code == 'stool_followup_thread_required'
+    assert repository.created_run_count == 0
+    thread = asyncio.run(repository.create_thread(owner_user_id=owner, title='', metadata={}))
+    run = asyncio.run(service.create_run(
+        actor_user_id=owner, authorization_context=_authorization_context(owner),
+        thread_id=thread.id, message='Please explain the prior result', stool_followup=ref,
+    ))
+    assert run.thread_id == thread.id
+    assert run.stool_analysis_id == ref.analysis_id and run.stool_baby_id == ref.baby_id
+    assert repository.message_content['stool_followup'] == ref.model_dump(mode='json')
+    assert str(ref.analysis_id) not in str(repository.context_items)
+    assert str(ref.baby_id) not in str(repository.context_items)

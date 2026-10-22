@@ -13,6 +13,7 @@ from pydantic import (
 )
 
 from app.agent_runtime.context.client import AgentClientContext
+from app.agent_runtime.context.stool_followup import StoolFollowupReference
 from app.core.bounded_json import BoundedJsonLimits, validate_bounded_json
 
 
@@ -160,6 +161,7 @@ class AgentRunCreate(BaseModel):
     client_context: AgentClientContext = Field(
         default_factory=AgentClientContext
     )
+    stool_followup: StoolFollowupReference | None = None
     runtime_pattern: Literal["proprietary_runtime"] | None = None
     runtime_version: str | None = Field(default=None, max_length=80)
     idempotency_key: str | None = Field(default=None, max_length=255)
