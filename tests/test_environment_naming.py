@@ -29,6 +29,16 @@ def test_release_builds_only_use_main() -> None:
     assert not (ROOT / "env/production.env.example").exists()
 
 
+def test_pull_requests_validate_without_publishing_or_deploying() -> None:
+    workflow = (ROOT / ".github/workflows/agent-pr-verify.yml").read_text()
+    assert "pull_request:\n    branches: [main]" in workflow
+    assert "permissions:\n  contents: read" in workflow
+    for check in ("ruff check", "mypy app", "python -m pytest", "export_runtime_contract_catalog.py"):
+        assert check in workflow
+    for forbidden in ("docker build", "docker push", "packages: write", "workflow_dispatch:", "secrets."):
+        assert forbidden not in workflow
+
+
 def test_local_compose_retains_valid_docker_host_aliases() -> None:
     compose = (ROOT / "docker-compose.local.yml").read_text()
     assert compose.count("    extra_hosts:") == 2
