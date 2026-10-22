@@ -1,7 +1,7 @@
 name: momcozy-lab-agent-us-east-uat
 
 # Required only in the B private env. A env templates do not define it.
-x-b-env-marker: ${MOMCOZY_B_ENV_MARKER:?Use a B-only US-East UAT private env file}
+x-north-america-env-marker: ${MOMCOZY_NORTH_AMERICA_ENV_MARKER:?Use a B-only US-East UAT private env file}
 
 x-runtime-service: &runtime-service
   image: ${MOMCOZY_AGENT_IMAGE:?Set MOMCOZY_AGENT_IMAGE to an immutable digest reference}

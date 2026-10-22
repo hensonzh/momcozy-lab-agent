@@ -21,15 +21,13 @@ from typing import IO, Any, Callable, Sequence, cast
 
 SERVICE_NAME = "agent-runtime"
 IMAGE_REPOSITORY = "ghcr.io/hensonzh/momcozy-lab-agent"
-DEPLOY_ENVIRONMENTS = frozenset({"staging", "production"})
+DEPLOY_ENVIRONMENTS = frozenset({"staging"})
 DEPLOYMENT_TARGET_ENVIRONMENTS = {
-    "legacy-staging": "staging",
+    "singapore-staging": "staging",
     "north-america-staging": "staging",
-    "production": "production",
 }
 RELEASE_ROOTS = {
-    "staging": Path("/opt/momcozy-lab-staging"),  # Fresh isolated root; legacy test releases remain untouched.
-    "production": Path("/opt/momcozy-lab-production"),
+    "staging": Path("/opt/momcozy-lab-staging"),
 }
 OPENAPI_PATH = Path("docs/openapi.generated.json")
 PRODUCT_CONTRACT_PATH = Path("docs/contracts/product.openapi.generated.json")
@@ -101,13 +99,13 @@ class CommandRunner:
 def validate_environment(value: str) -> str:
     normalized = value.strip().lower()
     if normalized not in DEPLOY_ENVIRONMENTS:
-        raise ValueError("environment must be staging or production")
+        raise ValueError("environment must be staging")
     return normalized
 
 
 def validate_deployment_target(value: str | None, environment: str) -> str:
     runtime_environment = validate_environment(environment)
-    target = value or ("legacy-staging" if runtime_environment == "staging" else "production")
+    target = value or "singapore-staging"
     if DEPLOYMENT_TARGET_ENVIRONMENTS.get(target) != runtime_environment:
         raise ValueError("deployment target does not match the runtime environment")
     return target
@@ -664,6 +662,8 @@ def _validate_env_file(path: Path, expected_environment: str) -> None:
         "PRODUCT_BACKEND_SERVICE_KEY",
         "RUNTIME_ADMIN_SERVICE_KEY",
         "AGENT_MODEL_PROVIDER",
+        "ZOUNDREAM_ENDPOINT",
+        "ZOUNDREAM_API_KEY",
     )
     missing = [name for name in required if not values.get(name, "").strip()]
     if missing:
@@ -675,12 +675,15 @@ def _validate_env_file(path: Path, expected_environment: str) -> None:
         "MOMCOZY_AGENT_MINIO_SECRET_KEY",
         "PRODUCT_BACKEND_SERVICE_KEY",
         "RUNTIME_ADMIN_SERVICE_KEY",
+        "ZOUNDREAM_API_KEY",
     )
     unsafe = [name for name in secret_names if _is_known_placeholder(values[name])]
     if unsafe:
         raise ValueError(f"deployment env contains placeholder values: {', '.join(unsafe)}")
     if values["PRODUCT_BACKEND_SERVICE_KEY"] == values["RUNTIME_ADMIN_SERVICE_KEY"]:
         raise ValueError("Product Backend and Runtime admin service keys must differ")
+    if not values["ZOUNDREAM_ENDPOINT"].startswith("https://") or _is_known_placeholder(values["ZOUNDREAM_ENDPOINT"]):
+        raise ValueError("Singapore cry service requires a public HTTPS endpoint")
     backend_url = values["MOMCOZY_BACKEND_PUBLIC_URL"].rstrip("/")
     if values["PRODUCT_BACKEND_BASE_URL"].rstrip("/") != backend_url:
         raise ValueError("PRODUCT_BACKEND_BASE_URL must match MOMCOZY_BACKEND_PUBLIC_URL")
@@ -1464,7 +1467,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         target = validate_deployment_target(args.deployment_target, args.environment)
         if target == "north-america-staging":
-            raise ValueError("B deployment is not enabled: isolated US-East single-host Compose, private env and separate release root/lock are not implemented")
+            raise ValueError("North America deployment requires its region-specific release entrypoint")
         if args.command == "stage-snapshot":
             stage_release_snapshot(
                 archive=args.archive,

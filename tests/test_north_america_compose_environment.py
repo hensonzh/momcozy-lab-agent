@@ -1,26 +1,26 @@
-"""B Compose ignores inherited A/shell values, including Compose project controls."""
+"""North America Compose ignores inherited A/shell values, including Compose project controls."""
 
 import os
 from pathlib import Path
 
-from scripts.b_compose_env import compose_env
+from scripts.north_america_compose_env import compose_env
 
 
 def test_compose_environment_rejects_inherited_overrides(monkeypatch, tmp_path: Path) -> None:
     for key, value in {
         "COMPOSE_PROJECT_NAME": "a-staging", "COMPOSE_FILE": "docker-compose.deploy.yml",
-        "MOMCOZY_B_ENV_MARKER": "fake", "MOMCOZY_PRODUCT_POSTGRES_DB": "a_database",
+        "MOMCOZY_NORTH_AMERICA_ENV_MARKER": "fake", "MOMCOZY_PRODUCT_POSTGRES_DB": "a_database",
         "DATABASE_URL": "a_database_url", "MOMCOZY_AGENT_IMAGE": "a-image",
         "MOMCOZY_BACKEND_IMAGE": "a-image", "DOCKER_CONTEXT": "a-context",
     }.items():
         monkeypatch.setenv(key, value)
     private = tmp_path / "b.env"
-    private.write_text("MOMCOZY_B_ENV_MARKER=us-east-uat\n")
-    env = compose_env(private, image_variable="MOMCOZY_AGENT_IMAGE", image="b-image", release_id="a" * 40)
-    assert env["MOMCOZY_AGENT_IMAGE"] == "b-image"
+    private.write_text("MOMCOZY_NORTH_AMERICA_ENV_MARKER=us-east-uat\n")
+    env = compose_env(private, image_variable="MOMCOZY_AGENT_IMAGE", image="north-america-image", release_id="a" * 40)
+    assert env["MOMCOZY_AGENT_IMAGE"] == "north-america-image"
     assert env["MOMCOZY_AGENT_ENV_FILE"] == str(private)
     assert env["MOMCOZY_AGENT_RELEASE_ID"] == "a" * 40
-    for key in ("COMPOSE_PROJECT_NAME", "COMPOSE_FILE", "MOMCOZY_B_ENV_MARKER",
+    for key in ("COMPOSE_PROJECT_NAME", "COMPOSE_FILE", "MOMCOZY_NORTH_AMERICA_ENV_MARKER",
                 "MOMCOZY_PRODUCT_POSTGRES_DB", "DATABASE_URL", "DOCKER_CONTEXT"):
         assert key not in env
     assert env["PATH"] == os.environ["PATH"]
@@ -34,7 +34,7 @@ def test_private_file_rejects_compose_controls_and_release_owned_values(tmp_path
                  "MOMCOZY_BACKEND_IMAGE=unreviewed-image"):
         private.write_text(line + "\n")
         with pytest.raises(ValueError, match="release-owned or Compose control"):
-            compose_env(private, image_variable="MOMCOZY_AGENT_IMAGE", image="b-image")
+            compose_env(private, image_variable="MOMCOZY_AGENT_IMAGE", image="north-america-image")
 
 
 def test_real_compose_render_ignores_inherited_a_shell(monkeypatch) -> None:
@@ -48,7 +48,7 @@ def test_real_compose_render_ignores_inherited_a_shell(monkeypatch) -> None:
     root = Path(__file__).resolve().parents[1]
     private = root / "env/us-east-uat.env.example"
     monkeypatch.setenv("COMPOSE_PROJECT_NAME", "a-staging")
-    monkeypatch.setenv("MOMCOZY_B_ENV_MARKER", "a")
+    monkeypatch.setenv("MOMCOZY_NORTH_AMERICA_ENV_MARKER", "a")
     monkeypatch.setenv("MOMCOZY_PRODUCT_POSTGRES_DB", "a_database")
     env = compose_env(private, image_variable="MOMCOZY_AGENT_IMAGE",
                       image="ghcr.io/hensonzh/momcozy-lab-agent@sha256:" + "0" * 64,
@@ -59,14 +59,14 @@ def test_real_compose_render_ignores_inherited_a_shell(monkeypatch) -> None:
     # Only inspect non-secret fields; never place the rendered Compose in test output.
     config = json.loads(output.stdout)
     assert config["name"] == "momcozy-lab-agent-us-east-uat"
-    assert config["x-b-env-marker"] == "us-east-uat"
+    assert config["x-north-america-env-marker"] == "us-east-uat"
     assert "a_database" not in config["services"]["api"]["environment"]["DATABASE_URL"]
 
 
 def test_relative_private_env_path_rejected(tmp_path: Path) -> None:
     import pytest
     with pytest.raises(ValueError, match="absolute"):
-        compose_env(Path("relative.env"), image_variable="MOMCOZY_AGENT_IMAGE", image="b-image")
+        compose_env(Path("relative.env"), image_variable="MOMCOZY_AGENT_IMAGE", image="north-america-image")
 
 
 def test_compose_file_nonsecret_topology_is_exact_after_clean_render(monkeypatch) -> None:

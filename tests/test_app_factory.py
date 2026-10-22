@@ -124,10 +124,10 @@ def test_readiness_fails_closed_when_runtime_jwks_is_unavailable() -> None:
     "app_env",
     ("production", "PRODUCTION", " production "),
 )
-def test_production_requires_product_backend_service_identity(
+def test_removed_production_environment_is_rejected(
     app_env: str,
 ) -> None:
-    with pytest.raises(ValueError, match="PRODUCT_BACKEND_SERVICE_KEY"):
+    with pytest.raises(ValueError, match="APP_ENV"):
         create_app(Settings(app_env=app_env))
 
 
@@ -150,7 +150,7 @@ def test_production_requires_runtime_admin_service_identity() -> None:
     with pytest.raises(ValueError, match="RUNTIME_ADMIN_SERVICE_KEY"):
         create_app(
             Settings(
-                app_env="production",
+                app_env="staging",
                 database_url=(
                     "postgresql+asyncpg://runtime:secret@"
                     "agent-runtime-postgres.internal:5432/agent_runtime"
@@ -456,7 +456,7 @@ def test_production_requires_non_loopback_https_product_backend(backend_url: str
     with pytest.raises(ValueError, match="PRODUCT_BACKEND_BASE_URL"):
         create_app(
             Settings(
-                app_env="production",
+                app_env="staging",
                 product_backend_base_url=backend_url,
                 product_backend_service_key="agent-runtime-production-key-32-bytes",
             )
@@ -466,7 +466,7 @@ def test_production_requires_non_loopback_https_product_backend(backend_url: str
 def test_production_accepts_explicit_remote_https_product_backend() -> None:
     create_app(
         Settings(
-            app_env="production",
+            app_env="staging",
             database_url=(
                 "postgresql+asyncpg://runtime:secret@"
                 "agent-runtime-postgres.internal:5432/agent_runtime"
@@ -485,7 +485,7 @@ def test_production_rejects_loopback_runtime_database() -> None:
     with pytest.raises(ValueError, match="DATABASE_URL"):
         create_app(
             Settings(
-                app_env="production",
+                app_env="staging",
                 database_url=(
                     "postgresql+asyncpg://runtime:secret@"
                     "localhost:5432/agent_runtime"
@@ -517,7 +517,7 @@ def test_production_requires_complete_remote_jwks_configuration(
     with pytest.raises(ValueError, match="AUTH_JWKS_URL|AUTH_JWT_ISSUER"):
         create_app(
             Settings(
-                app_env="production",
+                app_env="staging",
                 database_url=(
                     "postgresql+asyncpg://runtime:secret@"
                     "agent-runtime-postgres.internal:5432/agent_runtime"

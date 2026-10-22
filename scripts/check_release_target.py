@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a B target declaration without deploying or reading secret env files."""
+"""Validate a North America target declaration without deploying or reading secret env files."""
 
 from __future__ import annotations
 
@@ -22,35 +22,35 @@ def validate_target(config: dict[str, str]) -> None:
         not isinstance(config[key], str) or not config[key].strip() or config[key] == "TBD"
         for key in FIELDS
     ):
-        raise ValueError("B target must fill exactly the required fields; TBD is not ready")
+        raise ValueError("North America target must fill exactly the required fields; TBD is not ready")
     if config["deployment_target"] != "north-america-staging" or config["app_env"] != "staging":
-        raise ValueError("B deployment target must be north-america-staging with APP_ENV=staging")
+        raise ValueError("North America deployment target must be north-america-staging with APP_ENV=staging")
     root = Path(config["release_root"])
-    a_roots = (Path("/opt/momcozy-lab"), Path("/opt/momcozy-lab-staging"), Path("/opt/momcozy-lab-production"))
+    singapore_roots = (Path("/opt/momcozy-lab"), Path("/opt/momcozy-lab-staging"), Path("/opt/momcozy-lab-production"))
     if (
         not root.is_absolute()
         or not root.resolve().is_relative_to(Path("/opt").resolve())
-        or any(root.resolve().is_relative_to(a_root) for a_root in a_roots)
+        or any(root.resolve().is_relative_to(singapore_root) for singapore_root in singapore_roots)
     ):
-        raise ValueError("B release_root must be a distinct absolute path under /opt")
+        raise ValueError("North America release_root must be a distinct absolute path under /opt")
     if Path(config["release_lock"]) != root / "shared/north-america-staging-release.lock":
-        raise ValueError("B release_lock must live under the independent B release_root")
+        raise ValueError("North America release_lock must live under the independent North America release_root")
     if Path(config["service_env_file"]) != root / "shared" / SERVICE / "north-america-staging.env":
-        raise ValueError("B service_env_file must live under the independent B release_root")
+        raise ValueError("North America service_env_file must live under the independent North America release_root")
     url = urlsplit(config["public_url"])
     host = (url.hostname or "").lower()
     if url.scheme != "https" or not host or url.username or url.password or url.path not in {"", "/"} or url.query or url.fragment:
-        raise ValueError("B public_url must be an HTTPS origin without credentials or paths")
+        raise ValueError("North America public_url must be an HTTPS origin without credentials or paths")
     template = (ROOT / "env/staging.env.example").read_text()
-    a_hosts = {
+    singapore_hosts = {
         urlsplit(line.split("=", 1)[1].strip()).hostname
         for line in template.splitlines()
         if line.startswith(("MOMCOZY_BACKEND_PUBLIC_URL=", "MOMCOZY_AGENT_PUBLIC_URL="))
     }
-    if host in a_hosts or host.endswith((".test", ".example", ".invalid", ".localhost")):
-        raise ValueError("B public_url must not reuse an A hostname or a placeholder domain")
+    if host in singapore_hosts or host.endswith((".test", ".example", ".invalid", ".localhost")):
+        raise ValueError("North America public_url must not reuse an Singapore hostname or a placeholder domain")
     if config["public_url"] != "https://agent-us-dev.lute-momcozylab.luteos.cloud":
-        raise ValueError("B public_url must match the approved B Agent origin")
+        raise ValueError("North America public_url must match the approved North America Agent origin")
 
 
 def main() -> int:
@@ -62,7 +62,7 @@ def main() -> int:
     except (OSError, ValueError, TypeError, KeyError) as error:
         print(f"FAIL {error}", file=sys.stderr)
         return 1
-    print("B target metadata passes static checks; single-host Compose topology, credentials and host state remain unverified. No deployment performed.")
+    print("North America target metadata passes static checks; single-host Compose topology, credentials and host state remain unverified. No deployment performed.")
     return 0
 
 

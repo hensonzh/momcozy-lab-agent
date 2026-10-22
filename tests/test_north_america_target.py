@@ -1,4 +1,4 @@
-"""B target metadata stays isolated from the existing A release root."""
+"""North America target metadata stays isolated from the existing Singapore release root."""
 
 import json
 from pathlib import Path
@@ -18,7 +18,7 @@ def test_target_template_declares_approved_origin() -> None:
     assert "No deployment performed" in result.stdout
 
 
-def test_b_target_must_have_separate_root_lock_env_and_host(tmp_path: Path) -> None:
+def test_north_america_target_must_have_separate_root_lock_env_and_host(tmp_path: Path) -> None:
     root = "/opt/momcozy-lab-na-staging"
     values = {
         "deployment_target": "north-america-staging",

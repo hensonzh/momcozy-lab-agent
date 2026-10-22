@@ -1,4 +1,4 @@
-"""B Agent ingress must preserve SSE without sharing the A TLS endpoint."""
+"""North America Agent ingress must preserve SSE without sharing the A TLS endpoint."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "deploy/us-east-uat/nginx-agent.conf"
 
 
-def test_b_agent_ingress_preserves_sse_and_isolation() -> None:
+def test_north_america_agent_ingress_preserves_sse_and_isolation() -> None:
     text = SITE.read_text()
     host = "agent-us-dev.lute-momcozylab.luteos.cloud"
     assert f"server_name {host};" in text

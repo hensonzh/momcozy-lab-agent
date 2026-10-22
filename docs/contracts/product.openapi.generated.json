@@ -13476,6 +13476,42 @@
         "x-momcozy-stability": "stable"
       }
     },
+    "/v1/realtime-voice-capability": {
+      "get": {
+        "operationId": "realtime_voice_capability_v1_realtime_voice_capability_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Realtime Voice Capability V1 Realtime Voice Capability Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Realtime Voice Capability",
+        "tags": [
+          "voice"
+        ],
+        "x-momcozy-api-surface": "public_app_api",
+        "x-momcozy-client": [
+          "flutter"
+        ],
+        "x-momcozy-owner": "voice",
+        "x-momcozy-stability": "stable"
+      }
+    },
     "/v1/realtime-voice-stream": {
       "get": {
         "operationId": "realtime_voice_stream_v1_realtime_voice_stream_get",

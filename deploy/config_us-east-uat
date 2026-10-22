@@ -1,10 +1,10 @@
-# US-East UAT (B) non-secret defaults for the planned single-host Compose stack.
+# US-East UAT (North America) non-secret defaults for the planned single-host Compose stack.
 # This file is not a complete env_file and does not start the stack by itself.
 # Agent joins the B Backend-owned network and shares its PostgreSQL, Redis and
 # MinIO containers; it never starts a second stateful stack.
 # Its independent database is momcozy_lab_agent_uat; Product uses
 # momcozy_lab_backend_uat in the same self-hosted PostgreSQL instance.
-# Both services use B Redis DB 0 with distinct key prefixes and ACL users:
+# Both services use North America Redis DB 0 with distinct key prefixes and ACL users:
 # Product rate-limit:* and product:*; Agent agent-runtime:* and
 # momcozy-agent-runtime:*.
 # Both use B MinIO, with separate private buckets and scoped credentials.

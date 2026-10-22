@@ -12,7 +12,7 @@ import sys
 
 def verify(repo: str, commit: str, digest: str) -> None:
     if repo not in ("backend", "agent") or not re.fullmatch(r"[0-9a-f]{40}", commit) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-        raise ValueError("invalid B image identity")
+        raise ValueError("invalid North America image identity")
     image = f"ghcr.io/hensonzh/momcozy-lab-{repo}@{digest}"
     subprocess.run(["docker", "pull", "--platform", "linux/amd64", image], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
     result = subprocess.run(["docker", "image", "inspect", image, "--format", "{{json .}}"],
@@ -24,8 +24,8 @@ def verify(repo: str, commit: str, digest: str) -> None:
             or config.get("User") != "app" or labels.get("org.opencontainers.image.revision") != commit
             or labels.get("org.opencontainers.image.source") != f"https://github.com/hensonzh/momcozy-lab-{repo}"
             or labels.get("org.momcozy.release-target") != "north-america-staging"):
-        raise ValueError("published B image identity differs")
-    # Compile and resolve B Compose entry modules without executing startup or
+        raise ValueError("published North America image identity differs")
+    # Compile and resolve North America Compose entry modules without executing startup or
     # connecting to DB/Redis/provider services on the CI runner.
     imports = ("app.main", "scripts.deliver_auth_emails") if repo == "backend" else ("app.main", "app.workers.agent_run")
     modules = repr(imports)
@@ -49,9 +49,9 @@ def main() -> int:
     try:
         verify(args.repo, args.commit, args.digest)
     except (ValueError, OSError, subprocess.SubprocessError):
-        print("FAIL published B digest identity or offline runtime smoke", file=sys.stderr)
+        print("FAIL published North America digest identity or offline runtime smoke", file=sys.stderr)
         return 1
-    print("Published B digest identity and offline runtime smoke passed; no deployment performed.")
+    print("Published North America digest identity and offline runtime smoke passed; no deployment performed.")
     return 0
 
 

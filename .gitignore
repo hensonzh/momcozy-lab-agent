@@ -17,5 +17,5 @@ dist/
 build/
 *.egg-info/
 
-# B deployment target declaration (non-secret, operator-reviewed)
+# North America deployment target declaration (non-secret, operator-reviewed)
 /config/release-targets/north-america-staging.json

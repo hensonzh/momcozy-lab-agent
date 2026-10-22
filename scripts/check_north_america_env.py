@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only preflight for the private B Compose env; never print secret values."""
+"""Read-only preflight for the private North America Compose env; never print secret values."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 EXPECTED = {
-    "MOMCOZY_B_ENV_MARKER": "us-east-uat",
+    "MOMCOZY_NORTH_AMERICA_ENV_MARKER": "us-east-uat",
     "APP_ENV": "staging",
     "MOMCOZY_BACKEND_COMPOSE_PROJECT": "momcozy-lab-backend-us-east-uat",
     "MOMCOZY_AGENT_COMPOSE_PROJECT": "momcozy-lab-agent-us-east-uat",
@@ -33,74 +33,76 @@ EXPECTED = {
 REQUIRED_SECRETS = (
     "MOMCOZY_AGENT_POSTGRES_PASSWORD", "MOMCOZY_AGENT_REDIS_PASSWORD",
     "MOMCOZY_AGENT_MINIO_ACCESS_KEY", "MOMCOZY_AGENT_MINIO_SECRET_KEY",
-    "PRODUCT_BACKEND_SERVICE_KEY", "RUNTIME_ADMIN_SERVICE_KEY",
+    "PRODUCT_BACKEND_SERVICE_KEY", "RUNTIME_ADMIN_SERVICE_KEY", "ZOUNDREAM_API_KEY",
 )
 
 
 def validate(path: Path) -> None:
     if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
-        raise ValueError("B env must be a regular, non-symlink mode-0600 file")
+        raise ValueError("North America env must be a regular, non-symlink mode-0600 file")
     values: dict[str, str] = {}
     for line in path.read_text().splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         if "=" not in line:
-            raise ValueError("B env contains a malformed line")
+            raise ValueError("North America env contains a malformed line")
         key, value = line.split("=", 1)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
-            raise ValueError("B env contains an invalid key")
+            raise ValueError("North America env contains an invalid key")
         if key in values:
-            raise ValueError(f"duplicate B env key: {key}")
+            raise ValueError(f"duplicate North America env key: {key}")
         values[key] = value.strip()
     for key, expected in EXPECTED.items():
         if values.get(key) != expected:
-            raise ValueError(f"B env {key} does not match the approved B origin or isolated topology")
+            raise ValueError(f"North America env {key} does not match the approved North America origin or isolated topology")
     if values.get("DATABASE_URL", "").split("@")[-1] != "postgres:5432/momcozy_lab_agent_uat":
-        raise ValueError("B env DATABASE_URL must use the B Agent database")
+        raise ValueError("North America env DATABASE_URL must use the North America Agent database")
     if not values.get("DATABASE_URL", "").startswith("postgresql+asyncpg://momcozy_lab_agent_uat:"):
-        raise ValueError("B env DATABASE_URL must use the B Agent role")
+        raise ValueError("North America env DATABASE_URL must use the North America Agent role")
     if values.get("RUNTIME_OUTPUT_STORE_BUCKET") != EXPECTED["MOMCOZY_AGENT_MINIO_BUCKET"]:
-        raise ValueError("B env output store must use the B Agent bucket")
+        raise ValueError("North America env output store must use the North America Agent bucket")
     if values.get("PRODUCT_BACKEND_BASE_URL") != values.get("MOMCOZY_BACKEND_PUBLIC_URL"):
-        raise ValueError("B env Product origin must match its B public URL")
+        raise ValueError("North America env Product origin must match its North America public URL")
     if values.get("AUTH_JWKS_URL") != values.get("MOMCOZY_BACKEND_PUBLIC_URL", "") + "/.well-known/jwks.json":
-        raise ValueError("B env JWKS origin must match the B Product public URL")
+        raise ValueError("North America env JWKS origin must match the North America Product public URL")
     if values.get("AUTH_JWT_ISSUER") != "momcozy-product-us-east-uat":
-        raise ValueError("B env AUTH_JWT_ISSUER must use the B issuer")
+        raise ValueError("North America env AUTH_JWT_ISSUER must use the North America issuer")
     if not values.get("REDIS_URL", "").startswith("redis://agent-runtime:") or values.get("REDIS_URL", "").split("@")[-1] != "redis:6379/0":
-        raise ValueError("B env REDIS_URL must use B Redis DB 0")
-    a_template = (Path(__file__).resolve().parents[1] / "env/staging.env.example").read_text()
-    a_hosts = {
+        raise ValueError("North America env REDIS_URL must use North America Redis DB 0")
+    singapore_template = (Path(__file__).resolve().parents[1] / "env/staging.env.example").read_text()
+    singapore_hosts = {
         urlsplit(line.split("=", 1)[1].strip()).hostname
-        for line in a_template.splitlines()
+        for line in singapore_template.splitlines()
         if line.startswith(("MOMCOZY_BACKEND_PUBLIC_URL=", "MOMCOZY_AGENT_PUBLIC_URL="))
     }
     for key in ("MOMCOZY_BACKEND_PUBLIC_URL", "MOMCOZY_AGENT_PUBLIC_URL"):
         url = urlsplit(values.get(key, ""))
-        if (url.scheme != "https" or not url.hostname or url.hostname in a_hosts
+        if (url.scheme != "https" or not url.hostname or url.hostname in singapore_hosts
                 or url.hostname.endswith((".invalid", ".test", ".localhost"))
                 or url.username or url.password or url.path not in ("", "/")
                 or url.query or url.fragment):
-            raise ValueError(f"B env {key} must be a non-A HTTPS origin")
+            raise ValueError(f"North America env {key} must be a non-Singapore HTTPS origin")
     for key in REQUIRED_SECRETS:
         value = values.get(key, "")
         if not value or "REPLACE_WITH" in value or "${" in value:
-            raise ValueError(f"B env {key} is missing or a placeholder")
+            raise ValueError(f"North America env {key} is missing or a placeholder")
     if values.get("AGENT_MODEL_PROVIDER") == "openai_responses":
         model_secret = "OPENAI_API_KEY"
     elif values.get("AGENT_MODEL_PROVIDER") == "azure_openai_responses":
         model_secret = "AZURE_OPENAI_API_KEY"
     else:
-        raise ValueError("B env model provider must be an approved explicit provider")
+        raise ValueError("North America env model provider must be an approved explicit provider")
     if not values.get(model_secret) or "REPLACE_WITH" in values[model_secret]:
-        raise ValueError(f"B env {model_secret} is missing or a placeholder")
+        raise ValueError(f"North America env {model_secret} is missing or a placeholder")
+    if not values.get("ZOUNDREAM_ENDPOINT", "").startswith("https://"):
+        raise ValueError("North America cry service requires a public HTTPS endpoint")
     for key, value in values.items():
         if "REPLACE_WITH" in value or "example.invalid" in value:
-            raise ValueError(f"B env {key} still contains a placeholder")
+            raise ValueError(f"North America env {key} still contains a placeholder")
     if values.get("PRODUCT_BACKEND_SERVICE_KEY") == values.get("RUNTIME_ADMIN_SERVICE_KEY"):
-        raise ValueError("B env service identities must be distinct")
+        raise ValueError("North America env service identities must be distinct")
     if values.get("MOMCOZY_AGENT_WORKER_CPUS", "") == "" or values.get("MOMCOZY_AGENT_WORKER_MEM_LIMIT", "") == "":
-        raise ValueError("B env worker resource limits must be specified")
+        raise ValueError("North America env worker resource limits must be specified")
 
 
 def main() -> int:
@@ -110,9 +112,9 @@ def main() -> int:
     try:
         validate(args.env_file)
     except (OSError, UnicodeError, ValueError) as error:
-        print(f"FAIL B env preflight: {error if isinstance(error, ValueError) else 'cannot read private env'}", file=sys.stderr)
+        print(f"FAIL North America env preflight: {error if isinstance(error, ValueError) else 'cannot read private env'}", file=sys.stderr)
         return 1
-    print("B Agent private env passes static isolation checks; no deployment or provider checks performed.")
+    print("North America Agent private env passes static isolation checks; no deployment or provider checks performed.")
     return 0
 
 

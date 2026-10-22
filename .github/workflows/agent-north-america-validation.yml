@@ -1,17 +1,14 @@
-name: agent-b-validation
+name: agent-north-america-validation
 
 on:
-  pull_request:
-    branches: [dev]
   push:
-    branches: [dev]
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  b-contract:
+  north-america-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -24,12 +21,12 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
-      - name: Check B contracts and retain A release guard
+      - name: Check North America contracts and retain Singapore release guard
         run: |
           python -m ruff check app tests scripts
-          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_b_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_b_ingress_contract.py tests/test_b_host_layout.py tests/test_b_release_admission.py tests/test_b_validation_workflow.py tests/test_b_compose_environment.py tests/test_b_published_image.py tests/test_release_target_guard.py
+          python -m pytest tests/test_deployment_contract.py tests/test_environment_delivery.py tests/test_check_north_america_env.py tests/test_north_america_target.py tests/test_staging_trust_bundle.py tests/test_north_america_ingress_contract.py tests/test_north_america_host_layout.py tests/test_north_america_release_admission.py tests/test_north_america_validation_workflow.py tests/test_north_america_compose_environment.py tests/test_north_america_published_image.py tests/test_release_target_guard.py
 
-      - name: Validate B Compose without private values
+      - name: Validate North America Compose without private values
         env:
           MOMCOZY_AGENT_IMAGE: ghcr.io/hensonzh/momcozy-lab-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
           MOMCOZY_AGENT_ENV_FILE: env/us-east-uat.env.example
@@ -38,12 +35,12 @@ jobs:
           docker compose --env-file env/us-east-uat.env.example
           -f docker-compose.us-east-uat.yml config --quiet
 
-      - name: Build B-only Dockerfile locally (do not publish)
-        run: docker build -f deploy/Dockerfile -t momcozy-lab-agent:b-validation .
+      - name: Build North America-only Dockerfile locally (do not publish)
+        run: docker build -f deploy/Dockerfile -t momcozy-lab-agent:north-america-validation .
 
-  b-image:
-    needs: b-contract
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+  north-america-image:
+    needs: north-america-contract
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -57,14 +54,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR for B image publication
+      - name: Log in to GHCR for North America image publication
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish B-only image
+      - name: Build and publish North America-only image
         id: build
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
         with:
@@ -72,19 +69,33 @@ jobs:
           file: deploy/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository }}:b-dev-${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}:north-america-main-${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.momcozy.release-target=north-america-staging
 
-      - name: Inspect and smoke the exact published B digest
+      - name: Inspect and smoke the exact published North America digest
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          python3 scripts/check_b_published_image.py --repo agent --commit "${GITHUB_SHA}" --digest "${IMAGE_DIGEST}"
+          python3 scripts/check_north_america_published_image.py --repo agent --commit "${GITHUB_SHA}" --digest "${IMAGE_DIGEST}"
 
-      - name: Record immutable B image reference (no deployment)
+      - name: Preserve CI-produced digest for manual release admission
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf '%s\n' "$IMAGE_DIGEST" > "$RUNNER_TEMP/north-america-image-digest.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: north-america-image-digest
+          path: ${{ runner.temp }}/north-america-image-digest.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Record immutable North America image reference (no deployment)
         id: digest
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
@@ -94,5 +105,5 @@ jobs:
           image_ref="$IMAGE_REPOSITORY@$IMAGE_DIGEST"
           docker buildx imagetools inspect "$image_ref" >/dev/null
           printf 'image_ref=%s\n' "$image_ref" >> "$GITHUB_OUTPUT"
-          printf 'B-only image: `%s`\nSource: `%s`\nNo UAT deployment performed.\n' \
+          printf 'North America-only image: `%s`\nSource: `%s`\nNo UAT deployment performed.\n' \
             "$image_ref" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

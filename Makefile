@@ -9,7 +9,7 @@ DEPLOY_COMPOSE = MOMCOZY_AGENT_IMAGE=$(DEPLOY_IMAGE) MOMCOZY_AGENT_RELEASE_ID=$(
 
 .PHONY: \
 	agent-local-build agent-local-up agent-local-down agent-local-logs \
-	agent-deploy-validate agent-staging-config agent-production-config \
+	agent-deploy-validate agent-staging-config \
 	agent-deploy-ps agent-deploy-logs agent-test agent-lint
 
 agent-local-build:
@@ -32,9 +32,6 @@ agent-deploy-validate:
 
 agent-staging-config:
 	$(MAKE) agent-deploy-validate DEPLOY_ENVIRONMENT=staging DEPLOY_ENV_FILE=env/staging.env.example
-
-agent-production-config:
-	$(MAKE) agent-deploy-validate DEPLOY_ENVIRONMENT=production DEPLOY_ENV_FILE=env/production.env.example
 
 agent-deploy-ps:
 	$(DEPLOY_COMPOSE) ps

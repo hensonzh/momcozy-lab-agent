@@ -1,11 +1,11 @@
-"""The only B artifact eligible for deployment is the verified published digest."""
+"""The only North America artifact eligible for deployment is the verified published digest."""
 
 import json
 import subprocess
 
 import pytest
 
-from scripts import check_b_published_image as image
+from scripts import check_north_america_published_image as image
 
 
 @pytest.mark.parametrize("repo", ("backend", "agent"))

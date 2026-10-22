@@ -1,10 +1,10 @@
-"""B Agent private scaffolding must never overwrite host credentials."""
+"""North America Agent private scaffolding must never overwrite host credentials."""
 
 from pathlib import Path
 
 import pytest
 
-from scripts.prepare_b_host import prepare
+from scripts.prepare_north_america_host import prepare
 
 ROOT = Path(__file__).resolve().parents[1]
 

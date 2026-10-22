@@ -10,9 +10,8 @@ from urllib.parse import urlparse
 from app.core.runtime_limits import ACTION_CONFIRMATION_TTL_SECONDS
 
 
-VALID_APP_ENVS = {"local", "test", "staging", "production"}
-PRODUCTION_ENVS = {"production"}
-DEPLOYED_ENVS = {"staging", "production"}
+VALID_APP_ENVS = {"local", "test", "staging"}
+DEPLOYED_ENVS = {"staging"}
 MODEL_REASONING_EFFORTS = {
     "none",
     "low",
@@ -380,10 +379,6 @@ class Settings:
         )
 
     @property
-    def is_production(self) -> bool:
-        return self.app_env.strip().lower() in PRODUCTION_ENVS
-
-    @property
     def is_deployed(self) -> bool:
         return self.app_env.strip().lower() in DEPLOYED_ENVS
 
@@ -402,13 +397,13 @@ class Settings:
         )
         parsed_jwks_url = urlparse(self.auth_jwks_url)
         if normalized_app_env not in VALID_APP_ENVS:
-            errors.append("APP_ENV must be one of: local, test, staging, production")
+            errors.append("APP_ENV must be one of: local, test, staging")
         if self.runtime_release_id and not re.fullmatch(
             r"[0-9a-f]{40}", self.runtime_release_id
         ):
             errors.append("RUNTIME_RELEASE_ID must be a full lowercase commit SHA")
         if (
-            normalized_app_env in {"test", "staging", "production"}
+            normalized_app_env in {"test", "staging"}
             and self.worker_heartbeats_required
             and not self.runtime_release_id
         ):
@@ -580,7 +575,7 @@ class Settings:
                         "OPENAI_RESPONSES_COMPATIBLE_BASE_URL must be true "
                         "for a custom OPENAI_BASE_URL"
                     )
-                if self.is_production and (
+                if self.is_deployed and (
                     parsed_openai_url.scheme != "https"
                     or _is_loopback_host(parsed_openai_url.hostname)
                 ):
@@ -603,7 +598,7 @@ class Settings:
                     "OpenAI /openai/v1 HTTP(S) URL without credentials, "
                     "query, or fragment"
                 )
-            if self.is_production and (
+            if self.is_deployed and (
                 parsed_azure_url.scheme != "https"
                 or _is_loopback_host(parsed_azure_url.hostname)
             ):

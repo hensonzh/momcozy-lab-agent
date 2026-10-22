@@ -4,12 +4,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_ENV = ROOT / "env" / "local.env.example"
 STAGING_ENV = ROOT / "env" / "staging.env.example"
-PRODUCTION_ENV = ROOT / "env" / "production.env.example"
 LOCAL_COMPOSE = ROOT / "docker-compose.local.yml"
 DEPLOY_COMPOSE = ROOT / "docker-compose.deploy.yml"
 CI_COMPOSE = ROOT / "docker-compose.ci.yml"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "agent-ci.yml"
-DELIVERY_WORKFLOW = ROOT / ".github" / "workflows" / "agent-delivery.yml"
+DELIVERY_WORKFLOW = ROOT / ".github" / "workflows" / "agent-singapore-delivery.yml"
 
 
 def test_compose_profiles_have_single_clear_role() -> None:
@@ -45,20 +44,16 @@ def test_deploy_compose_uses_backend_owned_shared_infrastructure() -> None:
 def test_environment_templates_align_with_backend_topology() -> None:
     local = LOCAL_ENV.read_text()
     staging = STAGING_ENV.read_text()
-    production = PRODUCTION_ENV.read_text()
 
     assert "APP_ENV=local" in local
     assert "APP_ENV=staging" in staging
-    assert "APP_ENV=production" in production
     assert "MOMCOZY_BACKEND_COMPOSE_PROJECT=momcozy-lab-backend-staging" in staging
     assert "MOMCOZY_AGENT_COMPOSE_PROJECT=momcozy-lab-agent-staging" in staging
     assert "MOMCOZY_NETWORK_NAME=momcozy-lab-staging" in staging
     assert "MOMCOZY_AGENT_POSTGRES_DB=agent_runtime_staging" in staging
-    assert "MOMCOZY_AGENT_POSTGRES_DB=agent_runtime_production" in production
     assert "PRODUCT_BACKEND_BASE_URL=https://backend-test.lute-momcozylab.luteos.cloud:8443" in staging
-    assert "PRODUCT_BACKEND_BASE_URL=https://product-api.example.com" in production
-    assert "MOMCOZY_TEST_" not in staging + production
-    assert "sk-" not in staging + production
+    assert "MOMCOZY_TEST_" not in staging
+    assert "sk-" not in staging
 
 
 def test_runtime_release_identity_and_limits_are_explicit() -> None:
@@ -84,8 +79,8 @@ def test_ci_and_delivery_use_canonical_entrypoints() -> None:
     assert "env/staging.env.example" in ci
     assert "python scripts/release.py image-manifest" in ci
     assert "scripts/test_release.py" not in ci + delivery
-    assert "name: ${{ inputs.environment }}" in delivery
-    assert "options:\n          - staging\n          - production" in delivery
+    assert "name: singapore-staging" in delivery
+    assert "options:\n          - staging" in delivery
     assert "--environment '${DEPLOY_ENVIRONMENT}'" in delivery
     assert "secrets.SSH_KNOWN_HOSTS" in delivery
 
@@ -95,7 +90,7 @@ def test_makefile_has_local_and_read_only_deploy_helpers() -> None:
 
     assert "LOCAL_ENV_FILE ?= env/local.env" in makefile
     assert "agent-staging-config" in makefile
-    assert "agent-production-config" in makefile
+    assert "agent-production-config" not in makefile
     assert "agent-deploy-validate" in makefile
     assert "$(DEPLOY_COMPOSE) up" not in makefile
     assert "$(DEPLOY_COMPOSE) down" not in makefile
@@ -138,7 +133,7 @@ def test_us_east_uat_codeup_deploy_files_match_runtime_contract() -> None:
     }
     assert "momcozy_lab_agent_uat" in config
     assert "momcozy_lab_backend_uat" in config
-    assert "Both services use B Redis DB 0" in config
+    assert "Both services use North America Redis DB 0" in config
     assert "agent-runtime:*" in config and "momcozy-agent-runtime:*" in config
     assert "DATABASE_URL" not in entries and "REDIS_URL" not in entries
     assert "cozy-ai.clm4o6oqe8vg" not in config
@@ -153,7 +148,7 @@ def test_us_east_uat_codeup_deploy_files_match_runtime_contract() -> None:
     source = json.loads((ROOT / "deploy/us-east-uat/release-source.json").read_text())
     assert source == {
         "deployment_target": "north-america-staging",
-        "source_branch": "dev",
+        "source_branch": "main",
         "build_context": ".",
         "dockerfile": "deploy/Dockerfile",
         "non_secret_config": "deploy/config_us-east-uat",
@@ -164,9 +159,9 @@ def test_us_east_uat_codeup_deploy_files_match_runtime_contract() -> None:
     assert not (ROOT / "deploy/us-east-uat/workloads.yaml").exists()
     assert not (ROOT / "deploy/us-east-uat/migration-job.yaml").exists()
     handoff = (ROOT / "deploy/us-east-uat/README.md").read_text()
-    assert "scripts/b_first_release.py" in handoff
-    assert "unverified on the target host" in handoff
-    assert "rollback remain unfinished" in handoff
+    assert "scripts/north_america_release.py" in handoff
+    assert "Recheck actual host state" in handoff
+    assert "release/rollback action" in handoff
 
 
 def test_us_east_uat_compose_joins_only_b_network_and_caps_worker() -> None:

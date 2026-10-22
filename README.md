@@ -51,11 +51,12 @@ Flutter configures exactly one Agent Runtime origin through
 actions all derive their `/v1/agent/*` URLs from it. See
 [deployment.md](docs/deployment.md) for deployment and rollback.
 
-Environment names are fixed across the workspace: `local` is developer-only,
-`staging` and `production` are deployable environments, and `test` is reserved
-for tests/ephemeral CI. Both deployed environments use
-`docker-compose.deploy.yml`; their differences live in private environment files
-based on `env/staging.env.example` or `env/production.env.example`.
+Targets are `local`, `singapore-staging` and `north-america-staging`.
+Both deployed targets run `APP_ENV=staging`; `test` is ephemeral CI only.
+Singapore uses `env/staging.env.example` and `docker-compose.deploy.yml`;
+North America uses `env/us-east-uat.env.example` and
+`docker-compose.us-east-uat.yml`. Their private state and credentials remain
+isolated. Only validated `main` commits may publish release images.
 
 ## Local Run
 
@@ -92,18 +93,17 @@ idle worker validate its startup contract without calling a real provider.
 Readiness requires the API, migration, worker heartbeat, PostgreSQL, Redis, and
 JWKS checks to pass before the stack is cleaned up.
 
-## Deployable Environments
+## Regional staging releases
 
-Product Backend must be deployed first because it owns the shared infrastructure.
-Then run the protected `agent-delivery` workflow, select `staging` or
-`production`, and supply a full commit already proven by `agent-ci`. The release
-validates the matching Product Backend manifest and pinned OpenAPI contract,
-drains active work, backs up before migrations, verifies worker heartbeat and
-readiness, and records both service identities in the promoted manifest.
-
-The current staging hostname still contains `-test`; it is a transitional DNS
-label only. See [deployment.md](docs/deployment.md) for the canonical variables,
-secrets and rollback procedure.
+Deploy Product Backend first. Singapore's protected
+`agent-singapore-delivery.yml` consumes a proven `main` image and checks the
+matching Product manifest/OpenAPI, drain, backups, worker and public readiness.
+North America's `agent-north-america-validation.yml` publishes an immutable
+image on `main` but does not deploy it; use its separate guarded host admission
+and release process. Both regional Agent envs require private
+`ZOUNDREAM_ENDPOINT` and `ZOUNDREAM_API_KEY` for baby-cry analysis. See
+[deployment.md](docs/deployment.md); static checks are not evidence of live
+service or provider inference.
 
 Export a replay, optionally evaluating a stored case:
 

@@ -1,10 +1,10 @@
-"""B env preflight is read-only and must fail closed without revealing values."""
+"""North America env preflight is read-only and must fail closed without revealing values."""
 
 from pathlib import Path
 
 import pytest
 
-from scripts.check_b_env import validate
+from scripts.check_north_america_env import validate
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def _private_env(tmp_path: Path) -> Path:
     text = (ROOT / "env/us-east-uat.env.example").read_text()
     text = text.replace("REPLACE_WITH_US_EAST_UAT_", "synthetic-")
+    text = text.replace("REPLACE_WITH_NORTH_AMERICA_ZOUNDREAM_ENDPOINT", "https://vendor.example.org/analyze")
+    text = text.replace("REPLACE_WITH_NORTH_AMERICA_ZOUNDREAM_API_KEY", "synthetic-cry-key")
     path = tmp_path / "private.env"
     path.write_text(text)
     path.chmod(0o600)
@@ -29,12 +31,12 @@ def test_preflight_pins_approved_b_origins(tmp_path: Path) -> None:
     assert f"MOMCOZY_BACKEND_PUBLIC_URL={backend}" in path.read_text()
     assert f"MOMCOZY_AGENT_PUBLIC_URL={agent}" in path.read_text()
     path.write_text(path.read_text().replace(agent, "https://unapproved.example.org"))
-    with pytest.raises(ValueError, match="approved B origin"):
+    with pytest.raises(ValueError, match="approved North America origin"):
         validate(path)
 
 
 @pytest.mark.parametrize("before,after", [
-    ("MOMCOZY_B_ENV_MARKER=us-east-uat", "MOMCOZY_B_ENV_MARKER=staging"),
+    ("MOMCOZY_NORTH_AMERICA_ENV_MARKER=us-east-uat", "MOMCOZY_NORTH_AMERICA_ENV_MARKER=staging"),
     ("MOMCOZY_AGENT_API_BIND=127.0.0.1:8002", "MOMCOZY_AGENT_API_BIND=0.0.0.0:8002"),
     ("MOMCOZY_AGENT_API_BIND=127.0.0.1:8002", "MOMCOZY_AGENT_API_BIND=127.0.0.1:8102"),
     ("MOMCOZY_BACKEND_API_BIND=127.0.0.1:8001", "MOMCOZY_BACKEND_API_BIND=127.0.0.1:8101"),
@@ -62,3 +64,11 @@ def test_preflight_rejects_insecure_or_symlinked_env(tmp_path: Path) -> None:
     link.symlink_to(path)
     with pytest.raises(ValueError):
         validate(link)
+
+@pytest.mark.parametrize("key", ["ZOUNDREAM_ENDPOINT", "ZOUNDREAM_API_KEY"])
+def test_preflight_requires_cry_service_configuration(tmp_path: Path, key: str) -> None:
+    path = _private_env(tmp_path)
+    lines = [line for line in path.read_text().splitlines() if not line.startswith(f"{key}=")]
+    path.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match=key if key.endswith("API_KEY") else "cry service"):
+        validate(path)
