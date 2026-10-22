@@ -18,6 +18,7 @@ from app.infrastructure.product_backend import (
     AgentFileResolveResponse,
     CryAnalysisReadRequest,
 )
+from app.infrastructure.product_backend.contracts import CryAnalysisResult
 from app.agent_runtime.context.compaction import MATERIALIZER_VERSION
 
 
@@ -38,6 +39,8 @@ BOOLEAN_FIELD_TYPES = frozenset({"boolean", "checkbox", "toggle"})
 
 
 class _FileResolver(Protocol):
+    async def read_cry_analysis(self, *, query: CryAnalysisReadRequest, request_id: str) -> CryAnalysisResult: ...
+
     async def fetch_model_asset(
         self, *, actor_user_id: UUID, file_id: UUID, purpose: AgentFilePurpose, request_id: str,
     ) -> tuple[str, bytes]: ...

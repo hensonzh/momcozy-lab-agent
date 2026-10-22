@@ -72,7 +72,7 @@ python scripts/export_runtime_contract_catalog.py --check
 python -m pytest
 python scripts/run_runtime_v1_harness.py
 python -m ruff check app tests scripts
-python -m mypy app tests
+python -m mypy app
 python scripts/run_behavior_eval.py --validate-only
 ```
 

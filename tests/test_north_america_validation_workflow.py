@@ -46,6 +46,8 @@ def test_north_america_image_publication_is_main_only_after_validation() -> None
     assert "steps.build.outputs.digest" in publish
     assert "GITHUB_STEP_SUMMARY" in publish
     assert "docker buildx imagetools inspect" in publish
+    assert "actions/upload-artifact@v4" in publish
+    assert "north-america-image-digest.txt" in publish
     for forbidden in ("docker compose up", "scripts/release.py", "ssh ", "kubectl"):
         assert forbidden not in publish
 

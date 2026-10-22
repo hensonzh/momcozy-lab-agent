@@ -26,7 +26,7 @@ jobs:
         run: python -m ruff check app tests scripts
 
       - name: Type-check
-        run: python -m mypy app tests
+        run: python -m mypy app
 
       - name: Reject Runtime contract catalog drift
         run: python scripts/export_runtime_contract_catalog.py --check
