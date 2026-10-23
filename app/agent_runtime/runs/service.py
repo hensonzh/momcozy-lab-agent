@@ -605,7 +605,8 @@ def _attachment_context_block(
     if attachment.get("type") == "cry_analysis":
         return {"type": "input_text", "text": cry_result_context(
             UUID(attachment["analysis_id"]),
-            {"status": attachment["status"], "answer": attachment.get("answer")},
+            {"status": attachment["status"], "answer": attachment.get("answer"),
+             "reason_code": attachment.get("reason_code")},
             analyzed_at=str(attachment["analyzed_at"]),
         )}
     if attachment.get("type") == "audio":

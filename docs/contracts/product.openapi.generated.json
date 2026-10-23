@@ -1171,6 +1171,18 @@
             "title": "Id",
             "type": "string"
           },
+          "reason_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
           "status": {
             "enum": [
               "done",
@@ -1241,6 +1253,18 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
           },
           "status": {
             "enum": [

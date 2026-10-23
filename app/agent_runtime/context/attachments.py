@@ -110,6 +110,7 @@ class AgentAttachmentService:
                 # Construct text only from a validated enum. Never materialize audio.
                 verified.append({"type": "cry_analysis", "analysis_id": str(analysis_id),
                                  "status": result.status, "answer": result.answer,
+                                 "reason_code": result.reason_code,
                                  "analyzed_at": result.created_at.isoformat()})
             elif attachment_type == "audio":
                 verified.append(await self._verify_audio(

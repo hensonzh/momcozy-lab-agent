@@ -52,6 +52,7 @@ class CryAnalysisResult(BaseModel):
     id: UUID
     status: Literal["done", "incomplete"]
     answer: Literal["sleep", "pain", "burp", "uncomfortable", "hungry", "no_cry"] | None = None
+    reason_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
     thread_id: UUID
     created_at: datetime
 
