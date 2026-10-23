@@ -291,8 +291,8 @@ def test_run_processing_emits_correlated_outcome_metric(
 
 
 def test_single_agent_separates_persona_from_runtime_guidance() -> None:
-    assert AGENT.instructions.startswith("## Identity")
-    assert "Do not give definitive diagnoses" in AGENT.instructions
+    assert AGENT.instructions.startswith("# Momcozy AI System Prompt")
+    assert "Do not make definitive diagnoses" in AGENT.instructions
     assert "load_service_skill" not in AGENT.instructions
     assert "Make decisions based on the full meaning of the request" in AGENT.runtime_guidance
     assert "Use only capabilities explicitly supported" in AGENT.runtime_guidance

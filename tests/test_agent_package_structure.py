@@ -30,7 +30,7 @@ def test_runtime_uses_one_product_named_agent() -> None:
 
 
 def test_system_prompt_owns_identity_style_and_safety_but_not_tool_selection() -> None:
-    assert "You are **Momcozy AI**" in AGENT.instructions
+    assert "You are Momcozy AI" in AGENT.instructions
     assert "self-harm risk" in AGENT.instructions
     assert "load_service_skill" not in AGENT.instructions
     assert "## Skills and Tools" not in AGENT.instructions
@@ -39,7 +39,7 @@ def test_system_prompt_owns_identity_style_and_safety_but_not_tool_selection() -
 
 
 def test_system_prompt_follows_the_user_primary_language() -> None:
-    assert "Reply in the user’s primary language" in AGENT.instructions
+    assert "Reply in the user's primary language" in AGENT.instructions
     assert "Reply in English throughout" not in AGENT.instructions
 
 
@@ -79,12 +79,11 @@ def test_system_prompt_defines_supportive_care_behavior() -> None:
     assert all(
         marker in AGENT.instructions
         for marker in (
-            "Listen first, then advise",
-            "Respect the user’s choices",
-            "Build on each turn",
-            "Do not ask again about matters already answered",
-            "Respond to emotions as well as the problem",
-            "Speak like a person, not a template",
-            "Reassurance should be grounded in what is known",
+            "Do not turn every conversation into a fixed",
+            "Notice emotions without performing empathy",
+            "Offer real emotional support",
+            "Continue the conversation, don't restart it",
+            "Sound natural and know when to stop",
+            "Reassurance needs a basis in facts",
         )
     )
