@@ -18,7 +18,7 @@ from app.auth import RuntimePrincipal
 from app.core.errors import ApiError
 from app.infrastructure.product_backend.contracts import StoolContextReadRequest, StoolContextReadResponse
 
-RESULT_SCHEMA_VERSION = "stool.result.v1"  # Draft; not a clinically validated schema.
+RESULT_SCHEMA_VERSION = "stool.result.v1"
 
 
 class StoolFollowupReference(BaseModel):
@@ -75,7 +75,7 @@ class ProductStoolFollowupResolver:
     """Translate one canonical Run principal into a fresh Product authorization read.
 
     Its session/expiry come from the signed RuntimePrincipal; Product remains
-    default-closed until clinical review and retention are approved.
+    the per-call authorization boundary and is configuration-gated by default.
     """
 
     def __init__(
