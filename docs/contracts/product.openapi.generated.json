@@ -6840,6 +6840,30 @@
             "title": "Created At",
             "type": "string"
           },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "result_schema_version": {
+            "anyOf": [
+              {
+                "const": "stool.result.v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Schema Version"
+          },
           "status": {
             "enum": [
               "queued",
@@ -6934,6 +6958,30 @@
             "format": "uuid",
             "title": "Analysis Id",
             "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "result_schema_version": {
+            "anyOf": [
+              {
+                "const": "stool.result.v1",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Schema Version"
           },
           "status": {
             "enum": [
