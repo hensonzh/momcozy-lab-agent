@@ -3,6 +3,12 @@ import pytest
 from app.core.settings import Settings
 
 
+def test_default_openai_model_and_effort_match_north_america_target() -> None:
+    settings = Settings()
+    assert settings.openai_model == "gpt-6-sol"
+    assert settings.agent_model_reasoning_effort == "low"
+
+
 def test_only_staging_is_a_deployed_environment() -> None:
     assert Settings(app_env="staging").is_deployed is True
     assert Settings(app_env="local").is_deployed is False

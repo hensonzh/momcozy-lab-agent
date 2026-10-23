@@ -87,7 +87,7 @@ class Settings:
     openai_api_key: str = ""
     openai_base_url: str = ""
     openai_responses_compatible_base_url: bool = False
-    openai_model: str = "gpt-5.6-terra"
+    openai_model: str = "gpt-6-sol"
     azure_openai_endpoint: str = ""
     azure_openai_auth_mode: str = "entra"
     azure_openai_api_key: str = ""

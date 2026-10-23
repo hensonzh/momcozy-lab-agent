@@ -78,7 +78,7 @@ OpenAI：
 ```dotenv
 AGENT_MODEL_PROVIDER=openai_responses
 OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.6-terra
+OPENAI_MODEL=gpt-6-sol
 ```
 
 自定义 `OPENAI_BASE_URL` 还必须设置
@@ -92,7 +92,7 @@ AGENT_MODEL_PROVIDER=azure_openai_responses
 AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/openai/v1
 AZURE_OPENAI_AUTH_MODE=entra
 AZURE_OPENAI_DEPLOYMENT=<deployment-name>
-AZURE_OPENAI_MODEL_FAMILY=gpt-5.6-terra
+AZURE_OPENAI_MODEL_FAMILY=gpt-6-sol
 AZURE_OPENAI_MODEL_VERSION=<deployed-version>
 AZURE_OPENAI_REGION=<region>
 AZURE_OPENAI_DEPLOYMENT_TYPE=standard
