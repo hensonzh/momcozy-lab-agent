@@ -304,13 +304,15 @@ def test_context_coordinator_places_only_current_snapshot_before_current_request
     assert len(model.requests) == 2
     assert len(port.model_budget_requests) == 2
     for request in model.requests:
-        assert list(request.input_items[:4]) == [record.item for record in projected]
+        assert list(request.input_items[2:6]) == [record.item for record in projected]
     for input_items, _tools in port.model_budget_requests:
         prefix = input_items[0]
-        assert prefix["role"] == "developer"
+        assert prefix["role"] == "system"
         assert prefix["content"][0]["text"] == RUNTIME_DEFINITION.agent.instructions
-        assert list(input_items[1:5]) == [record.item for record in projected]
-        assert "prompt_cache_breakpoint" not in json.dumps(input_items[1:])
+        assert input_items[1]["role"] == "developer"
+        assert input_items[1]["content"][0]["text"] == RUNTIME_DEFINITION.agent.runtime_guidance
+        assert list(input_items[2:6]) == [record.item for record in projected]
+        assert "prompt_cache_breakpoint" not in json.dumps(input_items[2:])
     assert any(item.get("type") == "function_call_output" for item in model.requests[1].input_items)
 
 

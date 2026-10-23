@@ -15,7 +15,7 @@ SOURCE_PATTERN = re.compile(r"^<!-- 中文对照；英文源文件 SHA-256: ([a-
 
 
 def test_every_runtime_instruction_has_one_current_chinese_review_copy() -> None:
-    sources = {Path("system_prompt.md"), *(
+    sources = {Path("system_prompt.md"), Path("runtime_guidance.md"), *(
         path.relative_to(AGENT_ROOT) for path in (AGENT_ROOT / "skills").rglob("*.md")
     )}
     mirrors = {path.relative_to(MIRROR_ROOT) for path in MIRROR_ROOT.rglob("*.md") if path.name != "README.md"}
@@ -29,7 +29,7 @@ def test_every_runtime_instruction_has_one_current_chinese_review_copy() -> None
         assert match.group(1) == hashlib.sha256(source).hexdigest(), relative_path
         assert translated.count("<!-- 中文对照；英文源文件 SHA-256:") == 1, relative_path
         assert any("\u4e00" <= char <= "\u9fff" for char in translated), relative_path
-        if relative_path != Path("system_prompt.md"):
+        if relative_path not in {Path("system_prompt.md"), Path("runtime_guidance.md")}:
             source_text = source.decode("utf-8")
             source_name = re.search(r"^name: ([a-z0-9-]+)$", source_text, re.M)
             mirror_name = re.search(r"^name: ([a-z0-9-]+)$", translated, re.M)

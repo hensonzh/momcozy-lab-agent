@@ -533,18 +533,19 @@ class ResponsesAgentsExecutionEngine:
         input_items = cast(
             list[TResponseInputItem],
             [
-                _stable_prefix_item(
+                *_stable_instruction_items(
                     instructions,
-                    prompt_cache_breakpoints=(state.prompt_cache_breakpoints),
+                    runtime_guidance=state.runtime.agent.runtime_guidance,
+                    prompt_cache_breakpoints=state.prompt_cache_breakpoints,
                 ),
                 *(deepcopy(item) for item in resolved),
             ],
         )
-        prefix = cast(dict[str, Any], input_items[0])
-        if response_policy != "non_health" and isinstance(prefix, dict) and isinstance(prefix.get("content"), list):
-            prefix_content = list(prefix["content"])
-            prefix_content.append({"type": "input_text", "text": policy_instruction})
-            prefix["content"] = prefix_content
+        guidance = cast(dict[str, Any], input_items[1])
+        if response_policy != "non_health":
+            guidance_content = list(guidance["content"])
+            guidance_content.append({"type": "input_text", "text": policy_instruction})
+            guidance["content"] = guidance_content
         converted_tools = Converter.convert_tools(
             list(data.agent.tools),
             [],
@@ -719,22 +720,19 @@ class _DurableRunHooks(RunHooks[_ExecutionState]):
         )
 
 
-def _stable_prefix_item(
+def _stable_instruction_items(
     instructions: str,
     *,
+    runtime_guidance: str,
     prompt_cache_breakpoints: bool,
-) -> dict[str, Any]:
-    content: dict[str, Any] = {
-        "type": "input_text",
-        "text": instructions,
-    }
+) -> list[dict[str, Any]]:
+    guidance: dict[str, Any] = {"type": "input_text", "text": runtime_guidance}
     if prompt_cache_breakpoints:
-        content["prompt_cache_breakpoint"] = dict(PROMPT_CACHE_BREAKPOINT)
-    return {
-        "type": "message",
-        "role": "developer",
-        "content": [content],
-    }
+        guidance["prompt_cache_breakpoint"] = dict(PROMPT_CACHE_BREAKPOINT)
+    return [
+        {"type": "message", "role": "system", "content": [{"type": "input_text", "text": instructions}]},
+        {"type": "message", "role": "developer", "content": [guidance]},
+    ]
 
 
 def _execution_manifest(

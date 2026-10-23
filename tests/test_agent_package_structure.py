@@ -29,18 +29,13 @@ def test_runtime_uses_one_product_named_agent() -> None:
     )
 
 
-def test_system_prompt_owns_identity_tool_selection_and_safety_boundaries() -> None:
-    assert all(
-        marker in AGENT.instructions
-        for marker in (
-            "You are **Momcozy AI**",
-            "load_service_skill",
-            "professional domain rules or workflows",
-            "Use only capabilities explicitly supported",
-            "self-harm risk",
-            "risk of harming the baby or others",
-        )
-    )
+def test_system_prompt_owns_identity_style_and_safety_but_not_tool_selection() -> None:
+    assert "You are **Momcozy AI**" in AGENT.instructions
+    assert "self-harm risk" in AGENT.instructions
+    assert "load_service_skill" not in AGENT.instructions
+    assert "## Skills and Tools" not in AGENT.instructions
+    assert "professional domain rules or workflows" in AGENT.runtime_guidance
+    assert "Use only capabilities explicitly supported" in AGENT.runtime_guidance
 
 
 def test_system_prompt_follows_the_user_primary_language() -> None:
@@ -70,6 +65,7 @@ def test_agent_package_has_canonical_single_agent_files() -> None:
         "definition.py",
         "skill_registry.py",
         "system_prompt.md",
+        "runtime_guidance.md",
     }
     assert {
         path.relative_to(agent_root / "skills").as_posix()
@@ -85,11 +81,10 @@ def test_system_prompt_defines_supportive_care_behavior() -> None:
         for marker in (
             "Listen first, then advise",
             "Respect the user’s choices",
-            "Clarify misconceptions gently",
-            "Find solutions together",
             "Build on each turn",
-            "do not ask again about matters already answered",
-            "Do not turn the professional assessment framework into a checklist of questions",
-            "Strengthen self-efficacy",
+            "Do not ask again about matters already answered",
+            "Respond to emotions as well as the problem",
+            "Speak like a person, not a template",
+            "Reassurance should be grounded in what is known",
         )
     )

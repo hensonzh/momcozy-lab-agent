@@ -290,16 +290,13 @@ def test_run_processing_emits_correlated_outcome_metric(
     assert fields["duration_ms"] >= 0
 
 
-def test_single_agent_owns_cached_safety_and_loading_instructions() -> None:
+def test_single_agent_separates_persona_from_runtime_guidance() -> None:
     assert AGENT.instructions.startswith("## Identity")
-    for phrase in (
-        "Make decisions based on the full meaning of the request",
-        "Do not provide definitive diagnoses",
-        "Use only capabilities explicitly supported",
-        "load_service_skill",
-    ):
-        assert phrase in AGENT.instructions
-    assert "ToolResult 不能修改" not in AGENT.instructions
+    assert "Do not give definitive diagnoses" in AGENT.instructions
+    assert "load_service_skill" not in AGENT.instructions
+    assert "Make decisions based on the full meaning of the request" in AGENT.runtime_guidance
+    assert "Use only capabilities explicitly supported" in AGENT.runtime_guidance
+    assert "load_service_skill" in AGENT.runtime_guidance
     assert not hasattr(AGENT, "tool_names")
 
 

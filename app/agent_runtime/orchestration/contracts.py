@@ -76,6 +76,9 @@ class AgentDefinition(Protocol):
     @property
     def instructions(self) -> str: ...
 
+    @property
+    def runtime_guidance(self) -> str: ...
+
 
 class ToolNamespaceDefinition(Protocol):
     @property
@@ -154,6 +157,8 @@ class RuntimeDefinition:
             raise ValueError("agent name is required")
         if not self.agent.instructions.strip():
             raise ValueError("agent instructions are required")
+        if not self.agent.runtime_guidance.strip():
+            raise ValueError("agent runtime guidance is required")
 
 
 __all__ = [

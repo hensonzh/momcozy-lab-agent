@@ -30,9 +30,9 @@ def test_three_references_have_distinct_plan_responsibilities() -> None:
     assert "do not fabricate clock times" in work
 
 
-def test_conversational_plan_does_not_bypass_system_prompt_write_rules() -> None:
+def test_conversational_plan_does_not_bypass_runtime_write_rules() -> None:
     skill = SERVICE_SKILL_REGISTRY.get("lactation")
     assert "conversational plan is not a saved App plan" in skill.content
     assert "global write-tool confirmation rules" in skill.content
-    assert "Wait for the next user message" in AGENT.instructions
-    assert "Do not claim a calendar entry sets a reminder or notification" in AGENT.instructions
+    assert "Wait for the next user message" in AGENT.runtime_guidance
+    assert "Do not claim a calendar entry sets a reminder or notification" in AGENT.runtime_guidance

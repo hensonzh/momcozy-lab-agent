@@ -18,6 +18,7 @@ def test_application_owns_one_singular_agent_package() -> None:
         "definition.py",
         "skill_registry.py",
         "system_prompt.md",
+        "runtime_guidance.md",
     }
     assert not (AGENT_ROOT / "shared").exists()
     assert not (AGENT_ROOT / "registry.py").exists()

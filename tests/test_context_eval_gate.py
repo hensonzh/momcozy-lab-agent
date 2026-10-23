@@ -134,7 +134,7 @@ def test_context_eval_assertion_engine_detects_breakpoint_after_dynamic_attachme
         if case.id == "stable_prefix_cache_breakpoint"
     )
     trace = _release_trace()
-    dynamic_block = trace["provider_request"]["input"][1]["content"][0]
+    dynamic_block = trace["provider_request"]["input"][2]["content"][0]
     dynamic_block["prompt_cache_breakpoint"] = {"mode": "explicit"}
 
     failures = evaluate_context_case(case=case, trace=trace)
@@ -209,14 +209,17 @@ def _release_trace() -> dict[str, Any]:
             "input": [
                 {
                     "type": "message",
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": "stable persona"}],
+                },
+                {
+                    "type": "message",
                     "role": "developer",
                     "content": [
                         {
                             "type": "input_text",
-                            "text": "stable instructions",
-                            "prompt_cache_breakpoint": {
-                                "mode": "explicit"
-                            },
+                            "text": "stable runtime guidance",
+                            "prompt_cache_breakpoint": {"mode": "explicit"},
                         }
                     ],
                 },

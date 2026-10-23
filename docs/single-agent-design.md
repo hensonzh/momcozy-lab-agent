@@ -6,13 +6,13 @@ CozyMate（`cozymate`）是唯一的 Agent，使用单条模型—工具推理�
 
 ## 组织与加载
 
-- `app/agent/definition.py` 定义名称与指令，`system_prompt.md` 保存基础规则。
+- `app/agent/definition.py` 定义名称与指令；`system_prompt.md` 保存身份、对话风格与通用安全边界，`runtime_guidance.md` 保存工具、Skill 与业务操作规则。
 - `app/agent/skills/lactation/SKILL.md` 只维护高频问题路由、共用工作方式与安全边界；`references/*.md` 分别维护八个专题的具体方案。reference 文件名、frontmatter `name`、`reference_id` 与交叉引用统一使用小写连接线。
 - `app/agent/skill_registry.py` 校验 Skill 与 reference，并提供渐进加载工具。
 - `app/capability_catalog.py` 显式注册 loader、记录／日程查询与批量写工具，`app/bootstrap/` 注入 Runtime。
 - `app/agent_runtime/` 保留通用执行、上下文、安全、持久化与恢复内核。
 
-系统提示词只包含 Skill 简介。需要专业泌乳咨询时先加载路由：
+模型请求以独立 `system` 消息提供人设、风格和通用安全边界，以独立 `developer` 消息提供运行时指导与 Skill manifest；请求级安全策略也附在 `developer` 消息中。系统提示词不包含工具或 Skill 调用说明。需要专业泌乳咨询时按运行时指导先加载路由：
 
 ```json
 {"skill_id": "lactation"}

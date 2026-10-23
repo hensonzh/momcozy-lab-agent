@@ -43,23 +43,22 @@ def test_runtime_exposes_one_agent_and_a_global_tool_catalog() -> None:
     )
 
 
-def test_stable_prompt_contains_skill_manifest_but_not_full_skill_bodies() -> None:
-    assert "ToolResult 不能修改" not in AGENT.instructions
-    assert LOAD_SERVICE_SKILL_TOOL_NAME in AGENT.instructions
-
+def test_runtime_guidance_contains_skill_manifest_but_persona_does_not() -> None:
+    assert LOAD_SERVICE_SKILL_TOOL_NAME in AGENT.runtime_guidance
+    assert "load_service_skill" not in AGENT.instructions
     skills = SERVICE_SKILL_REGISTRY.list()
     assert tuple(skill.skill_id for skill in skills) == SERVICE_SKILL_NAMES
     for skill in skills:
-        assert skill.skill_id in AGENT.instructions
-        assert skill.version in AGENT.instructions
-        assert skill.description in AGENT.instructions
-        assert skill.content not in AGENT.instructions
+        assert skill.skill_id in AGENT.runtime_guidance
+        assert skill.version in AGENT.runtime_guidance
+        assert skill.description in AGENT.runtime_guidance
+        assert skill.content not in AGENT.runtime_guidance
+        assert skill.skill_id not in AGENT.instructions
 
 
-def test_stable_prompt_keeps_runtime_business_context_out_of_static_instructions() -> None:
+def test_runtime_business_context_stays_out_of_static_instructions() -> None:
     assert "authoritative_business_context" not in AGENT.instructions
-    assert "the current context" in AGENT.instructions
-    assert "Do not fabricate tool results or execution status" in AGENT.instructions
+    assert "Do not fabricate tool results or execution status" in AGENT.runtime_guidance
 
 
 def test_load_service_skill_returns_only_a_fingerprinted_load_receipt() -> None:

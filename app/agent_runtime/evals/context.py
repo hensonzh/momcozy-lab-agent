@@ -133,25 +133,36 @@ def _evaluate_assertion(
         if not isinstance(request_payload, dict):
             return False
         input_items = request_payload.get("input", [])
-        if not isinstance(input_items, list) or not input_items:
+        if not isinstance(input_items, list) or len(input_items) < 2:
             return False
-        first = input_items[0]
-        if not isinstance(first, dict):
+        persona, guidance = input_items[:2]
+        if not isinstance(persona, dict) or not isinstance(guidance, dict):
             return False
-        content = first.get("content", [])
-        if not isinstance(content, list) or len(content) != 1:
+        persona_content = persona.get("content", [])
+        guidance_content = guidance.get("content", [])
+        if not isinstance(persona_content, list) or len(persona_content) != 1:
             return False
-        block = content[0]
+        if not isinstance(guidance_content, list) or not guidance_content:
+            return False
+        persona_block = persona_content[0]
+        guidance_block = guidance_content[0]
         return (
             request_payload.get("prompt_cache_options") == {"mode": "explicit", "ttl": "30m"}
             and "instructions" not in request_payload
-            and first.get("type") == "message"
-            and first.get("role") == "developer"
-            and isinstance(block, dict)
-            and block.get("type") == "input_text"
-            and bool(block.get("text"))
-            and block.get("prompt_cache_breakpoint") == {"mode": "explicit"}
-            and "prompt_cache_breakpoint" not in _json(input_items[1:])
+            and persona.get("type") == "message"
+            and persona.get("role") == "system"
+            and isinstance(persona_block, dict)
+            and persona_block.get("type") == "input_text"
+            and bool(persona_block.get("text"))
+            and "prompt_cache_breakpoint" not in _json(persona)
+            and guidance.get("type") == "message"
+            and guidance.get("role") == "developer"
+            and isinstance(guidance_block, dict)
+            and guidance_block.get("type") == "input_text"
+            and bool(guidance_block.get("text"))
+            and guidance_block.get("prompt_cache_breakpoint") == {"mode": "explicit"}
+            and "prompt_cache_breakpoint" not in _json(guidance_content[1:])
+            and "prompt_cache_breakpoint" not in _json(input_items[2:])
         )
     if assertion.type == "persistence.no_materialized_urls":
         persisted = _json(trace.get("persisted_context", {}))

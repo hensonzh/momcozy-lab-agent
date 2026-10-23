@@ -169,7 +169,7 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     )
 
     assert result.text == "图片已收到。"
-    assert model.requests[0].input_items[0]["content"] == [
+    assert model.requests[0].input_items[2]["content"] == [
         {
             "type": "input_image",
             "image_url": "https://assets.test/image",
@@ -220,12 +220,11 @@ def test_model_input_is_materialized_and_manifest_is_content_safe() -> None:
     assert len(manifest["manifest_sha256"]) == 64
     assert len(port.model_budget_requests) == 1
     budget_input, budget_tools = port.model_budget_requests[0]
-    assert budget_input[0]["role"] == "developer"
-    assert (
-        budget_input[0]["content"][0]["text"]
-        == RUNTIME_DEFINITION.agent.instructions
-    )
-    assert "https://assets.test/image" in str(budget_input[1])
+    assert budget_input[0]["role"] == "system"
+    assert budget_input[0]["content"][0]["text"] == RUNTIME_DEFINITION.agent.instructions
+    assert budget_input[1]["role"] == "developer"
+    assert budget_input[1]["content"][0]["text"] == RUNTIME_DEFINITION.agent.runtime_guidance
+    assert "https://assets.test/image" in str(budget_input[2])
     assert "internal-asset" not in str(budget_input)
     assert not any(tool.get("type") == "tool_search" for tool in budget_tools)
     assert any(
@@ -364,7 +363,7 @@ def test_openai_sdk_receives_inline_image_and_pdf_without_persisting_bytes() -> 
     ))
 
     assert result.text == "完成。"
-    assert client.responses.kwargs["input"][1]["content"] == [
+    assert client.responses.kwargs["input"][2]["content"] == [
         {"type": "input_image", "image_url": "data:image/png;base64,aW1hZ2U="},
         {"type": "input_file", "file_data": "data:application/pdf;base64,cGRm", "filename": "guide.pdf"},
     ]
@@ -418,19 +417,19 @@ def test_openai_sdk_model_receives_stable_runtime_request_contract() -> None:
     assert request["include"] == ["reasoning.encrypted_content"]
     assert request["input"][0] == {
         "type": "message",
-        "role": "developer",
-        "content": [
-            {
-                "type": "input_text",
-                "text": RUNTIME_DEFINITION.agent.instructions,
-                "prompt_cache_breakpoint": {"mode": "explicit"},
-            }
-        ],
+        "role": "system",
+        "content": [{"type": "input_text", "text": RUNTIME_DEFINITION.agent.instructions}],
     }
     assert request["input"][1] == {
-        "role": "user",
-        "content": "你好",
+        "type": "message",
+        "role": "developer",
+        "content": [{
+            "type": "input_text",
+            "text": RUNTIME_DEFINITION.agent.runtime_guidance,
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        }],
     }
+    assert request["input"][2] == {"role": "user", "content": "你好"}
     assert [
         tool
         for tool in request["tools"]
@@ -483,13 +482,14 @@ def test_responses_wire_keeps_loaded_skill_in_a_separate_developer_message() -> 
         authorization_permissions=_all_tool_permissions(),
     ))
     wire_items = client.responses.kwargs["input"]
-    assert wire_items[0]["role"] == "developer"
-    assert skill.content not in str(wire_items[0])
-    assert wire_items[2]["type"] == "function_call_output"
-    assert "content" not in json.loads(wire_items[2]["output"])
-    assert wire_items[3] == skill.developer_item()
-    assert wire_items[4]["role"] == "user"
-    assert port.model_budget_requests[0][0][3] == wire_items[3]
+    assert wire_items[0]["role"] == "system"
+    assert wire_items[1]["role"] == "developer"
+    assert skill.content not in str(wire_items[0:2])
+    assert wire_items[3]["type"] == "function_call_output"
+    assert "content" not in json.loads(wire_items[3]["output"])
+    assert wire_items[4] == skill.developer_item()
+    assert wire_items[5]["role"] == "user"
+    assert port.model_budget_requests[0][0][4] == wire_items[4]
 
 
 def test_azure_openai_profile_drives_request_and_manifest_metadata() -> None:
@@ -969,7 +969,7 @@ def test_openai_sdk_receives_original_audio_and_verified_signal_without_persisti
         ]},), port=port, authorization_permissions=_all_tool_permissions(),
     ))
     assert result.text == "完成。"
-    assert client.responses.kwargs["input"][1]["content"] == [
+    assert client.responses.kwargs["input"][2]["content"] == [
         {"type": "input_text", "text": "第三方结果：sleep"},
         {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}},
     ]
